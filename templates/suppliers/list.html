@@ -16,28 +16,32 @@
 </div>
 
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-  <!-- Mobile: cards -->
+
+  {# Mobile: cards #}
   <div class="md:hidden divide-y divide-gray-50">
     {% for s in suppliers %}
-    <div class="px-5 py-4 {% if not s.active %}opacity-50{% endif %}">
+    <a href="/suppliers/{{ s.id }}" class="block px-5 py-4 hover:bg-gray-50 transition-colors {% if not s.active %}opacity-50{% endif %}">
       <div class="flex items-start justify-between gap-3">
-        <div>
-          <p class="font-semibold text-gray-900 text-sm">{{ s.name }}</p>
-          {% if s.cuit %}<p class="text-xs text-gray-500 mt-0.5">CUIT: {{ s.cuit }}</p>{% endif %}
-          {% if s.contact_name or s.contact_phone %}
-          <p class="text-xs text-gray-400 mt-1">{{ s.contact_name }}{% if s.contact_name and s.contact_phone %} · {% endif %}{{ s.contact_phone }}</p>
-          {% endif %}
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
+            {{ s.name[0]|upper }}
+          </div>
+          <div class="min-w-0">
+            <p class="font-semibold text-gray-900 text-sm">{{ s.name }}</p>
+            {% if s.cuit %}<p class="text-xs text-gray-500 mt-0.5 font-mono">{{ s.cuit }}</p>{% endif %}
+            {% if s.contact_name or s.contact_phone %}
+            <p class="text-xs text-gray-400 mt-0.5">{{ s.contact_name }}{% if s.contact_name and s.contact_phone %} · {% endif %}{{ s.contact_phone }}</p>
+            {% endif %}
+          </div>
         </div>
-        <div class="flex flex-col items-end gap-2">
+        <div class="flex flex-col items-end gap-2 flex-shrink-0">
           <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full {% if s.active %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-gray-100 text-gray-400 border border-gray-200{% endif %}">
             {{ "Activo" if s.active else "Inactivo" }}
           </span>
-          {% if user.role in ("admin", "superadmin") %}
-          <a href="/suppliers/{{ s.id }}/edit" class="text-xs text-indigo-600 font-medium">Editar</a>
-          {% endif %}
+          <span class="text-xs text-indigo-600 font-medium">Ver historial →</span>
         </div>
       </div>
-    </div>
+    </a>
     {% else %}
     <div class="px-5 py-12 text-center">
       <svg class="w-10 h-10 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -49,7 +53,7 @@
     {% endfor %}
   </div>
 
-  <!-- Desktop: tabla -->
+  {# Desktop: tabla #}
   <table class="hidden md:table w-full text-sm">
     <thead>
       <tr class="border-b border-gray-50">
@@ -59,15 +63,20 @@
         <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Teléfono</th>
         <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Email</th>
         <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Estado</th>
-        {% if user.role in ("admin", "superadmin") %}
         <th class="px-5 py-3"></th>
-        {% endif %}
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
       {% for s in suppliers %}
       <tr class="hover:bg-gray-50 transition-colors {% if not s.active %}opacity-50{% endif %}">
-        <td class="px-5 py-3.5 font-semibold text-gray-900">{{ s.name }}</td>
+        <td class="px-5 py-3.5">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-700 text-xs font-bold flex-shrink-0">
+              {{ s.name[0]|upper }}
+            </div>
+            <a href="/suppliers/{{ s.id }}" class="font-semibold text-gray-900 hover:text-indigo-700">{{ s.name }}</a>
+          </div>
+        </td>
         <td class="px-5 py-3.5 text-gray-500 font-mono text-xs">{{ s.cuit or "—" }}</td>
         <td class="px-5 py-3.5 text-gray-600">{{ s.contact_name or "—" }}</td>
         <td class="px-5 py-3.5 text-gray-600">{{ s.contact_phone or "—" }}</td>
@@ -77,11 +86,17 @@
             {{ "Activo" if s.active else "Inactivo" }}
           </span>
         </td>
-        {% if user.role in ("admin", "superadmin") %}
         <td class="px-5 py-3.5 text-right">
-          <a href="/suppliers/{{ s.id }}/edit" class="text-indigo-600 hover:text-indigo-700 text-xs font-medium">Editar</a>
+          <div class="flex items-center justify-end gap-3">
+            <a href="/suppliers/{{ s.id }}" class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-xs font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              Ver historial
+            </a>
+            {% if user.role in ("admin", "superadmin") %}
+            <a href="/suppliers/{{ s.id }}/edit" class="text-gray-400 hover:text-gray-600 text-xs font-medium">Editar</a>
+            {% endif %}
+          </div>
         </td>
-        {% endif %}
       </tr>
       {% else %}
       <tr>
