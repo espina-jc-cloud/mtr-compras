@@ -1,36 +1,82 @@
 {% extends "base.html" %}
-{% block title %}Nuevo Usuario — MTR{% endblock %}
+{% block title %}Nuevo usuario — MTR{% endblock %}
 {% block content %}
+
 <div class="max-w-lg mx-auto">
-    <a href="/admin/users" class="text-blue-600 text-sm">← Usuarios</a>
-    <h2 class="text-2xl font-bold text-gray-800 mt-2 mb-6">Nuevo usuario</h2>
-    {% if error %}<div class="bg-red-50 border border-red-300 text-red-700 rounded-lg px-4 py-3 mb-4">{{ error }}</div>{% endif %}
-    <form method="post" action="/admin/users/new" class="bg-white rounded-xl shadow-sm p-6 space-y-4">
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Nombre completo *</label>
-            <input type="text" name="name" required class="w-full border rounded-lg px-3 py-3">
-        </div>
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Email *</label>
-            <input type="email" name="email" required class="w-full border rounded-lg px-3 py-3">
-        </div>
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Contraseña *</label>
-            <input type="password" name="password" required minlength="6" class="w-full border rounded-lg px-3 py-3">
-        </div>
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Rol *</label>
-            <select name="role" required class="w-full border rounded-lg px-3 py-3">
-                {% for r in roles %}<option value="{{ r }}">{{ r|capitalize }}</option>{% endfor %}
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Planta asignada *</label>
-            <select name="plant" required class="w-full border rounded-lg px-3 py-3">
-                {% for p in plants %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="w-full bg-blue-900 text-white font-bold py-3 rounded-xl">Crear usuario</button>
-    </form>
+  <div class="mb-6">
+    <a href="/admin/users" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Usuarios
+    </a>
+    <h1 class="text-xl font-semibold text-gray-900">Nuevo usuario</h1>
+    <p class="text-sm text-gray-400 mt-0.5">El usuario recibirá acceso con el email y contraseña que definas.</p>
+  </div>
+
+  {% if error %}
+  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/users/new" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre completo <span class="text-red-400">*</span></label>
+      <input type="text" name="name" required placeholder="Juan García"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Email <span class="text-red-400">*</span></label>
+      <input type="email" name="email" required placeholder="usuario@mtr.com"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Contraseña <span class="text-red-400">*</span></label>
+      <input type="password" name="password" required minlength="6" placeholder="Mínimo 6 caracteres"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
+      <p class="text-xs text-gray-400 mt-1">El usuario puede cambiarla después (si agregás esa función).</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Rol <span class="text-red-400">*</span></label>
+        <select name="role" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+          {% for r in roles %}
+          <option value="{{ r }}">{{ r|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta <span class="text-red-400">*</span></label>
+        <select name="plant" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+          {% for p in plants %}
+          <option value="{{ p }}">{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Info roles -->
+    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-500 space-y-1.5">
+      <p class="font-semibold text-gray-600 mb-2">Permisos por rol:</p>
+      <p><span class="font-medium text-gray-700">Planta</span> — crea solicitudes, sube remitos, ve sus propias compras.</p>
+      <p><span class="font-medium text-gray-700">Autorizador</span> — aprueba o rechaza solicitudes de su planta.</p>
+      <p><span class="font-medium text-gray-700">Admin</span> — ve todo, carga facturas, marca pagos, gestiona proveedores.</p>
+      <p><span class="font-medium text-amber-600">Superadmin</span> — acceso completo, puede cancelar y gestionar usuarios.</p>
+    </div>
+
+    <div class="flex gap-3 pt-1">
+      <a href="/admin/users" class="flex-1 flex items-center justify-center border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">
+        Cancelar
+      </a>
+      <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">
+        Crear usuario
+      </button>
+    </div>
+  </form>
 </div>
+
 {% endblock %}

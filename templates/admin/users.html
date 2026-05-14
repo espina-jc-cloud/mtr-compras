@@ -1,46 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Usuarios — MTR{% endblock %}
 {% block content %}
-<div class="flex justify-between items-center mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">Usuarios</h2>
-    <a href="/admin/users/new" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Nuevo usuario</a>
+
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Usuarios</h1>
+    <p class="text-sm text-gray-400 mt-0.5">{{ users|length }} usuario{% if users|length != 1 %}s{% endif %}</p>
+  </div>
+  <a href="/admin/users/new" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nuevo usuario
+  </a>
 </div>
-<div class="bg-white rounded-xl shadow-sm overflow-hidden">
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
-                <th class="px-4 py-3">Nombre</th>
-                <th class="px-4 py-3">Email</th>
-                <th class="px-4 py-3">Rol</th>
-                <th class="px-4 py-3">Planta</th>
-                <th class="px-4 py-3">Estado</th>
-                <th class="px-4 py-3"></th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for u in users %}
-            <tr class="border-b hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium">{{ u.name }}</td>
-                <td class="px-4 py-3 text-gray-500">{{ u.email }}</td>
-                <td class="px-4 py-3 capitalize">{{ u.role }}</td>
-                <td class="px-4 py-3">{{ u.plant }}</td>
-                <td class="px-4 py-3">
-                    <span class="px-2 py-0.5 rounded-full text-xs {% if u.active %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">
-                        {{ "Activo" if u.active else "Inactivo" }}
-                    </span>
-                </td>
-                <td class="px-4 py-3">
-                    {% if u.id != user.id %}
-                    <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">
-                        <button type="submit" class="text-sm {% if u.active %}text-red-500{% else %}text-green-600{% endif %} hover:underline">
-                            {{ "Desactivar" if u.active else "Activar" }}
-                        </button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+  <!-- Mobile: cards -->
+  <div class="md:hidden divide-y divide-gray-50">
+    {% for u in users %}
+    <div class="px-5 py-4 {% if not u.active %}opacity-50{% endif %}">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+            {{ u.name[0]|upper }}
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900 text-sm">{{ u.name }}</p>
+            <p class="text-xs text-gray-500">{{ u.email }}</p>
+            <div class="flex items-center gap-1.5 mt-1">
+              <span class="text-xs text-gray-500 capitalize bg-gray-100 px-1.5 py-0.5 rounded">{{ u.role }}</span>
+              <span class="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ u.plant }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full {% if u.active %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-gray-100 text-gray-400{% endif %}">
+            {{ "Activo" if u.active else "Inactivo" }}
+          </span>
+          {% if u.id != user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle">
+            <button type="submit" class="text-xs {% if u.active %}text-red-500 hover:text-red-600{% else %}text-emerald-600 hover:text-emerald-700{% endif %} font-medium">
+              {{ "Desactivar" if u.active else "Activar" }}
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop: tabla -->
+  <table class="hidden md:table w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-50">
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Usuario</th>
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Email</th>
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Rol</th>
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Planta</th>
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Estado</th>
+        <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Alta</th>
+        <th class="px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for u in users %}
+      <tr class="hover:bg-gray-50 transition-colors {% if not u.active %}opacity-50{% endif %}">
+        <td class="px-5 py-3.5">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 text-xs font-semibold">
+              {{ u.name[0]|upper }}
+            </div>
+            <span class="font-medium text-gray-900">{{ u.name }}</span>
+          </div>
+        </td>
+        <td class="px-5 py-3.5 text-gray-500 text-xs">{{ u.email }}</td>
+        <td class="px-5 py-3.5">
+          <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full capitalize
+            {% if u.role == 'superadmin' %}bg-indigo-50 text-indigo-700 border border-indigo-200
+            {% elif u.role == 'admin' %}bg-blue-50 text-blue-700 border border-blue-200
+            {% elif u.role == 'autorizador' %}bg-amber-50 text-amber-700 border border-amber-200
+            {% else %}bg-gray-50 text-gray-600 border border-gray-200{% endif %}">
+            {{ u.role }}
+          </span>
+        </td>
+        <td class="px-5 py-3.5 text-gray-600 text-xs font-medium">{{ u.plant }}</td>
+        <td class="px-5 py-3.5">
+          <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full {% if u.active %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-gray-100 text-gray-400 border border-gray-200{% endif %}">
+            {{ "Activo" if u.active else "Inactivo" }}
+          </span>
+        </td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs">{{ u.created_at.strftime("%d/%m/%y") }}</td>
+        <td class="px-5 py-3.5 text-right">
+          {% if u.id != user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">
+            <button type="submit" class="text-xs {% if u.active %}text-red-500 hover:text-red-600{% else %}text-emerald-600 hover:text-emerald-700{% endif %} font-medium">
+              {{ "Desactivar" if u.active else "Activar" }}
+            </button>
+          </form>
+          {% else %}
+          <span class="text-xs text-gray-300">Vos</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+
 {% endblock %}

@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, and_, exists, select
 from app.database import get_db
 from app.deps import get_current_user
 from app import models
@@ -12,45 +13,145 @@ templates = Jinja2Templates(directory="templates")
 
 AREAS = ["Mantenimiento", "Producción", "Logística", "Administración", "Seguridad", "Limpieza", "Otros"]
 PLANTS = ["MTR1", "MTR2"]
+STATUSES = ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada", "cancelada"]
 
-def add_audit(db: Session, purchase_id: int, user_id: int, action: str, old_status: str, new_status: str, comment: str = ""):
-    log = models.AuditLog(
-        purchase_id=purchase_id,
-        user_id=user_id,
-        action=action,
-        old_status=old_status,
-        new_status=new_status,
-        comment=comment
+def add_audit(db, purchase_id, user_id, action, old_status, new_status, comment=""):
+    db.add(models.AuditLog(
+        purchase_id=purchase_id, user_id=user_id, action=action,
+        old_status=old_status, new_status=new_status, comment=comment
+    ))
+
+def build_query(db, current_user, params: dict):
+    """Construye query con todos los filtros aplicados."""
+    q = db.query(models.Purchase).options(
+        joinedload(models.Purchase.supplier),
+        joinedload(models.Purchase.requester),
+        joinedload(models.Purchase.authorizer),
+        joinedload(models.Purchase.documents),
     )
-    db.add(log)
+
+    # Restricción por rol
+    if current_user.role == "planta":
+        q = q.filter(models.Purchase.requested_by_id == current_user.id)
+    elif current_user.role == "autorizador" and current_user.plant != "TODAS":
+        q = q.filter(models.Purchase.plant == current_user.plant)
+
+    # Filtros estructurados
+    if params.get("plant"):
+        q = q.filter(models.Purchase.plant == params["plant"])
+    if params.get("status"):
+        q = q.filter(models.Purchase.status == params["status"])
+    if params.get("supplier_id"):
+        try:
+            q = q.filter(models.Purchase.supplier_id == int(params["supplier_id"]))
+        except ValueError:
+            pass
+    if params.get("requester_id"):
+        try:
+            q = q.filter(models.Purchase.requested_by_id == int(params["requester_id"]))
+        except ValueError:
+            pass
+    if params.get("date_from"):
+        try:
+            q = q.filter(models.Purchase.created_at >= datetime.strptime(params["date_from"], "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if params.get("date_to"):
+        try:
+            q = q.filter(models.Purchase.created_at <= datetime.strptime(params["date_to"] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            pass
+    if params.get("amount_min"):
+        try:
+            q = q.filter(models.Purchase.estimated_amount >= float(params["amount_min"]))
+        except ValueError:
+            pass
+    if params.get("amount_max"):
+        try:
+            q = q.filter(models.Purchase.estimated_amount <= float(params["amount_max"]))
+        except ValueError:
+            pass
+    if params.get("amount_alert") == "yes":
+        q = q.filter(models.Purchase.amount_alert == True)
+
+    # Filtros de documentos
+    remito_exists = exists().where(
+        and_(models.Document.purchase_id == models.Purchase.id, models.Document.doc_type == "remito")
+    )
+    factura_exists = exists().where(
+        and_(models.Document.purchase_id == models.Purchase.id, models.Document.doc_type == "factura")
+    )
+    if params.get("has_remito") == "yes":
+        q = q.filter(remito_exists)
+    elif params.get("has_remito") == "no":
+        q = q.filter(~remito_exists)
+    if params.get("has_factura") == "yes":
+        q = q.filter(factura_exists)
+    elif params.get("has_factura") == "no":
+        q = q.filter(~factura_exists)
+
+    # Búsqueda de texto libre — busca en descripción, motivo, proveedor, n° factura, n° remito
+    text = params.get("q", "").strip()
+    if text:
+        like = f"%{text}%"
+        # Join con supplier y document para buscar en sus campos
+        doc_match = exists().where(
+            and_(
+                models.Document.purchase_id == models.Purchase.id,
+                or_(
+                    models.Document.invoice_number.ilike(like),
+                    models.Document.filename.ilike(like),
+                )
+            )
+        )
+        q = q.join(models.Supplier, models.Purchase.supplier_id == models.Supplier.id, isouter=True)
+        q = q.filter(or_(
+            models.Purchase.description.ilike(like),
+            models.Purchase.reason.ilike(like),
+            models.Purchase.purchase_order_ref.ilike(like),
+            models.Supplier.name.ilike(like),
+            models.Supplier.cuit.ilike(like),
+            doc_match,
+        ))
+
+    return q.order_by(models.Purchase.created_at.desc())
+
+
+def get_filter_params(request: Request) -> dict:
+    return {
+        "q": request.query_params.get("q", ""),
+        "plant": request.query_params.get("plant", ""),
+        "status": request.query_params.get("status", ""),
+        "supplier_id": request.query_params.get("supplier_id", ""),
+        "requester_id": request.query_params.get("requester_id", ""),
+        "date_from": request.query_params.get("date_from", ""),
+        "date_to": request.query_params.get("date_to", ""),
+        "amount_min": request.query_params.get("amount_min", ""),
+        "amount_max": request.query_params.get("amount_max", ""),
+        "has_remito": request.query_params.get("has_remito", ""),
+        "has_factura": request.query_params.get("has_factura", ""),
+        "amount_alert": request.query_params.get("amount_alert", ""),
+    }
+
 
 @router.get("", response_class=HTMLResponse)
-async def list_purchases(
-    request: Request,
-    plant: str = "",
-    status: str = "",
-    supplier_id: str = "",
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    query = db.query(models.Purchase)
-    if current_user.role == "planta":
-        query = query.filter(models.Purchase.requested_by_id == current_user.id)
-    elif current_user.role == "autorizador" and current_user.plant != "TODAS":
-        query = query.filter(models.Purchase.plant == current_user.plant)
-    if plant:
-        query = query.filter(models.Purchase.plant == plant)
-    if status:
-        query = query.filter(models.Purchase.status == status)
-    if supplier_id:
-        query = query.filter(models.Purchase.supplier_id == int(supplier_id))
-    purchases = query.order_by(models.Purchase.created_at.desc()).all()
-    suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).all()
+async def list_purchases(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    params = get_filter_params(request)
+    purchases = build_query(db, current_user, params).limit(200).all()
+    suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).order_by(models.Supplier.name).all()
+    requesters = db.query(models.User).filter(models.User.active == True).order_by(models.User.name).all()
+
+    is_htmx = request.headers.get("HX-Request")
+    if is_htmx:
+        return templates.TemplateResponse("purchases/partials/results.html", {
+            "request": request, "user": current_user, "purchases": purchases, "params": params
+        })
     return templates.TemplateResponse("purchases/list.html", {
         "request": request, "user": current_user,
-        "purchases": purchases, "suppliers": suppliers,
-        "filters": {"plant": plant, "status": status, "supplier_id": supplier_id}
+        "purchases": purchases, "suppliers": suppliers, "requesters": requesters,
+        "params": params, "statuses": STATUSES,
     })
+
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_purchase_form(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -60,18 +161,14 @@ async def new_purchase_form(request: Request, db: Session = Depends(get_db), cur
         "suppliers": suppliers, "areas": AREAS, "plants": PLANTS, "error": None
     })
 
+
 @router.post("/new")
 async def create_purchase(
     request: Request,
-    plant: str = Form(...),
-    area: str = Form(...),
-    supplier_id: int = Form(...),
-    description: str = Form(...),
-    reason: str = Form(...),
-    estimated_amount: str = Form(""),
-    notes: str = Form(""),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    plant: str = Form(...), area: str = Form(...), supplier_id: int = Form(...),
+    description: str = Form(...), reason: str = Form(...),
+    estimated_amount: str = Form(""), notes: str = Form(""),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     amount = None
     if estimated_amount.strip():
@@ -81,8 +178,7 @@ async def create_purchase(
             pass
     purchase = models.Purchase(
         plant=plant, area=area, supplier_id=supplier_id,
-        description=description, reason=reason,
-        estimated_amount=amount, notes=notes,
+        description=description, reason=reason, estimated_amount=amount, notes=notes,
         requested_by_id=current_user.id, status="pendiente"
     )
     db.add(purchase)
@@ -90,6 +186,7 @@ async def create_purchase(
     add_audit(db, purchase.id, current_user.id, "created", None, "pendiente")
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase.id}", status_code=303)
+
 
 @router.get("/{purchase_id}", response_class=HTMLResponse)
 async def purchase_detail(purchase_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -100,111 +197,89 @@ async def purchase_detail(purchase_id: int, request: Request, db: Session = Depe
         "request": request, "user": current_user, "purchase": purchase
     })
 
+
 @router.post("/{purchase_id}/approve")
-async def approve_purchase(
-    purchase_id: int, request: Request,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
+async def approve_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("autorizador", "admin", "superadmin"):
         raise HTTPException(status_code=403)
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    if purchase.status != "pendiente":
-        raise HTTPException(status_code=400, detail="Solo se pueden aprobar compras pendientes")
-    old = purchase.status
-    purchase.status = "aprobada"
-    purchase.authorized_by_id = current_user.id
-    purchase.authorized_at = datetime.utcnow()
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if p.status != "pendiente":
+        raise HTTPException(status_code=400)
+    old = p.status
+    p.status = "aprobada"
+    p.authorized_by_id = current_user.id
+    p.authorized_at = datetime.utcnow()
     add_audit(db, purchase_id, current_user.id, "approved", old, "aprobada")
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
+
 @router.post("/{purchase_id}/reject")
-async def reject_purchase(
-    purchase_id: int, request: Request,
-    rejection_reason: str = Form(...),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
+async def reject_purchase(purchase_id: int, rejection_reason: str = Form(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("autorizador", "admin", "superadmin"):
         raise HTTPException(status_code=403)
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    if purchase.status != "pendiente":
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if p.status != "pendiente":
         raise HTTPException(status_code=400)
-    old = purchase.status
-    purchase.status = "rechazada"
-    purchase.rejection_reason = rejection_reason
+    old = p.status
+    p.status = "rechazada"
+    p.rejection_reason = rejection_reason
     add_audit(db, purchase_id, current_user.id, "rejected", old, "rechazada", rejection_reason)
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
+
 @router.post("/{purchase_id}/receive")
-async def receive_purchase(
-    purchase_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    if purchase.status != "aprobada":
-        raise HTTPException(status_code=400, detail="Solo se puede recibir una compra aprobada")
-    has_remito = any(d.doc_type == "remito" for d in purchase.documents)
-    if not has_remito:
-        raise HTTPException(status_code=400, detail="Debe subir el remito antes de marcar como recibida")
-    old = purchase.status
-    purchase.status = "recibida"
+async def receive_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if p.status != "aprobada":
+        raise HTTPException(status_code=400)
+    if not any(d.doc_type == "remito" for d in p.documents):
+        raise HTTPException(status_code=400, detail="Subí el remito antes de marcar como recibida")
+    old = p.status
+    p.status = "recibida"
     add_audit(db, purchase_id, current_user.id, "received", old, "recibida")
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
+
 @router.post("/{purchase_id}/invoice")
-async def invoice_purchase(
-    purchase_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
+async def invoice_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("admin", "superadmin"):
         raise HTTPException(status_code=403)
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    if purchase.status != "recibida":
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if p.status != "recibida":
         raise HTTPException(status_code=400)
-    has_factura = any(d.doc_type == "factura" for d in purchase.documents)
-    if not has_factura:
-        raise HTTPException(status_code=400, detail="Debe cargar la factura antes de marcar como facturada")
-    old = purchase.status
-    purchase.status = "facturada"
+    if not any(d.doc_type == "factura" for d in p.documents):
+        raise HTTPException(status_code=400, detail="Cargá la factura antes de marcar como facturada")
+    old = p.status
+    p.status = "facturada"
     add_audit(db, purchase_id, current_user.id, "invoiced", old, "facturada")
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
+
 @router.post("/{purchase_id}/pay")
-async def pay_purchase(
-    purchase_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
+async def pay_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("admin", "superadmin"):
         raise HTTPException(status_code=403)
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    if purchase.status != "facturada":
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if p.status != "facturada":
         raise HTTPException(status_code=400)
-    old = purchase.status
-    purchase.status = "pagada"
+    old = p.status
+    p.status = "pagada"
     add_audit(db, purchase_id, current_user.id, "paid", old, "pagada")
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
+
 @router.post("/{purchase_id}/cancel")
-async def cancel_purchase(
-    purchase_id: int,
-    reason: str = Form(""),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
+async def cancel_purchase(purchase_id: int, reason: str = Form(""), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role != "superadmin":
         raise HTTPException(status_code=403)
-    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
-    old = purchase.status
-    purchase.status = "cancelada"
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    old = p.status
+    p.status = "cancelada"
     add_audit(db, purchase_id, current_user.id, "cancelled", old, "cancelada", reason)
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)

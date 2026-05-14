@@ -1,101 +1,155 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — MTR Compras{% endblock %}
 {% block content %}
+
 <div class="mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">Compras</h2>
-    <p class="text-gray-500 text-sm">{{ user.plant }} · {{ user.role }}</p>
+  <h1 class="text-xl font-semibold text-gray-900">Buen día, {{ user.name.split()[0] }}</h1>
+  <p class="text-sm text-gray-500 mt-0.5">{{ user.plant }} · <span class="capitalize">{{ user.role }}</span></p>
 </div>
 
 <!-- Cards de estado -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <a href="/purchases?status=pendiente" class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center hover:shadow">
-        <div class="text-3xl font-bold text-yellow-600">{{ counts.pendiente }}</div>
-        <div class="text-sm text-yellow-700 mt-1">Pendientes</div>
-    </a>
-    <a href="/purchases?status=aprobada" class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center hover:shadow">
-        <div class="text-3xl font-bold text-blue-600">{{ counts.aprobada }}</div>
-        <div class="text-sm text-blue-700 mt-1">Aprobadas</div>
-    </a>
-    <a href="/purchases?status=recibida" class="bg-green-50 border border-green-200 rounded-xl p-4 text-center hover:shadow">
-        <div class="text-3xl font-bold text-green-600">{{ counts.recibida }}</div>
-        <div class="text-sm text-green-700 mt-1">Recibidas</div>
-    </a>
-    <a href="/purchases?status=facturada" class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center hover:shadow">
-        <div class="text-3xl font-bold text-purple-600">{{ counts.facturada }}</div>
-        <div class="text-sm text-purple-700 mt-1">Por pagar</div>
-    </a>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <a href="/purchases?status=pendiente" class="group bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-amber-200 transition-all">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+        <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="text-3xl font-bold text-gray-900">{{ counts.pendiente }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-0.5">Pendientes</div>
+  </a>
+
+  <a href="/purchases?status=aprobada" class="group bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-blue-200 transition-all">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+        <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="text-3xl font-bold text-gray-900">{{ counts.aprobada }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-0.5">Aprobadas</div>
+  </a>
+
+  <a href="/purchases?status=recibida" class="group bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-emerald-200 transition-all">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 group-hover:text-emerald-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="text-3xl font-bold text-gray-900">{{ counts.recibida }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-0.5">Recibidas</div>
+  </a>
+
+  <a href="/purchases?status=facturada" class="group bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-violet-200 transition-all">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+        <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="text-3xl font-bold text-gray-900">{{ counts.facturada }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-0.5">Por pagar</div>
+  </a>
 </div>
 
-<!-- Filtros -->
-<form method="get" action="/dashboard" class="bg-white rounded-xl p-4 mb-4 flex flex-wrap gap-3 shadow-sm">
-    <select name="plant" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todas las plantas</option>
-        <option value="MTR1" {% if filters.plant == "MTR1" %}selected{% endif %}>MTR1</option>
-        <option value="MTR2" {% if filters.plant == "MTR2" %}selected{% endif %}>MTR2</option>
-    </select>
-    <select name="status" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todos los estados</option>
-        {% for s in ["pendiente","aprobada","recibida","facturada","pagada","rechazada","cancelada"] %}
-        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
-        {% endfor %}
-    </select>
-    <select name="supplier_id" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todos los proveedores</option>
-        {% for s in suppliers %}
-        <option value="{{ s.id }}" {% if filters.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
-        {% endfor %}
-    </select>
-    <button type="submit" class="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">Filtrar</button>
-    <a href="/dashboard" class="text-gray-500 px-3 py-2 text-sm">Limpiar</a>
-</form>
+<!-- Accesos rápidos admin -->
+{% if user.role in ("admin", "superadmin") %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <a href="/conciliation" class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-indigo-600">
+    <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    Conciliación
+  </a>
+  <a href="/purchases?has_remito=no&status=aprobada" class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-amber-600">
+    <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    Sin remito
+  </a>
+  <a href="/purchases?has_factura=no&status=recibida" class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-violet-600">
+    <svg class="w-4 h-4 text-violet-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+    Sin factura
+  </a>
+  <a href="/purchases?amount_alert=yes" class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-red-600">
+    <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Alertas monto
+  </a>
+</div>
+{% endif %}
 
-<!-- Tabla -->
-<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+<!-- Últimas compras -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+    <h2 class="text-sm font-semibold text-gray-800">Últimas compras</h2>
+    <a href="/purchases" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Ver todas →</a>
+  </div>
+
+  <!-- Mobile: cards -->
+  <div class="md:hidden divide-y divide-gray-50">
+    {% for p in recent %}
+    <a href="/purchases/{{ p.id }}" class="block px-5 py-4 hover:bg-gray-50 transition-colors">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-semibold text-gray-400">#{{ p.id }}</span>
+            <span class="font-semibold text-gray-500 text-xs px-1.5 py-0.5 bg-gray-100 rounded">{{ p.plant }}</span>
+          </div>
+          <p class="text-sm font-medium text-gray-900 truncate">{{ p.supplier.name }}</p>
+          <p class="text-xs text-gray-500 truncate mt-0.5">{{ p.description }}</p>
+          <p class="text-xs text-gray-400 mt-1">{{ p.requester.name }} · {{ p.created_at.strftime("%d/%m/%y") }}</p>
+        </div>
+        <div class="flex-shrink-0 text-right">
+          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold status-{{ p.status }}">{{ p.status|capitalize }}</span>
+          {% if p.estimated_amount %}
+          <p class="text-sm font-semibold text-gray-700 mt-1">${{ "%.0f"|format(p.estimated_amount) }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% else %}
+    <div class="px-5 py-10 text-center text-gray-400 text-sm">
+      No hay compras aún.<br>
+      <a href="/purchases/new" class="text-indigo-600 font-medium mt-1 inline-block">Crear la primera →</a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop: tabla -->
+  <div class="hidden md:block overflow-x-auto">
     <table class="w-full text-sm">
-        <thead>
-            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
-                <th class="px-4 py-3">#</th>
-                <th class="px-4 py-3">Planta</th>
-                <th class="px-4 py-3">Proveedor</th>
-                <th class="px-4 py-3">Descripción</th>
-                <th class="px-4 py-3">Monto</th>
-                <th class="px-4 py-3">Estado</th>
-                <th class="px-4 py-3">Fecha</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for p in purchases %}
-            <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="window.location='/purchases/{{ p.id }}'">
-                <td class="px-4 py-3 text-gray-400">#{{ p.id }}</td>
-                <td class="px-4 py-3 font-medium">{{ p.plant }}</td>
-                <td class="px-4 py-3">{{ p.supplier.name }}</td>
-                <td class="px-4 py-3 max-w-xs truncate">{{ p.description }}</td>
-                <td class="px-4 py-3">
-                    {% if p.estimated_amount %}
-                    ${{ "%.0f"|format(p.estimated_amount) }}
-                    {% if p.amount_alert %}<span class="text-red-500 ml-1" title="Factura supera 10% del estimado">⚠</span>{% endif %}
-                    {% else %}—{% endif %}
-                </td>
-                <td class="px-4 py-3">
-                    {% set colors = {
-                        "pendiente": "bg-yellow-100 text-yellow-800",
-                        "aprobada": "bg-blue-100 text-blue-800",
-                        "recibida": "bg-green-100 text-green-800",
-                        "facturada": "bg-purple-100 text-purple-800",
-                        "pagada": "bg-gray-100 text-gray-600",
-                        "rechazada": "bg-red-100 text-red-800",
-                        "cancelada": "bg-gray-100 text-gray-400"
-                    } %}
-                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ colors.get(p.status, 'bg-gray-100') }}">
-                        {{ p.status|capitalize }}
-                    </span>
-                </td>
-                <td class="px-4 py-3 text-gray-400">{{ p.created_at.strftime("%d/%m/%y") }}</td>
-            </tr>
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">#</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Proveedor</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Planta / Área</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Descripción</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Monto est.</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Estado</th>
+          <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fecha</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for p in recent %}
+        <tr class="hover:bg-gray-50 cursor-pointer transition-colors" onclick="window.location='/purchases/{{ p.id }}'">
+          <td class="px-5 py-3.5 text-gray-400 text-xs">#{{ p.id }}</td>
+          <td class="px-5 py-3.5 font-medium text-gray-900">{{ p.supplier.name }}</td>
+          <td class="px-5 py-3.5 text-gray-500 text-xs">{{ p.plant }} · {{ p.area }}</td>
+          <td class="px-5 py-3.5 text-gray-600 max-w-xs truncate">{{ p.description }}</td>
+          <td class="px-5 py-3.5 text-gray-700 font-medium">
+            {% if p.estimated_amount %}<span {% if p.amount_alert %}class="text-red-600"{% endif %}>${{ "%.0f"|format(p.estimated_amount) }}{% if p.amount_alert %} ⚠{% endif %}</span>{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-5 py-3.5">
+            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ p.status }}">{{ p.status|capitalize }}</span>
+          </td>
+          <td class="px-5 py-3.5 text-gray-400 text-xs">{{ p.created_at.strftime("%d/%m/%y") }}</td>
+        </tr>
         {% else %}
-            <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No hay compras con estos filtros</td></tr>
+        <tr><td colspan="7" class="px-5 py-10 text-center text-gray-400 text-sm">
+          No hay compras. <a href="/purchases/new" class="text-indigo-600 font-medium">Crear la primera →</a>
+        </td></tr>
         {% endfor %}
-        </tbody>
+      </tbody>
     </table>
+  </div>
 </div>
+
 {% endblock %}

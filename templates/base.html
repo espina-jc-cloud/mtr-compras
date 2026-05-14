@@ -1,36 +1,132 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}MTR Compras{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <meta http-equiv="Cache-Control" content="no-store">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{% block title %}MTR Compras{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <meta http-equiv="Cache-Control" content="no-store">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .status-pendiente  { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+    .status-aprobada   { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+    .status-recibida   { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+    .status-facturada  { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
+    .status-pagada     { background:#F3F4F6; color:#374151; border:1px solid #E5E7EB; }
+    .status-rechazada  { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
+    .status-cancelada  { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
+    a, button { transition: all .15s ease; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:#F9FAFB; }
+    ::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:3px; }
+    .htmx-indicator { opacity:0; transition:opacity 200ms ease-in; }
+    .htmx-request .htmx-indicator { opacity:1; }
+    .htmx-request.htmx-indicator { opacity:1; }
+    input, select, textarea { font-family: 'Inter', sans-serif; }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <nav class="bg-blue-900 text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between items-center h-16">
-                <a href="/dashboard" class="font-bold text-xl tracking-wide">MTR Compras</a>
-                <div class="flex items-center gap-4 text-sm">
-                    {% if user %}
-                    <span class="hidden sm:block text-blue-200">{{ user.name }} · <span class="uppercase font-semibold">{{ user.role }}</span></span>
-                    <a href="/purchases/new" class="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-lg font-semibold">+ Nueva</a>
-                    <a href="/purchases" class="hidden sm:block hover:text-blue-200">Compras</a>
-                    <a href="/suppliers" class="hidden sm:block hover:text-blue-200">Proveedores</a>
-                    {% if user.role == "superadmin" %}
-                    <a href="/admin/users" class="hidden sm:block hover:text-blue-200">Usuarios</a>
-                    {% endif %}
-                    <a href="/logout" class="text-blue-300 hover:text-white text-xs">Salir</a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </nav>
+<body class="h-full bg-gray-50 text-gray-900">
 
-    <main class="max-w-7xl mx-auto px-4 py-6">
-        {% block content %}{% endblock %}
-    </main>
+{% if user %}
+<!-- Desktop nav -->
+<header class="hidden md:block bg-white border-b border-gray-100 sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-7">
+      <a href="/dashboard" class="flex items-center gap-2 font-bold text-gray-900 tracking-tight text-sm">
+        <span class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">M</span>
+        MTR Compras
+      </a>
+      <nav class="flex items-center gap-0.5">
+        <a href="/dashboard" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Dashboard</a>
+        <a href="/purchases" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Compras</a>
+        <a href="/suppliers" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Proveedores</a>
+        {% if user.role in ("admin", "superadmin") %}
+        <a href="/conciliation" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Conciliación</a>
+        {% endif %}
+        {% if user.role == "superadmin" %}
+        <a href="/admin/users" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Usuarios</a>
+        {% endif %}
+      </nav>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/purchases/new" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-3.5 py-1.5 rounded-lg shadow-sm">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Nueva compra
+      </a>
+      <div class="flex items-center gap-2 pl-3 border-l border-gray-100">
+        <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 text-xs font-semibold">
+          {{ user.name[0]|upper }}
+        </div>
+        <div class="text-xs leading-tight">
+          <p class="font-medium text-gray-800">{{ user.name.split()[0] }}</p>
+          <p class="text-gray-400 capitalize">{{ user.role }}</p>
+        </div>
+        <a href="/logout" class="ml-1 p-1 text-gray-400 hover:text-gray-600 rounded" title="Salir">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile top bar -->
+<header class="md:hidden bg-white border-b border-gray-100 sticky top-0 z-40">
+  <div class="px-4 h-12 flex items-center justify-between">
+    <a href="/dashboard" class="font-bold text-gray-900 text-sm flex items-center gap-2">
+      <span class="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">M</span>
+      MTR Compras
+    </a>
+    <a href="/purchases/new" class="bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
+      + Nueva
+    </a>
+  </div>
+</header>
+{% endif %}
+
+<main class="max-w-7xl mx-auto px-4 md:px-6 py-5 {% if user %}pb-24 md:pb-8{% endif %}">
+  {% block content %}{% endblock %}
+</main>
+
+{% if user %}
+<!-- Mobile bottom tab bar -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40" style="padding-bottom:env(safe-area-inset-bottom)">
+  <div class="grid grid-cols-5 h-16">
+    <a href="/dashboard" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span class="text-[10px] font-medium">Inicio</span>
+    </a>
+    <a href="/purchases/new" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+      <span class="text-[10px] font-medium">Nueva</span>
+    </a>
+    <a href="/purchases" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span class="text-[10px] font-medium">Compras</span>
+    </a>
+    <a href="/suppliers" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="text-[10px] font-medium">Prov.</span>
+    </a>
+    <a href="/logout" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      <span class="text-[10px] font-medium">Salir</span>
+    </a>
+  </div>
+</nav>
+{% endif %}
+
 </body>
 </html>

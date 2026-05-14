@@ -1,74 +1,173 @@
 {% extends "base.html" %}
 {% block title %}Compras — MTR{% endblock %}
 {% block content %}
-<div class="flex justify-between items-center mb-4">
-    <h2 class="text-2xl font-bold text-gray-800">Todas las compras</h2>
-    <a href="/purchases/new" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Nueva</a>
+
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Compras</h1>
+    <p class="text-sm text-gray-400 mt-0.5" id="result-count">{{ purchases|length }} resultado{% if purchases|length != 1 %}s{% endif %}</p>
+  </div>
+  <a href="/purchases/new" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nueva
+  </a>
 </div>
 
-<form method="get" action="/purchases" class="bg-white rounded-xl p-4 mb-4 flex flex-wrap gap-3 shadow-sm">
-    <select name="plant" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todas las plantas</option>
-        <option value="MTR1" {% if filters.plant == "MTR1" %}selected{% endif %}>MTR1</option>
-        <option value="MTR2" {% if filters.plant == "MTR2" %}selected{% endif %}>MTR2</option>
-    </select>
-    <select name="status" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todos los estados</option>
-        {% for s in ["pendiente","aprobada","recibida","facturada","pagada","rechazada","cancelada"] %}
-        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
-        {% endfor %}
-    </select>
-    <select name="supplier_id" class="border rounded-lg px-3 py-2 text-sm">
-        <option value="">Todos los proveedores</option>
-        {% for s in suppliers %}
-        <option value="{{ s.id }}" {% if filters.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
-        {% endfor %}
-    </select>
-    <button type="submit" class="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">Filtrar</button>
-    <a href="/purchases" class="text-gray-500 px-3 py-2 text-sm">Limpiar</a>
+<!-- Barra de búsqueda global -->
+<form id="filter-form"
+      hx-get="/purchases"
+      hx-target="#purchases-results"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-indicator="#search-spinner">
+  <div class="relative mb-3">
+    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <input type="text" name="q" value="{{ params.q }}"
+      placeholder="Buscar por proveedor, factura, descripción, CUIT, remito..."
+      hx-get="/purchases"
+      hx-target="#purchases-results"
+      hx-swap="innerHTML"
+      hx-trigger="input changed delay:350ms"
+      hx-include="#filter-form"
+      hx-push-url="true"
+      class="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm placeholder-gray-400">
+    <span id="search-spinner" class="htmx-indicator absolute right-4 top-1/2 -translate-y-1/2">
+      <svg class="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+    </span>
+  </div>
+
+  <!-- Panel de filtros desktop -->
+  <div class="hidden md:block bg-white border border-gray-100 rounded-xl shadow-sm p-4 mb-4">
+    <div class="grid grid-cols-4 gap-3 mb-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Planta</label>
+        <select name="plant" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todas</option>
+          <option value="MTR1" {% if params.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+          <option value="MTR2" {% if params.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+        <select name="status" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todos</option>
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+        <select name="supplier_id" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todos</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}" {% if params.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Solicitante</label>
+        <select name="requester_id" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todos</option>
+          {% for r in requesters %}
+          <option value="{{ r.id }}" {% if params.requester_id == r.id|string %}selected{% endif %}>{{ r.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-5 gap-3 items-end">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+        <input type="date" name="date_from" value="{{ params.date_from }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+        <input type="date" name="date_to" value="{{ params.date_to }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Remito</label>
+        <select name="has_remito" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todos</option>
+          <option value="yes" {% if params.has_remito == "yes" %}selected{% endif %}>Con remito</option>
+          <option value="no" {% if params.has_remito == "no" %}selected{% endif %}>Sin remito</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Factura</label>
+        <select name="has_factura" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
+          <option value="">Todos</option>
+          <option value="yes" {% if params.has_factura == "yes" %}selected{% endif %}>Con factura</option>
+          <option value="no" {% if params.has_factura == "no" %}selected{% endif %}>Sin factura</option>
+        </select>
+      </div>
+      <div>
+        {% set has_filters = params.q or params.plant or params.status or params.supplier_id or params.requester_id or params.date_from or params.date_to or params.has_remito or params.has_factura or params.amount_alert %}
+        {% if has_filters %}
+        <a href="/purchases" class="flex items-center justify-center gap-1.5 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 bg-white">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          Limpiar
+        </a>
+        {% else %}
+        <div class="text-xs text-gray-400 py-2">Sin filtros activos</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de filtros mobile (desplegable) -->
+  <div class="md:hidden mb-3">
+    <details class="bg-white border border-gray-100 rounded-xl shadow-sm">
+      <summary class="px-4 py-3 text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-2">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+        Filtros
+        {% set has_filters = params.plant or params.status or params.supplier_id or params.date_from or params.has_remito or params.has_factura %}
+        {% if has_filters %}<span class="ml-auto bg-indigo-100 text-indigo-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">Activos</span>{% endif %}
+      </summary>
+      <div class="px-4 pb-4 space-y-3 border-t border-gray-50">
+        <div class="grid grid-cols-2 gap-3 pt-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Planta</label>
+            <select name="plant" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todas</option>
+              <option value="MTR1" {% if params.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+              <option value="MTR2" {% if params.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+            <select name="status" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todos</option>
+              {% for s in statuses %}
+              <option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Remito</label>
+            <select name="has_remito" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todos</option>
+              <option value="yes" {% if params.has_remito == "yes" %}selected{% endif %}>Con remito</option>
+              <option value="no" {% if params.has_remito == "no" %}selected{% endif %}>Sin remito</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Factura</label>
+            <select name="has_factura" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todos</option>
+              <option value="yes" {% if params.has_factura == "yes" %}selected{% endif %}>Con factura</option>
+              <option value="no" {% if params.has_factura == "no" %}selected{% endif %}>Sin factura</option>
+            </select>
+          </div>
+        </div>
+        <a href="/purchases" class="block text-center text-sm text-gray-500 border border-gray-200 rounded-lg py-2 hover:bg-gray-50">Limpiar filtros</a>
+      </div>
+    </details>
+  </div>
 </form>
 
-<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
-                <th class="px-4 py-3">#</th>
-                <th class="px-4 py-3">Planta / Área</th>
-                <th class="px-4 py-3">Proveedor</th>
-                <th class="px-4 py-3">Descripción</th>
-                <th class="px-4 py-3">Monto est.</th>
-                <th class="px-4 py-3">Solicitado por</th>
-                <th class="px-4 py-3">Estado</th>
-                <th class="px-4 py-3">Fecha</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for p in purchases %}
-            {% set colors = {
-                "pendiente": "bg-yellow-100 text-yellow-800",
-                "aprobada": "bg-blue-100 text-blue-800",
-                "recibida": "bg-green-100 text-green-800",
-                "facturada": "bg-purple-100 text-purple-800",
-                "pagada": "bg-gray-100 text-gray-600",
-                "rechazada": "bg-red-100 text-red-800",
-                "cancelada": "bg-gray-100 text-gray-400"
-            } %}
-            <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="window.location='/purchases/{{ p.id }}'">
-                <td class="px-4 py-3 text-gray-400">#{{ p.id }}</td>
-                <td class="px-4 py-3"><span class="font-semibold">{{ p.plant }}</span><br><span class="text-gray-400 text-xs">{{ p.area }}</span></td>
-                <td class="px-4 py-3">{{ p.supplier.name }}</td>
-                <td class="px-4 py-3 max-w-xs truncate">{{ p.description }}</td>
-                <td class="px-4 py-3">
-                    {% if p.estimated_amount %}${{ "%.0f"|format(p.estimated_amount) }}{% if p.amount_alert %} <span class="text-red-500" title="Factura >10% del estimado">⚠</span>{% endif %}{% else %}—{% endif %}
-                </td>
-                <td class="px-4 py-3">{{ p.requester.name }}</td>
-                <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold {{ colors.get(p.status, 'bg-gray-100') }}">{{ p.status|capitalize }}</span></td>
-                <td class="px-4 py-3 text-gray-400">{{ p.created_at.strftime("%d/%m/%y") }}</td>
-            </tr>
-        {% else %}
-            <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No hay compras</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
+<!-- Resultados -->
+<div id="purchases-results">
+  {% include "purchases/partials/results.html" %}
 </div>
+
 {% endblock %}
