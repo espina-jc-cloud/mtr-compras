@@ -1,21 +1,41 @@
 import os
+import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_url = os.getenv("DATABASE_URL", "sqlite:///./mtr_compras.db")
+_raw = os.getenv("DATABASE_URL", "").strip()
 
-# Railway entrega postgresql:// — SQLAlchemy necesita postgresql+psycopg2://
-if _url.startswith("postgres://"):
-    _url = _url.replace("postgres://", "postgresql+psycopg2://", 1)
-elif _url.startswith("postgresql://") and "+psycopg2" not in _url:
-    _url = _url.replace("postgresql://", "postgresql+psycopg2://", 1)
+# String vacío → tratar como "no definida"
+if not _raw:
+    _raw = "sqlite:///./mtr_compras.db"
 
-DATABASE_URL = _url
+# Railway entrega postgres:// o postgresql:// sin driver explícito
+if _raw.startswith("postgres://"):
+    _raw = _raw.replace("postgres://", "postgresql+psycopg2://", 1)
+elif _raw.startswith("postgresql://") and "+psycopg2" not in _raw:
+    _raw = _raw.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+DATABASE_URL = _raw
 _is_sqlite = DATABASE_URL.startswith("sqlite")
+
+# Log seguro: nunca imprime usuario/password ni URL completa
+_is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT"))
+if _is_sqlite:
+    if _is_railway:
+        print("✗ FATAL: corriendo en Railway sin PostgreSQL configurado. "
+              "Agregá el plugin Postgres y referenciá DATABASE_URL.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        print("[DB] SQLite local → mtr_compras.db")
+else:
+    try:
+        _host = DATABASE_URL.split("@")[-1].split("/")[0]
+        print(f"[DB] PostgreSQL → {_host}")
+    except Exception:
+        print("[DB] PostgreSQL")
 
 engine = create_engine(
     DATABASE_URL,
