@@ -11,7 +11,7 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 @router.post("/login")
 async def login(
@@ -22,8 +22,7 @@ async def login(
 ):
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user or not verify_password(password, user.hashed_password) or not user.active:
-        return templates.TemplateResponse("login.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "login.html", {
             "error": "Email o contraseña incorrectos"
         })
     token = create_access_token({"sub": str(user.id), "role": user.role})

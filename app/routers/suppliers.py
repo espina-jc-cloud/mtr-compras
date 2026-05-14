@@ -12,11 +12,11 @@ templates = Jinja2Templates(directory="templates")
 @router.get("", response_class=HTMLResponse)
 async def list_suppliers(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     suppliers = db.query(models.Supplier).order_by(models.Supplier.name).all()
-    return templates.TemplateResponse("suppliers/list.html", {"request": request, "user": current_user, "suppliers": suppliers})
+    return templates.TemplateResponse(request, "suppliers/list.html", {"user": current_user, "suppliers": suppliers})
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_supplier_form(request: Request, current_user=Depends(require_role("admin", "superadmin"))):
-    return templates.TemplateResponse("suppliers/form.html", {"request": request, "user": current_user, "supplier": None, "error": None})
+    return templates.TemplateResponse(request, "suppliers/form.html", {"user": current_user, "supplier": None, "error": None})
 
 @router.post("/new")
 async def create_supplier(
@@ -37,7 +37,7 @@ async def create_supplier(
 @router.get("/{supplier_id}/edit", response_class=HTMLResponse)
 async def edit_supplier_form(supplier_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(require_role("admin", "superadmin"))):
     supplier = db.query(models.Supplier).filter(models.Supplier.id == supplier_id).first()
-    return templates.TemplateResponse("suppliers/form.html", {"request": request, "user": current_user, "supplier": supplier, "error": None})
+    return templates.TemplateResponse(request, "suppliers/form.html", {"user": current_user, "supplier": supplier, "error": None})
 
 @router.post("/{supplier_id}/edit")
 async def update_supplier(

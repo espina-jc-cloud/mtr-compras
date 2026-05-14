@@ -16,12 +16,12 @@ PLANTS = ["MTR1", "MTR2", "ROSARIO", "TODAS"]
 @router.get("/users", response_class=HTMLResponse)
 async def list_users(request: Request, db: Session = Depends(get_db), current_user=Depends(require_role("superadmin"))):
     users = db.query(models.User).order_by(models.User.name).all()
-    return templates.TemplateResponse("admin/users.html", {"request": request, "user": current_user, "users": users})
+    return templates.TemplateResponse(request, "admin/users.html", {"user": current_user, "users": users})
 
 @router.get("/users/new", response_class=HTMLResponse)
 async def new_user_form(request: Request, current_user=Depends(require_role("superadmin"))):
-    return templates.TemplateResponse("admin/user_form.html", {
-        "request": request, "user": current_user,
+    return templates.TemplateResponse(request, "admin/user_form.html", {
+        "user": current_user,
         "edit_user": None, "roles": ROLES, "plants": PLANTS, "error": None
     })
 
@@ -38,8 +38,8 @@ async def create_user(
 ):
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
-        return templates.TemplateResponse("admin/user_form.html", {
-            "request": request, "user": current_user,
+        return templates.TemplateResponse(request, "admin/user_form.html", {
+            "user": current_user,
             "edit_user": None, "roles": ROLES, "plants": PLANTS,
             "error": "El email ya está registrado"
         })

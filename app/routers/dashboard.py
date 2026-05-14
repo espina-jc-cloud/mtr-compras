@@ -31,8 +31,8 @@ async def dashboard(request: Request, db: Session = Depends(get_db), current_use
               for s in ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada"]}
     recent = bq.order_by(models.Purchase.created_at.desc()).limit(10).all()
     total = bq.count()
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request, "user": current_user,
+    return templates.TemplateResponse(request, "dashboard.html", {
+        "user": current_user,
         "counts": counts, "recent": recent, "total": total,
     })
 
@@ -60,8 +60,8 @@ async def conciliation(request: Request, db: Session = Depends(get_db), current_
         models.Purchase.status == "aprobada", ~remito_ex
     ).order_by(models.Purchase.created_at.desc()).all()
 
-    return templates.TemplateResponse("conciliation.html", {
-        "request": request, "user": current_user,
+    return templates.TemplateResponse(request, "conciliation.html", {
+        "user": current_user,
         "recibidas_sin_factura": recibidas_sin_factura,
         "facturadas_sin_pagar": facturadas_sin_pagar,
         "con_alerta_monto": con_alerta_monto,

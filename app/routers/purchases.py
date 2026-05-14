@@ -143,11 +143,11 @@ async def list_purchases(request: Request, db: Session = Depends(get_db), curren
 
     is_htmx = request.headers.get("HX-Request")
     if is_htmx:
-        return templates.TemplateResponse("purchases/partials/results.html", {
-            "request": request, "user": current_user, "purchases": purchases, "params": params
+        return templates.TemplateResponse(request, "purchases/partials/results.html", {
+            "user": current_user, "purchases": purchases, "params": params
         })
-    return templates.TemplateResponse("purchases/list.html", {
-        "request": request, "user": current_user,
+    return templates.TemplateResponse(request, "purchases/list.html", {
+        "user": current_user,
         "purchases": purchases, "suppliers": suppliers, "requesters": requesters,
         "params": params, "statuses": STATUSES,
     })
@@ -156,8 +156,8 @@ async def list_purchases(request: Request, db: Session = Depends(get_db), curren
 @router.get("/new", response_class=HTMLResponse)
 async def new_purchase_form(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).order_by(models.Supplier.name).all()
-    return templates.TemplateResponse("purchases/new.html", {
-        "request": request, "user": current_user,
+    return templates.TemplateResponse(request, "purchases/new.html", {
+        "user": current_user,
         "suppliers": suppliers, "areas": AREAS, "plants": PLANTS, "error": None
     })
 
@@ -193,8 +193,8 @@ async def purchase_detail(purchase_id: int, request: Request, db: Session = Depe
     purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
     if not purchase:
         raise HTTPException(status_code=404)
-    return templates.TemplateResponse("purchases/detail.html", {
-        "request": request, "user": current_user, "purchase": purchase
+    return templates.TemplateResponse(request, "purchases/detail.html", {
+        "user": current_user, "purchase": purchase
     })
 
 
