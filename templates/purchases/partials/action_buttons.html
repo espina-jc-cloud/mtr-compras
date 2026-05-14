@@ -1,0 +1,53 @@
+{% if purchase.status == "pendiente" and user.role in ("autorizador", "admin", "superadmin") %}
+<form method="post" action="/purchases/{{ purchase.id }}/approve">
+    <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-lg">
+        ✓ Aprobar compra
+    </button>
+</form>
+<details class="border border-red-200 rounded-lg">
+    <summary class="px-4 py-3 text-red-600 font-semibold cursor-pointer text-sm">✗ Rechazar</summary>
+    <form method="post" action="/purchases/{{ purchase.id }}/reject" class="px-4 pb-4 pt-2">
+        <textarea name="rejection_reason" required placeholder="Motivo del rechazo..." rows="3"
+            class="w-full border rounded-lg px-3 py-2 text-sm resize-none mb-3"></textarea>
+        <button type="submit" class="w-full bg-red-600 text-white font-semibold py-2 rounded-lg text-sm">
+            Confirmar rechazo
+        </button>
+    </form>
+</details>
+{% endif %}
+
+{% if purchase.status == "aprobada" %}
+{% set has_remito = purchase.documents|selectattr("doc_type", "eq", "remito")|list %}
+<form method="post" action="/purchases/{{ purchase.id }}/receive">
+    <button type="submit"
+        {% if not has_remito %}disabled{% endif %}
+        class="w-full py-3 rounded-lg font-semibold text-white {% if has_remito %}bg-blue-700 hover:bg-blue-600{% else %}bg-gray-300 cursor-not-allowed{% endif %}">
+        📦 Marcar como recibida
+    </button>
+</form>
+{% if not has_remito %}<p class="text-xs text-orange-600">Subí el remito primero.</p>{% endif %}
+{% endif %}
+
+{% if purchase.status == "recibida" and user.role in ("admin", "superadmin") %}
+{% set has_factura = purchase.documents|selectattr("doc_type", "eq", "factura")|list %}
+<form method="post" action="/purchases/{{ purchase.id }}/invoice">
+    <button type="submit"
+        {% if not has_factura %}disabled{% endif %}
+        class="w-full py-3 rounded-lg font-semibold text-white {% if has_factura %}bg-purple-700 hover:bg-purple-600{% else %}bg-gray-300 cursor-not-allowed{% endif %}">
+        🧾 Marcar como facturada
+    </button>
+</form>
+{% if not has_factura %}<p class="text-xs text-orange-600">Cargá la factura primero.</p>{% endif %}
+{% endif %}
+
+{% if purchase.status == "facturada" and user.role in ("admin", "superadmin") %}
+<form method="post" action="/purchases/{{ purchase.id }}/pay">
+    <button type="submit" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 rounded-lg">
+        💰 Marcar como pagada
+    </button>
+</form>
+{% endif %}
+
+{% if purchase.status in ("pagada", "rechazada", "cancelada") %}
+<p class="text-gray-400 text-sm text-center">No hay acciones disponibles.</p>
+{% endif %}

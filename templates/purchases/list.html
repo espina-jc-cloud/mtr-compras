@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Compras — MTR{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold text-gray-800">Todas las compras</h2>
+    <a href="/purchases/new" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Nueva</a>
+</div>
+
+<form method="get" action="/purchases" class="bg-white rounded-xl p-4 mb-4 flex flex-wrap gap-3 shadow-sm">
+    <select name="plant" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todas las plantas</option>
+        <option value="MTR1" {% if filters.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+        <option value="MTR2" {% if filters.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+    </select>
+    <select name="status" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los estados</option>
+        {% for s in ["pendiente","aprobada","recibida","facturada","pagada","rechazada","cancelada"] %}
+        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+        {% endfor %}
+    </select>
+    <select name="supplier_id" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los proveedores</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" {% if filters.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">Filtrar</button>
+    <a href="/purchases" class="text-gray-500 px-3 py-2 text-sm">Limpiar</a>
+</form>
+
+<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
+                <th class="px-4 py-3">#</th>
+                <th class="px-4 py-3">Planta / Área</th>
+                <th class="px-4 py-3">Proveedor</th>
+                <th class="px-4 py-3">Descripción</th>
+                <th class="px-4 py-3">Monto est.</th>
+                <th class="px-4 py-3">Solicitado por</th>
+                <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3">Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in purchases %}
+            {% set colors = {
+                "pendiente": "bg-yellow-100 text-yellow-800",
+                "aprobada": "bg-blue-100 text-blue-800",
+                "recibida": "bg-green-100 text-green-800",
+                "facturada": "bg-purple-100 text-purple-800",
+                "pagada": "bg-gray-100 text-gray-600",
+                "rechazada": "bg-red-100 text-red-800",
+                "cancelada": "bg-gray-100 text-gray-400"
+            } %}
+            <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="window.location='/purchases/{{ p.id }}'">
+                <td class="px-4 py-3 text-gray-400">#{{ p.id }}</td>
+                <td class="px-4 py-3"><span class="font-semibold">{{ p.plant }}</span><br><span class="text-gray-400 text-xs">{{ p.area }}</span></td>
+                <td class="px-4 py-3">{{ p.supplier.name }}</td>
+                <td class="px-4 py-3 max-w-xs truncate">{{ p.description }}</td>
+                <td class="px-4 py-3">
+                    {% if p.estimated_amount %}${{ "%.0f"|format(p.estimated_amount) }}{% if p.amount_alert %} <span class="text-red-500" title="Factura >10% del estimado">⚠</span>{% endif %}{% else %}—{% endif %}
+                </td>
+                <td class="px-4 py-3">{{ p.requester.name }}</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold {{ colors.get(p.status, 'bg-gray-100') }}">{{ p.status|capitalize }}</span></td>
+                <td class="px-4 py-3 text-gray-400">{{ p.created_at.strftime("%d/%m/%y") }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No hay compras</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

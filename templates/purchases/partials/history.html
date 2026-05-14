@@ -1,0 +1,18 @@
+<div class="space-y-3">
+    {% for log in purchase.audit_logs|reverse %}
+    <div class="flex gap-3 text-sm">
+        <div class="w-1 bg-gray-200 rounded-full flex-shrink-0"></div>
+        <div>
+            <span class="font-semibold">{{ log.user.name }}</span>
+            <span class="text-gray-500"> — {{ log.action }}</span>
+            {% if log.old_status and log.new_status %}
+            <span class="text-gray-400 text-xs"> ({{ log.old_status }} → {{ log.new_status }})</span>
+            {% endif %}
+            {% if log.comment %}<p class="text-gray-600 mt-0.5">{{ log.comment }}</p>{% endif %}
+            <p class="text-gray-400 text-xs mt-0.5">{{ log.created_at.strftime("%d/%m/%Y %H:%M") }}</p>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-gray-400 text-sm">Sin historial.</p>
+    {% endfor %}
+</div>

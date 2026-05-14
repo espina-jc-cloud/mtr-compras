@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — MTR Compras{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Compras</h2>
+    <p class="text-gray-500 text-sm">{{ user.plant }} · {{ user.role }}</p>
+</div>
+
+<!-- Cards de estado -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <a href="/purchases?status=pendiente" class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center hover:shadow">
+        <div class="text-3xl font-bold text-yellow-600">{{ counts.pendiente }}</div>
+        <div class="text-sm text-yellow-700 mt-1">Pendientes</div>
+    </a>
+    <a href="/purchases?status=aprobada" class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center hover:shadow">
+        <div class="text-3xl font-bold text-blue-600">{{ counts.aprobada }}</div>
+        <div class="text-sm text-blue-700 mt-1">Aprobadas</div>
+    </a>
+    <a href="/purchases?status=recibida" class="bg-green-50 border border-green-200 rounded-xl p-4 text-center hover:shadow">
+        <div class="text-3xl font-bold text-green-600">{{ counts.recibida }}</div>
+        <div class="text-sm text-green-700 mt-1">Recibidas</div>
+    </a>
+    <a href="/purchases?status=facturada" class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center hover:shadow">
+        <div class="text-3xl font-bold text-purple-600">{{ counts.facturada }}</div>
+        <div class="text-sm text-purple-700 mt-1">Por pagar</div>
+    </a>
+</div>
+
+<!-- Filtros -->
+<form method="get" action="/dashboard" class="bg-white rounded-xl p-4 mb-4 flex flex-wrap gap-3 shadow-sm">
+    <select name="plant" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todas las plantas</option>
+        <option value="MTR1" {% if filters.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+        <option value="MTR2" {% if filters.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+    </select>
+    <select name="status" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los estados</option>
+        {% for s in ["pendiente","aprobada","recibida","facturada","pagada","rechazada","cancelada"] %}
+        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+        {% endfor %}
+    </select>
+    <select name="supplier_id" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los proveedores</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" {% if filters.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">Filtrar</button>
+    <a href="/dashboard" class="text-gray-500 px-3 py-2 text-sm">Limpiar</a>
+</form>
+
+<!-- Tabla -->
+<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
+                <th class="px-4 py-3">#</th>
+                <th class="px-4 py-3">Planta</th>
+                <th class="px-4 py-3">Proveedor</th>
+                <th class="px-4 py-3">Descripción</th>
+                <th class="px-4 py-3">Monto</th>
+                <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3">Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in purchases %}
+            <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="window.location='/purchases/{{ p.id }}'">
+                <td class="px-4 py-3 text-gray-400">#{{ p.id }}</td>
+                <td class="px-4 py-3 font-medium">{{ p.plant }}</td>
+                <td class="px-4 py-3">{{ p.supplier.name }}</td>
+                <td class="px-4 py-3 max-w-xs truncate">{{ p.description }}</td>
+                <td class="px-4 py-3">
+                    {% if p.estimated_amount %}
+                    ${{ "%.0f"|format(p.estimated_amount) }}
+                    {% if p.amount_alert %}<span class="text-red-500 ml-1" title="Factura supera 10% del estimado">⚠</span>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    {% set colors = {
+                        "pendiente": "bg-yellow-100 text-yellow-800",
+                        "aprobada": "bg-blue-100 text-blue-800",
+                        "recibida": "bg-green-100 text-green-800",
+                        "facturada": "bg-purple-100 text-purple-800",
+                        "pagada": "bg-gray-100 text-gray-600",
+                        "rechazada": "bg-red-100 text-red-800",
+                        "cancelada": "bg-gray-100 text-gray-400"
+                    } %}
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ colors.get(p.status, 'bg-gray-100') }}">
+                        {{ p.status|capitalize }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-gray-400">{{ p.created_at.strftime("%d/%m/%y") }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No hay compras con estos filtros</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

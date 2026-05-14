@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Proveedores — MTR{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Proveedores</h2>
+    {% if user.role in ("admin", "superadmin") %}
+    <a href="/suppliers/new" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Nuevo</a>
+    {% endif %}
+</div>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
+                <th class="px-4 py-3">Nombre</th>
+                <th class="px-4 py-3">CUIT</th>
+                <th class="px-4 py-3">Contacto</th>
+                <th class="px-4 py-3">Teléfono</th>
+                <th class="px-4 py-3">Estado</th>
+                {% if user.role in ("admin", "superadmin") %}<th class="px-4 py-3"></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for s in suppliers %}
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{{ s.name }}</td>
+                <td class="px-4 py-3 text-gray-500">{{ s.cuit or "—" }}</td>
+                <td class="px-4 py-3">{{ s.contact_name or "—" }}</td>
+                <td class="px-4 py-3">{{ s.contact_phone or "—" }}</td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs {% if s.active %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                        {{ "Activo" if s.active else "Inactivo" }}
+                    </span>
+                </td>
+                {% if user.role in ("admin", "superadmin") %}
+                <td class="px-4 py-3"><a href="/suppliers/{{ s.id }}/edit" class="text-blue-600 text-sm hover:underline">Editar</a></td>
+                {% endif %}
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No hay proveedores registrados</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

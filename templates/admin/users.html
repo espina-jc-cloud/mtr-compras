@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Usuarios — MTR{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Usuarios</h2>
+    <a href="/admin/users/new" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Nuevo usuario</a>
+</div>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
+                <th class="px-4 py-3">Nombre</th>
+                <th class="px-4 py-3">Email</th>
+                <th class="px-4 py-3">Rol</th>
+                <th class="px-4 py-3">Planta</th>
+                <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3"></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{{ u.name }}</td>
+                <td class="px-4 py-3 text-gray-500">{{ u.email }}</td>
+                <td class="px-4 py-3 capitalize">{{ u.role }}</td>
+                <td class="px-4 py-3">{{ u.plant }}</td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs {% if u.active %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                        {{ "Activo" if u.active else "Inactivo" }}
+                    </span>
+                </td>
+                <td class="px-4 py-3">
+                    {% if u.id != user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">
+                        <button type="submit" class="text-sm {% if u.active %}text-red-500{% else %}text-green-600{% endif %} hover:underline">
+                            {{ "Desactivar" if u.active else "Activar" }}
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
