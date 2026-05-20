@@ -15,5 +15,5 @@
     <td class="px-4 py-3">{% if p.estimated_amount %}${{ "%.0f"|format(p.estimated_amount) }}{% if p.amount_alert %} <span class="text-red-500">⚠</span>{% endif %}{% else %}—{% endif %}</td>
     <td class="px-4 py-3">{{ p.requester.name }}</td>
     <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold {{ colors.get(p.status, 'bg-gray-100') }}">{{ p.status|capitalize }}</span></td>
-    <td class="px-4 py-3 text-gray-400">{{ p.created_at.strftime("%d/%m/%y") }}</td>
+    <td class="px-4 py-3 text-gray-400">{{ p.created_at | fmt_ar("%d/%m/%y") }}</td>
 </tr>

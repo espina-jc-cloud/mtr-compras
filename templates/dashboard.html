@@ -95,7 +95,7 @@
           </div>
           <p class="text-sm font-medium text-gray-900 truncate">{{ p.supplier.name }}</p>
           <p class="text-xs text-gray-500 truncate mt-0.5">{{ p.description }}</p>
-          <p class="text-xs text-gray-400 mt-1">{{ p.requester.name }} · {{ p.created_at.strftime("%d/%m/%y") }}</p>
+          <p class="text-xs text-gray-400 mt-1">{{ p.requester.name }} · {{ p.created_at | fmt_ar("%d/%m/%y") }}</p>
         </div>
         <div class="flex-shrink-0 text-right">
           <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold status-{{ p.status }}">{{ p.status|capitalize }}</span>
@@ -140,7 +140,7 @@
           <td class="px-5 py-3.5">
             <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ p.status }}">{{ p.status|capitalize }}</span>
           </td>
-          <td class="px-5 py-3.5 text-gray-400 text-xs">{{ p.created_at.strftime("%d/%m/%y") }}</td>
+          <td class="px-5 py-3.5 text-gray-400 text-xs">{{ p.created_at | fmt_ar("%d/%m/%y") }}</td>
         </tr>
         {% else %}
         <tr><td colspan="7" class="px-5 py-10 text-center text-gray-400 text-sm">

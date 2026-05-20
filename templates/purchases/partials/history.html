@@ -9,7 +9,7 @@
             <span class="text-gray-400 text-xs"> ({{ log.old_status }} → {{ log.new_status }})</span>
             {% endif %}
             {% if log.comment %}<p class="text-gray-600 mt-0.5">{{ log.comment }}</p>{% endif %}
-            <p class="text-gray-400 text-xs mt-0.5">{{ log.created_at.strftime("%d/%m/%Y %H:%M") }}</p>
+            <p class="text-gray-400 text-xs mt-0.5">{{ log.created_at | fmt_ar("%d/%m/%Y %H:%M") }}</p>
         </div>
     </div>
     {% else %}

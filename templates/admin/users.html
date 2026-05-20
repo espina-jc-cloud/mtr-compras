@@ -89,7 +89,7 @@
             {{ "Activo" if u.active else "Inactivo" }}
           </span>
         </td>
-        <td class="px-5 py-3.5 text-gray-400 text-xs">{{ u.created_at.strftime("%d/%m/%y") }}</td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs">{{ u.created_at | fmt_ar("%d/%m/%y") }}</td>
         <td class="px-5 py-3.5 text-right">
           {% if u.id != user.id %}
           <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">

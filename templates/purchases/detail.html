@@ -71,7 +71,7 @@
         </div>
         <div>
           <dt class="text-xs text-gray-400 mb-0.5">Fecha solicitud</dt>
-          <dd class="text-gray-700">{{ purchase.requested_at.strftime("%d/%m/%Y %H:%M") }}</dd>
+          <dd class="text-gray-700">{{ purchase.requested_at | fmt_ar("%d/%m/%Y %H:%M") }}</dd>
         </div>
         {% if purchase.authorizer %}
         <div>
@@ -80,7 +80,7 @@
         </div>
         <div>
           <dt class="text-xs text-gray-400 mb-0.5">Fecha autorización</dt>
-          <dd class="text-gray-700">{{ purchase.authorized_at.strftime("%d/%m/%Y %H:%M") }}</dd>
+          <dd class="text-gray-700">{{ purchase.authorized_at | fmt_ar("%d/%m/%Y %H:%M") }}</dd>
         </div>
         {% endif %}
         <div>
@@ -156,7 +156,7 @@
                 {% if doc.invoice_number %}<span class="text-xs text-gray-500">N° {{ doc.invoice_number }}</span>{% endif %}
                 {% if doc.invoice_amount %}<span class="text-xs font-semibold text-gray-700">${{ "%.2f"|format(doc.invoice_amount) }}</span>{% endif %}
               </div>
-              <p class="text-xs text-gray-400 truncate mt-0.5">{{ doc.filename }} · {{ doc.uploader.name }} · {{ doc.uploaded_at.strftime("%d/%m/%Y") }}</p>
+              <p class="text-xs text-gray-400 truncate mt-0.5">{{ doc.filename }} · {{ doc.uploader.name }} · {{ doc.uploaded_at | fmt_ar("%d/%m/%Y") }}</p>
             </div>
           </div>
           <a href="{{ doc.file_url }}" target="_blank"
@@ -190,24 +190,28 @@
             </div>
             <div id="invoice-date-field" class="col-span-2 sm:col-span-1" style="display:none">
               <label class="block text-xs font-medium text-gray-600 mb-1">Fecha factura</label>
-              <input type="date" name="invoice_date" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <input type="date" name="invoice_date" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
             </div>
+          </div>
+          <div id="remito-fields" style="display:block">
+            <label class="block text-xs font-medium text-gray-600 mb-1">N° de remito</label>
+            <input type="text" name="invoice_number" placeholder="Ej: R-0001-00012345" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
           </div>
           <div id="invoice-fields" style="display:none" class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">N° de factura</label>
-              <input type="text" name="invoice_number" placeholder="0001-00012345" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <input type="text" name="invoice_number" placeholder="0001-00012345" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">Monto factura ($)</label>
-              <input type="text" name="invoice_amount" inputmode="decimal" placeholder="0.00" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <input type="text" name="invoice_amount" inputmode="decimal" placeholder="0.00" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500">
             </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Archivo <span class="text-red-400">*</span></label>
-            <input type="file" name="file" required accept="image/*,application/pdf" capture="environment"
+            <input type="file" name="file" required accept="image/*,application/pdf"
               class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-600 file:font-medium">
-            <p class="text-xs text-gray-400 mt-1">Foto o PDF · Máx. 10 MB</p>
+            <p class="text-xs text-gray-400 mt-1">Foto, galería o PDF · Máx. 10 MB</p>
           </div>
           <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm">
             Subir documento
@@ -240,7 +244,7 @@
               {% endif %}
             </div>
             {% if log.comment %}<p class="text-sm text-gray-600 mt-0.5">{{ log.comment }}</p>{% endif %}
-            <p class="text-xs text-gray-400 mt-0.5">{{ log.created_at.strftime("%d/%m/%Y %H:%M") }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{{ log.created_at | fmt_ar("%d/%m/%Y %H:%M") }}</p>
           </div>
         </div>
         {% endfor %}
@@ -374,8 +378,21 @@
 <script>
 function toggleInvoiceFields() {
   const type = document.getElementById('doc-type-select').value;
-  document.getElementById('invoice-fields').style.display = type === 'factura' ? 'grid' : 'none';
-  document.getElementById('invoice-date-field').style.display = type === 'factura' ? 'block' : 'none';
+  const isRemito  = type === 'remito';
+  const isFactura = type === 'factura';
+
+  const remitoDiv  = document.getElementById('remito-fields');
+  const invoiceDiv = document.getElementById('invoice-fields');
+  const dateDiv    = document.getElementById('invoice-date-field');
+
+  remitoDiv.style.display  = isRemito  ? 'block' : 'none';
+  invoiceDiv.style.display = isFactura ? 'grid'  : 'none';
+  dateDiv.style.display    = isFactura ? 'block' : 'none';
+
+  // Disable hidden inputs so browsers don't submit their values
+  remitoDiv.querySelectorAll('input').forEach(el => el.disabled = !isRemito);
+  invoiceDiv.querySelectorAll('input').forEach(el => el.disabled = !isFactura);
+  dateDiv.querySelectorAll('input').forEach(el => el.disabled = !isFactura);
 }
 </script>
 

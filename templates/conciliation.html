@@ -65,7 +65,7 @@
     <div class="min-w-0">
       <p class="font-semibold text-gray-900 text-sm truncate">{{ p.supplier.name }}</p>
       <p class="text-xs text-gray-500 truncate">{{ p.description }}</p>
-      <p class="text-xs text-gray-400 mt-0.5">{{ p.requester.name }} · {{ p.created_at.strftime("%d/%m/%y") }}</p>
+      <p class="text-xs text-gray-400 mt-0.5">{{ p.requester.name }} · {{ p.created_at | fmt_ar("%d/%m/%y") }}</p>
     </div>
   </div>
   <div class="flex-shrink-0 flex items-center gap-3">
