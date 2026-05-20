@@ -345,6 +345,18 @@
           </form>
         </details>
         {% endif %}
+
+        {% if user.role in ("admin", "superadmin") %}
+        <details class="border border-red-100 rounded-xl mt-3 overflow-hidden">
+          <summary class="px-4 py-2 text-xs text-red-400 cursor-pointer hover:bg-red-50">⚠ Eliminar compra</summary>
+          <div class="p-3 border-t border-red-100 bg-red-50">
+            <p class="text-xs text-red-600 mb-3">Esta acción es <strong>permanente</strong>. Se eliminarán también los documentos y el historial.</p>
+            <form method="post" action="/purchases/{{ purchase.id }}/delete" onsubmit="return confirm('¿Seguro que querés eliminar la Compra #{{ purchase.id }}? Esta acción no se puede deshacer.')">
+              <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold">Eliminar definitivamente</button>
+            </form>
+          </div>
+        </details>
+        {% endif %}
       </div>
     </div>
 

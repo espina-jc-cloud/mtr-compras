@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists, select
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app import models
 from app.templates import templates
 
@@ -287,3 +287,17 @@ async def cancel_purchase(purchase_id: int, reason: str = Form(""), db: Session 
     add_audit(db, purchase_id, current_user.id, "cancelled", old, "cancelada", reason)
     db.commit()
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
+
+
+@router.post("/{purchase_id}/delete")
+async def delete_purchase(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "superadmin"))
+):
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+    db.delete(p)
+    db.commit()
+    return RedirectResponse(url="/purchases", status_code=303)
