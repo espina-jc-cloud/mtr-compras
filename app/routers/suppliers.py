@@ -1,15 +1,14 @@
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app import models
+from app.templates import templates
 
 router = APIRouter(prefix="/suppliers")
-templates = Jinja2Templates(directory="templates")
 
 STATUSES = ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada", "cancelada"]
 

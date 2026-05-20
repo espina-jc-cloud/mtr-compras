@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, exists
 from app.database import get_db
 from app.deps import get_current_user
 from app import models
+from app.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 def _base_query(db, current_user):

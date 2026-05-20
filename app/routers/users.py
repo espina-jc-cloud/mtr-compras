@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_role
 from app.auth import hash_password
 from app import models
+from app.templates import templates
 
 router = APIRouter(prefix="/admin")
-templates = Jinja2Templates(directory="templates")
 
 ROLES = ["planta", "autorizador", "admin", "superadmin"]
 PLANTS = ["MTR1", "MTR2", "ROSARIO", "TODAS"]

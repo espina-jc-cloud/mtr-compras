@@ -1,15 +1,14 @@
 from datetime import datetime, date
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists, select
 from app.database import get_db
 from app.deps import get_current_user
 from app import models
+from app.templates import templates
 
 router = APIRouter(prefix="/purchases")
-templates = Jinja2Templates(directory="templates")
 
 AREAS = ["Mantenimiento", "Producción", "Logística", "Administración", "Seguridad", "Limpieza", "Otros"]
 PLANTS = ["MTR1", "MTR2"]
