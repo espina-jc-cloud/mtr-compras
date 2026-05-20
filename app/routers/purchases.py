@@ -116,20 +116,25 @@ def build_query(db, current_user, params: dict):
     return q.order_by(models.Purchase.created_at.desc())
 
 
+def _qp(request: Request, name: str) -> str:
+    """Devuelve el primer valor no-vacío del query param (maneja duplicados desktop/mobile)."""
+    values = request.query_params.getlist(name)
+    return next((v for v in values if v), "")
+
 def get_filter_params(request: Request) -> dict:
     return {
-        "q": request.query_params.get("q", ""),
-        "plant": request.query_params.get("plant", ""),
-        "status": request.query_params.get("status", ""),
-        "supplier_id": request.query_params.get("supplier_id", ""),
-        "requester_id": request.query_params.get("requester_id", ""),
-        "date_from": request.query_params.get("date_from", ""),
-        "date_to": request.query_params.get("date_to", ""),
-        "amount_min": request.query_params.get("amount_min", ""),
-        "amount_max": request.query_params.get("amount_max", ""),
-        "has_remito": request.query_params.get("has_remito", ""),
-        "has_factura": request.query_params.get("has_factura", ""),
-        "amount_alert": request.query_params.get("amount_alert", ""),
+        "q":            _qp(request, "q"),
+        "plant":        _qp(request, "plant"),
+        "status":       _qp(request, "status"),
+        "supplier_id":  _qp(request, "supplier_id"),
+        "requester_id": _qp(request, "requester_id"),
+        "date_from":    _qp(request, "date_from"),
+        "date_to":      _qp(request, "date_to"),
+        "amount_min":   _qp(request, "amount_min"),
+        "amount_max":   _qp(request, "amount_max"),
+        "has_remito":   _qp(request, "has_remito"),
+        "has_factura":  _qp(request, "has_factura"),
+        "amount_alert": _qp(request, "amount_alert"),
     }
 
 
