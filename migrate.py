@@ -19,13 +19,20 @@ from app.auth import hash_password
 
 
 def _add_column(conn, table, column, col_type):
-    """Agrega una columna si no existe. Compatible con SQLite y PostgreSQL."""
+    """Agrega una columna si no existe. Compatible con SQLite y PostgreSQL.
+
+    IMPORTANTE: el conn.rollback() en el except es obligatorio para PostgreSQL.
+    Cuando ADD COLUMN falla (columna ya existe), PostgreSQL pone la conexión en
+    estado "aborted transaction" — sin rollback, todos los comandos siguientes
+    también fallan, aunque la columna no exista todavía.
+    SQLite ignora el rollback sin error, así que es seguro para ambos motores.
+    """
     try:
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
         conn.commit()
         print(f"  + columna {table}.{column} agregada")
     except Exception:
-        pass  # ya existe
+        conn.rollback()  # ← crítico para PostgreSQL: limpia el estado "aborted"
 
 
 def run():
