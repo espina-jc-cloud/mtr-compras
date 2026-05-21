@@ -20,6 +20,9 @@
       hx-swap="innerHTML"
       hx-push-url="true"
       hx-indicator="#search-spinner">
+  <!-- sort state (updated by sortBy() JS) -->
+  <input type="hidden" name="sort_by" id="sort-by-input" value="{{ params.sort_by or 'purchase_date' }}">
+  <input type="hidden" name="sort_dir" id="sort-dir-input" value="{{ params.sort_dir or 'desc' }}">
   <div class="relative mb-3">
     <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
     <input type="text" name="q" value="{{ params.q }}"
@@ -77,11 +80,11 @@
     </div>
     <div class="grid grid-cols-5 gap-3 items-end">
       <div>
-        <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Desde (fecha compra)</label>
         <input type="date" name="date_from" value="{{ params.date_from }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
       </div>
       <div>
-        <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Hasta (fecha compra)</label>
         <input type="date" name="date_to" value="{{ params.date_to }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-gray-50">
       </div>
       <div>
@@ -112,6 +115,16 @@
         {% endif %}
       </div>
     </div>
+    {% if user.role in ("admin", "superadmin") %}
+    <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-50">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+        <input type="checkbox" name="include_deleted" value="1" onchange="this.form.dispatchEvent(new Event('submit'))"
+          {% if params.include_deleted == "1" %}checked{% endif %}
+          class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+        Incluir compras anuladas
+      </label>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Panel de filtros mobile (desplegable) -->
@@ -159,6 +172,15 @@
             </select>
           </div>
         </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Ordenar por</label>
+          <select onchange="sortBy(this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+            <option value="purchase_date" {% if (params.sort_by or 'purchase_date') == 'purchase_date' %}selected{% endif %}>Fecha de compra</option>
+            <option value="status" {% if params.sort_by == 'status' %}selected{% endif %}>Estado</option>
+            <option value="estimated_amount" {% if params.sort_by == 'estimated_amount' %}selected{% endif %}>Monto</option>
+            <option value="plant" {% if params.sort_by == 'plant' %}selected{% endif %}>Planta</option>
+          </select>
+        </div>
         <a href="/purchases" class="block text-center text-sm text-gray-500 border border-gray-200 rounded-lg py-2 hover:bg-gray-50">Limpiar filtros</a>
       </div>
     </details>
@@ -169,5 +191,21 @@
 <div id="purchases-results">
   {% include "purchases/partials/results.html" %}
 </div>
+
+<script>
+function sortBy(col) {
+  const sbInput = document.getElementById('sort-by-input');
+  const sdInput = document.getElementById('sort-dir-input');
+  const current = sbInput.value;
+  const dir     = sdInput.value;
+  if (current === col) {
+    sdInput.value = dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sbInput.value = col;
+    sdInput.value = 'desc';
+  }
+  document.getElementById('filter-form').dispatchEvent(new Event('submit'));
+}
+</script>
 
 {% endblock %}

@@ -49,6 +49,9 @@ class Purchase(Base):
     purchase_order_ref = Column(String)
     notes = Column(Text)
     amount_alert = Column(Boolean, default=False)
+    purchase_date = Column(DateTime, nullable=True)   # fecha real de compra
+    deleted_at = Column(DateTime, nullable=True)      # soft delete
+    deleted_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -65,9 +68,10 @@ class Document(Base):
     doc_type = Column(String, nullable=False)  # remito | factura | otro
     file_url = Column(String, nullable=False)
     filename = Column(String, nullable=False)
-    invoice_number = Column(String)
+    invoice_number = Column(String)   # usado también como nº de remito
     invoice_date = Column(String)
     invoice_amount = Column(Numeric(12, 2))
+    remito_date = Column(String, nullable=True)  # fecha del remito
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 

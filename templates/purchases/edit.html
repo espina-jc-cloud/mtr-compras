@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Editar Compra #{{ purchase.id }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="/purchases/{{ purchase.id }}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Compra #{{ purchase.id }}
+    </a>
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl font-semibold text-gray-900">Editar Compra #{{ purchase.id }}</h1>
+      <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold status-{{ purchase.status }}">{{ purchase.status|capitalize }}</span>
+    </div>
+    <p class="text-sm text-gray-400 mt-0.5">Solo admin y superadmin pueden editar compras existentes.</p>
+  </div>
+
+  {% if error %}
+  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/purchases/{{ purchase.id }}/edit" class="space-y-4">
+
+    <!-- Origen -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Origen</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta <span class="text-red-400">*</span></label>
+          <select name="plant" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+            {% for p in plants %}
+            <option value="{{ p }}" {% if purchase.plant == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Área <span class="text-red-400">*</span></label>
+          <select name="area" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+            {% for a in areas %}
+            <option value="{{ a }}" {% if purchase.area == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha real de compra <span class="text-red-400">*</span></label>
+          <input type="date" name="purchase_date" required
+            value="{{ purchase.purchase_date | fmt_ar('%Y-%m-%d') if purchase.purchase_date else purchase.created_at | fmt_ar('%Y-%m-%d') }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Estado</label>
+          <select name="status" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if purchase.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personas -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Responsables</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Solicitante <span class="text-red-400">*</span></label>
+          <select name="requested_by_id" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+            {% for u in users %}
+            <option value="{{ u.id }}" {% if purchase.requested_by_id == u.id %}selected{% endif %}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Autorizador</label>
+          <select name="authorized_by_id" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+            <option value="">— ninguno —</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" {% if purchase.authorized_by_id == u.id %}selected{% endif %}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proveedor -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Proveedor</h2>
+      <select name="supplier_id" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" {% if purchase.supplier_id == s.id %}selected{% endif %}>{{ s.name }}{% if s.cuit %} · {{ s.cuit }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Descripción -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Detalle de la compra</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">¿Qué se compra? <span class="text-red-400">*</span></label>
+          <textarea name="description" required rows="4"
+            placeholder="Podés usar varias líneas, ej:&#10;- Destornillador Phillips x 2&#10;- Tornillos 8mm x 100"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 resize-y placeholder-gray-400">{{ purchase.description }}</textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">¿Para qué se compra? <span class="text-red-400">*</span></label>
+          <textarea name="reason" required rows="2"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 resize-y placeholder-gray-400">{{ purchase.reason }}</textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Ref. / Orden de compra</label>
+          <input type="text" name="purchase_order_ref" value="{{ purchase.purchase_order_ref or '' }}"
+            placeholder="Ej: OC-2024-001"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Montos -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Montos</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Monto estimado ($)</label>
+          <div class="relative">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <input type="text" name="estimated_amount" inputmode="decimal"
+              value="{{ '%.2f'|format(purchase.estimated_amount|float) if purchase.estimated_amount else '' }}"
+              placeholder="0.00"
+              class="w-full pl-7 pr-4 border border-gray-200 rounded-xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Monto real ($)</label>
+          <div class="relative">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <input type="text" name="actual_amount" inputmode="decimal"
+              value="{{ '%.2f'|format(purchase.actual_amount|float) if purchase.actual_amount else '' }}"
+              placeholder="0.00"
+              class="w-full pl-7 pr-4 border border-gray-200 rounded-xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notas -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Notas internas</h2>
+      <textarea name="notes" rows="2"
+        placeholder="Urgencia, especificaciones extra, contacto en planta..."
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 resize-y placeholder-gray-400">{{ purchase.notes or '' }}</textarea>
+    </div>
+
+    <!-- Motivo de edición (auditoría) -->
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <h2 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">Motivo de la edición</h2>
+      <textarea name="edit_reason" rows="2" required
+        placeholder="Ej: Corrección de monto estimado, cambio de proveedor por error de carga..."
+        class="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white resize-none placeholder-amber-400"></textarea>
+      <p class="text-xs text-amber-600 mt-1.5">Obligatorio. Queda registrado en el historial de la compra.</p>
+    </div>
+
+    <div class="flex gap-3">
+      <a href="/purchases/{{ purchase.id }}"
+        class="flex-1 text-center border border-gray-200 text-gray-600 hover:bg-gray-50 font-semibold py-3.5 rounded-2xl text-sm">
+        Cancelar
+      </a>
+      <button type="submit"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-2xl text-sm shadow-sm">
+        Guardar cambios
+      </button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

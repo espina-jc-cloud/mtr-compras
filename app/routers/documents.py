@@ -16,6 +16,7 @@ async def upload_document(
     invoice_number: str = Form(""),
     invoice_date: str = Form(""),
     invoice_amount: str = Form(""),
+    remito_date: str = Form(""),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
@@ -43,6 +44,7 @@ async def upload_document(
         invoice_number=invoice_number or None,
         invoice_date=invoice_date or None,
         invoice_amount=amount,
+        remito_date=remito_date or None,
         uploaded_by_id=current_user.id
     )
     db.add(doc)

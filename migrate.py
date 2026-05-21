@@ -12,9 +12,20 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()
 
+from sqlalchemy import text
 from app.database import engine, Base, DATABASE_URL, SessionLocal
 from app import models
 from app.auth import hash_password
+
+
+def _add_column(conn, table, column, col_type):
+    """Agrega una columna si no existe. Compatible con SQLite y PostgreSQL."""
+    try:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+        conn.commit()
+        print(f"  + columna {table}.{column} agregada")
+    except Exception:
+        pass  # ya existe
 
 
 def run():
@@ -22,6 +33,14 @@ def run():
 
     Base.metadata.create_all(bind=engine)
     print(f"✓ Tablas creadas ({DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL})")
+
+    # ── Migraciones seguras de columnas nuevas ────────────────────────────────
+    with engine.connect() as conn:
+        _add_column(conn, "purchases", "purchase_date",  "TIMESTAMP")
+        _add_column(conn, "purchases", "deleted_at",     "TIMESTAMP")
+        _add_column(conn, "purchases", "deleted_reason", "TEXT")
+        _add_column(conn, "documents", "remito_date",    "VARCHAR")
+    print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")
     admin_password = os.getenv("FIRST_ADMIN_PASSWORD", "")

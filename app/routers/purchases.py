@@ -2,7 +2,7 @@ from datetime import datetime, date
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_, exists, select
+from sqlalchemy import or_, and_, exists, func, case, nullslast
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app import models
@@ -14,20 +14,31 @@ AREAS = ["Mantenimiento", "Producción", "Logística", "Administración", "Segur
 PLANTS = ["MTR1", "MTR2"]
 STATUSES = ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada", "cancelada"]
 
+TODAY = date.today().isoformat()
+
 def add_audit(db, purchase_id, user_id, action, old_status, new_status, comment=""):
     db.add(models.AuditLog(
         purchase_id=purchase_id, user_id=user_id, action=action,
         old_status=old_status, new_status=new_status, comment=comment
     ))
 
+def _effective_date(col_purchase_date, col_created_at):
+    """Fecha efectiva: purchase_date si existe, sino created_at."""
+    return func.coalesce(col_purchase_date, col_created_at)
+
+
 def build_query(db, current_user, params: dict):
-    """Construye query con todos los filtros aplicados."""
+    """Construye query con todos los filtros y ordenamiento."""
     q = db.query(models.Purchase).options(
         joinedload(models.Purchase.supplier),
         joinedload(models.Purchase.requester),
         joinedload(models.Purchase.authorizer),
         joinedload(models.Purchase.documents),
     )
+
+    # Ocultar eliminadas por defecto
+    if params.get("include_deleted") != "1" or current_user.role not in ("admin", "superadmin"):
+        q = q.filter(models.Purchase.deleted_at == None)
 
     # Restricción por rol
     if current_user.role == "planta":
@@ -50,16 +61,20 @@ def build_query(db, current_user, params: dict):
             q = q.filter(models.Purchase.requested_by_id == int(params["requester_id"]))
         except ValueError:
             pass
+
+    # Filtro por fecha real de compra (purchase_date, con fallback a created_at)
+    eff_date = _effective_date(models.Purchase.purchase_date, models.Purchase.created_at)
     if params.get("date_from"):
         try:
-            q = q.filter(models.Purchase.created_at >= datetime.strptime(params["date_from"], "%Y-%m-%d"))
+            q = q.filter(eff_date >= datetime.strptime(params["date_from"], "%Y-%m-%d"))
         except ValueError:
             pass
     if params.get("date_to"):
         try:
-            q = q.filter(models.Purchase.created_at <= datetime.strptime(params["date_to"] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+            q = q.filter(eff_date <= datetime.strptime(params["date_to"] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
         except ValueError:
             pass
+
     if params.get("amount_min"):
         try:
             q = q.filter(models.Purchase.estimated_amount >= float(params["amount_min"]))
@@ -89,11 +104,10 @@ def build_query(db, current_user, params: dict):
     elif params.get("has_factura") == "no":
         q = q.filter(~factura_exists)
 
-    # Búsqueda de texto libre — busca en descripción, motivo, proveedor, n° factura, n° remito
+    # Búsqueda de texto libre
     text = params.get("q", "").strip()
     if text:
         like = f"%{text}%"
-        # Join con supplier y document para buscar en sus campos
         doc_match = exists().where(
             and_(
                 models.Document.purchase_id == models.Purchase.id,
@@ -113,7 +127,25 @@ def build_query(db, current_user, params: dict):
             doc_match,
         ))
 
-    return q.order_by(models.Purchase.created_at.desc())
+    # ── Ordenamiento ──────────────────────────────────────────────────────────
+    sort_by  = params.get("sort_by", "purchase_date")
+    sort_dir = params.get("sort_dir", "desc")
+
+    eff = _effective_date(models.Purchase.purchase_date, models.Purchase.created_at)
+    sort_map = {
+        "purchase_date":  eff,
+        "created_at":     models.Purchase.created_at,
+        "plant":          models.Purchase.plant,
+        "status":         models.Purchase.status,
+        "estimated_amount": models.Purchase.estimated_amount,
+    }
+    col = sort_map.get(sort_by, eff)
+    if sort_dir == "asc":
+        q = q.order_by(col.asc())
+    else:
+        q = q.order_by(col.desc())
+
+    return q
 
 
 def _qp(request: Request, name: str) -> str:
@@ -123,18 +155,21 @@ def _qp(request: Request, name: str) -> str:
 
 def get_filter_params(request: Request) -> dict:
     return {
-        "q":            _qp(request, "q"),
-        "plant":        _qp(request, "plant"),
-        "status":       _qp(request, "status"),
-        "supplier_id":  _qp(request, "supplier_id"),
-        "requester_id": _qp(request, "requester_id"),
-        "date_from":    _qp(request, "date_from"),
-        "date_to":      _qp(request, "date_to"),
-        "amount_min":   _qp(request, "amount_min"),
-        "amount_max":   _qp(request, "amount_max"),
-        "has_remito":   _qp(request, "has_remito"),
-        "has_factura":  _qp(request, "has_factura"),
-        "amount_alert": _qp(request, "amount_alert"),
+        "q":              _qp(request, "q"),
+        "plant":          _qp(request, "plant"),
+        "status":         _qp(request, "status"),
+        "supplier_id":    _qp(request, "supplier_id"),
+        "requester_id":   _qp(request, "requester_id"),
+        "date_from":      _qp(request, "date_from"),
+        "date_to":        _qp(request, "date_to"),
+        "amount_min":     _qp(request, "amount_min"),
+        "amount_max":     _qp(request, "amount_max"),
+        "has_remito":     _qp(request, "has_remito"),
+        "has_factura":    _qp(request, "has_factura"),
+        "amount_alert":   _qp(request, "amount_alert"),
+        "sort_by":        _qp(request, "sort_by") or "purchase_date",
+        "sort_dir":       _qp(request, "sort_dir") or "desc",
+        "include_deleted": _qp(request, "include_deleted"),
     }
 
 
@@ -148,7 +183,7 @@ async def list_purchases(request: Request, db: Session = Depends(get_db), curren
     is_htmx = request.headers.get("HX-Request")
     if is_htmx:
         return templates.TemplateResponse(request, "purchases/partials/results.html", {
-            "user": current_user, "purchases": purchases, "params": params
+            "user": current_user, "purchases": purchases, "params": params, "statuses": STATUSES,
         })
     return templates.TemplateResponse(request, "purchases/list.html", {
         "user": current_user,
@@ -162,7 +197,8 @@ async def new_purchase_form(request: Request, db: Session = Depends(get_db), cur
     suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).order_by(models.Supplier.name).all()
     return templates.TemplateResponse(request, "purchases/new.html", {
         "user": current_user,
-        "suppliers": suppliers, "areas": AREAS, "plants": PLANTS, "error": None
+        "suppliers": suppliers, "areas": AREAS, "plants": PLANTS, "error": None,
+        "today": date.today().isoformat(),
     })
 
 
@@ -172,6 +208,7 @@ async def create_purchase(
     plant: str = Form(...), area: str = Form(...), supplier_id: int = Form(...),
     description: str = Form(...), reason: str = Form(...),
     estimated_amount: str = Form(""), notes: str = Form(""),
+    purchase_date: str = Form(""),
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     amount = None
@@ -180,10 +217,17 @@ async def create_purchase(
             amount = float(estimated_amount.replace(",", "."))
         except ValueError:
             pass
+    pd = None
+    if purchase_date.strip():
+        try:
+            pd = datetime.strptime(purchase_date.strip(), "%Y-%m-%d")
+        except ValueError:
+            pass
     purchase = models.Purchase(
         plant=plant, area=area, supplier_id=supplier_id,
         description=description, reason=reason, estimated_amount=amount, notes=notes,
-        requested_by_id=current_user.id, status="pendiente"
+        requested_by_id=current_user.id, status="pendiente",
+        purchase_date=pd,
     )
     db.add(purchase)
     db.flush()
@@ -292,12 +336,103 @@ async def cancel_purchase(purchase_id: int, reason: str = Form(""), db: Session 
 @router.post("/{purchase_id}/delete")
 async def delete_purchase(
     purchase_id: int,
+    deleted_reason: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "superadmin"))
 ):
     p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
     if not p:
         raise HTTPException(status_code=404)
-    db.delete(p)
+    p.deleted_at = datetime.utcnow()
+    p.deleted_reason = deleted_reason or "Sin motivo indicado"
+    add_audit(db, purchase_id, current_user.id, "deleted", p.status, p.status, p.deleted_reason)
     db.commit()
     return RedirectResponse(url="/purchases", status_code=303)
+
+
+# ── Edit purchase (admin/superadmin) ─────────────────────────────────────────
+
+@router.get("/{purchase_id}/edit", response_class=HTMLResponse)
+async def edit_purchase_form(
+    purchase_id: int, request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "superadmin"))
+):
+    p = db.query(models.Purchase).options(
+        joinedload(models.Purchase.documents),
+        joinedload(models.Purchase.audit_logs),
+    ).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+    suppliers = db.query(models.Supplier).order_by(models.Supplier.name).all()
+    users = db.query(models.User).filter(models.User.active == True).order_by(models.User.name).all()
+    return templates.TemplateResponse(request, "purchases/edit.html", {
+        "user": current_user, "purchase": p,
+        "suppliers": suppliers, "users": users,
+        "areas": AREAS, "plants": PLANTS, "statuses": STATUSES, "error": None,
+    })
+
+
+@router.post("/{purchase_id}/edit")
+async def edit_purchase(
+    purchase_id: int,
+    request: Request,
+    plant: str = Form(...),
+    area: str = Form(...),
+    supplier_id: int = Form(...),
+    description: str = Form(...),
+    reason: str = Form(...),
+    purchase_date: str = Form(""),
+    status: str = Form(...),
+    requested_by_id: int = Form(...),
+    authorized_by_id: str = Form(""),
+    estimated_amount: str = Form(""),
+    actual_amount: str = Form(""),
+    purchase_order_ref: str = Form(""),
+    notes: str = Form(""),
+    edit_reason: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "superadmin"))
+):
+    p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+
+    old_status = p.status
+
+    p.plant = plant
+    p.area = area
+    p.supplier_id = supplier_id
+    p.description = description
+    p.reason = reason
+    p.purchase_order_ref = purchase_order_ref or None
+    p.notes = notes or None
+    p.status = status
+    p.requested_by_id = requested_by_id
+    p.authorized_by_id = int(authorized_by_id) if authorized_by_id.strip() else None
+
+    if purchase_date.strip():
+        try:
+            p.purchase_date = datetime.strptime(purchase_date.strip(), "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    if estimated_amount.strip():
+        try:
+            p.estimated_amount = float(estimated_amount.replace(",", "."))
+        except ValueError:
+            pass
+    else:
+        p.estimated_amount = None
+
+    if actual_amount.strip():
+        try:
+            p.actual_amount = float(actual_amount.replace(",", "."))
+        except ValueError:
+            pass
+    else:
+        p.actual_amount = None
+
+    add_audit(db, purchase_id, current_user.id, "edited", old_status, status, edit_reason)
+    db.commit()
+    return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
