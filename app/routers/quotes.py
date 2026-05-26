@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user, require_role, require_compras_access
 from app import models
 from app.templates import templates
 from app.cloudinary_upload import upload_file
@@ -126,7 +126,7 @@ def build_query(db: Session, current_user, params: dict):
 # ── List ─────────────────────────────────────────────────────────────────────
 
 @router.get("", response_class=HTMLResponse)
-async def list_quotes(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def list_quotes(request: Request, db: Session = Depends(get_db), current_user=Depends(require_compras_access)):
     params = get_filter_params(request)
     quotes = build_query(db, current_user, params).limit(200).all()
     suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).order_by(models.Supplier.name).all()

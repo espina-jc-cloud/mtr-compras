@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists, func, case, nullslast
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user, require_role, require_compras_access
 from app import models
 from app.templates import templates
 
@@ -174,7 +174,7 @@ def get_filter_params(request: Request) -> dict:
 
 
 @router.get("", response_class=HTMLResponse)
-async def list_purchases(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def list_purchases(request: Request, db: Session = Depends(get_db), current_user=Depends(require_compras_access)):
     params = get_filter_params(request)
     purchases = build_query(db, current_user, params).limit(200).all()
     suppliers = db.query(models.Supplier).filter(models.Supplier.active == True).order_by(models.Supplier.name).all()

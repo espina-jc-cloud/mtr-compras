@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user, require_role, require_compras_access
 from app import models
 from app.templates import templates
 
@@ -14,7 +14,7 @@ STATUSES = ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechaza
 
 
 @router.get("", response_class=HTMLResponse)
-async def list_suppliers(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def list_suppliers(request: Request, db: Session = Depends(get_db), current_user=Depends(require_compras_access)):
     suppliers = db.query(models.Supplier).order_by(models.Supplier.name).all()
     return templates.TemplateResponse(request, "suppliers/list.html", {"user": current_user, "suppliers": suppliers})
 
