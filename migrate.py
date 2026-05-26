@@ -81,9 +81,17 @@ def run():
     # ── Auto-import de equipos y mantenimiento desde Excel ───────────────────
     # Solo corre si: (a) estamos en producción, (b) el archivo existe,
     # (c) la tabla equipment está vacía.
-    excel_path = os.path.join(os.path.dirname(__file__), "maintenance_import.xlsx")
+    excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maintenance_import.xlsx")
+    print(f"[import] buscando Excel en: {excel_path}")
+    print(f"[import] is_prod={is_prod}, existe={os.path.exists(excel_path)}")
     if is_prod and os.path.exists(excel_path):
-        eq_count = SessionLocal().execute(text("SELECT COUNT(*) FROM equipment")).scalar()
+        try:
+            with SessionLocal() as sess:
+                eq_count = sess.execute(text("SELECT COUNT(*) FROM equipment")).scalar()
+        except Exception as e:
+            eq_count = 0
+            print(f"[import] error consultando equipment: {e}", file=sys.stderr)
+        print(f"[import] equipment count actual: {eq_count}")
         if eq_count == 0:
             print(f"✓ Importando datos de mantenimiento desde {excel_path} …")
             try:
