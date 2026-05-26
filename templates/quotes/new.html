@@ -217,8 +217,8 @@ function recalcTotal() {
 }
 
 // Pre-fill items from prefill if any
-{% if prefill.items %}
-{% for item in prefill.items %}
+{% if prefill_items %}
+{% for item in prefill_items %}
 addItem({{ item.description|tojson }}, '{{ item.quantity or "" }}', '{{ item.unit or "" }}', '{{ item.unit_price or "" }}');
 {% endfor %}
 {% endif %}

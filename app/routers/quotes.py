@@ -153,7 +153,7 @@ async def new_quote_form(request: Request, db: Session = Depends(get_db), curren
         "user": current_user,
         "suppliers": suppliers, "areas": AREAS, "plants": PLANTS,
         "today": date.today().isoformat(), "error": None,
-        "prefill": {},
+        "prefill": {}, "prefill_items": [],
     })
 
 
