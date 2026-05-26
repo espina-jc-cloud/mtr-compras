@@ -162,3 +162,93 @@ class QuoteAuditLog(Base):
 
     quote = relationship("Quote", back_populates="audit_logs")
     user = relationship("User")
+
+
+# ─── Mantenimiento ────────────────────────────────────────────────────────────
+
+class Equipment(Base):
+    __tablename__ = "equipment"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, nullable=False, unique=True)   # MC1, CG5, A7
+    name = Column(String, nullable=False)
+    plant = Column(String, nullable=False)               # MTR1 / MTR2
+    category = Column(String, nullable=True)             # fijo / flota / infraestructura
+    work_type_code = Column(Integer, nullable=True)      # 261-266
+    brand = Column(String, nullable=True)
+    model_name = Column(String, nullable=True)           # "model" reservado en Python
+    active = Column(Boolean, default=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    records = relationship("MaintenanceRecord", back_populates="equipment")
+
+
+class MaintenanceRecord(Base):
+    __tablename__ = "maintenance_records"
+    id = Column(Integer, primary_key=True, index=True)
+    plant = Column(String, nullable=False)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=True)
+    equipment_text = Column(String, nullable=True)       # texto libre si no está en sistema
+    location_text = Column(String, nullable=True)        # "Foso cinta 3", "Techo nave 2"
+    work_type_code = Column(Integer, nullable=True)      # 261-266
+    maintenance_type = Column(String, default="correctivo")  # correctivo / preventivo
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    work_date = Column(DateTime, nullable=False)         # fecha real del trabajo
+    performed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    performed_by_text = Column(String, nullable=True)    # "Raúl", "Empresa X"
+    contractor_company = Column(String, nullable=True)
+    is_contractor = Column(Boolean, default=False)
+    entered_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    supervised_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    did_lubrication = Column(Boolean, nullable=True)
+    did_cleaning = Column(Boolean, nullable=True)
+    hours_worked = Column(Numeric(6, 2), nullable=True)
+    workers_count = Column(Integer, nullable=True, default=1)
+    hourly_rate = Column(Numeric(12, 2), nullable=True)
+    labor_cost = Column(Numeric(12, 2), nullable=True)
+    parts_cost = Column(Numeric(12, 2), nullable=True)
+    total_cost = Column(Numeric(12, 2), nullable=True)
+    status = Column(String, default="cerrado")           # abierto / en_progreso / cerrado
+    purchase_id = Column(Integer, ForeignKey("purchases.id"), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    equipment = relationship("Equipment", back_populates="records")
+    performer = relationship("User", foreign_keys=[performed_by_id])
+    entered_by = relationship("User", foreign_keys=[entered_by_id])
+    supervised_by = relationship("User", foreign_keys=[supervised_by_id])
+    purchase = relationship("Purchase", foreign_keys=[purchase_id])
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
+    documents = relationship("MaintenanceDocument", back_populates="record", cascade="all, delete-orphan")
+    audit_logs = relationship("MaintenanceAuditLog", back_populates="record", cascade="all, delete-orphan")
+
+
+class MaintenanceDocument(Base):
+    __tablename__ = "maintenance_documents"
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("maintenance_records.id"), nullable=False)
+    file_url = Column(String, nullable=False)
+    filename = Column(String, nullable=False)
+    doc_type = Column(String, default="foto")    # foto / pdf / remito / otro
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    record = relationship("MaintenanceRecord", back_populates="documents")
+    uploader = relationship("User")
+
+
+class MaintenanceAuditLog(Base):
+    __tablename__ = "maintenance_audit_log"
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("maintenance_records.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    record = relationship("MaintenanceRecord", back_populates="audit_logs")
+    user = relationship("User")

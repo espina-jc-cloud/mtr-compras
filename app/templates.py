@@ -15,6 +15,19 @@ _env = Environment(
     loader=FileSystemLoader("templates"),
     autoescape=select_autoescape(["html"]),
 )
+def _fmt_num(value, decimals=0):
+    """Formatea un número como moneda argentina: 1234567.5 → '1.234.568'"""
+    if value is None:
+        return "—"
+    try:
+        n = float(value)
+        if decimals == 0:
+            return f"{n:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{n:,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (TypeError, ValueError):
+        return str(value)
+
 _env.filters["fmt_ar"] = _fmt_ar
+_env.filters["fmt_num"] = _fmt_num
 
 templates = Jinja2Templates(env=_env)

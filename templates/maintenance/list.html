@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Registros de mantenimiento</h1>
+      <p class="text-sm text-gray-400 mt-0.5">Historial de intervenciones correctivas y preventivas.</p>
+    </div>
+    {% if user.role not in ("planta",) %}
+    <a href="/maintenance/new"
+       class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nuevo registro
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" action="/maintenance" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div class="col-span-2 sm:col-span-2">
+        <input type="text" name="q" value="{{ params.q }}" placeholder="Buscar título, descripción, equipo..."
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+      </div>
+      {% if user.role not in ("tecnico","planta") or user.plant == "TODAS" %}
+      <div>
+        <select name="plant" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todas las plantas</option>
+          {% for p in plants %}
+          <option value="{{ p }}" {% if params.plant == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <select name="status" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todos los estados</option>
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <select name="mtype" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <option value="">Correctivo + Preventivo</option>
+          {% for mt in maintenance_types %}
+          <option value="{{ mt }}" {% if params.mtype == mt %}selected{% endif %}>{{ mt|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <input type="date" name="date_from" value="{{ params.date_from }}" placeholder="Desde"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+      </div>
+      <div>
+        <input type="date" name="date_to" value="{{ params.date_to }}" placeholder="Hasta"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+      </div>
+      <div>
+        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium py-2.5 rounded-xl">
+          Filtrar
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Lista -->
+  {% if records %}
+  <div class="space-y-2">
+    {% for r in records %}
+    <a href="/maintenance/{{ r.id }}"
+       class="block bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-4 hover:border-amber-200 hover:shadow-md transition-all">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="status-mant-{{ r.status }} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
+              {{ r.status|replace('_',' ')|capitalize }}
+            </span>
+            <span class="text-xs text-gray-400">{{ r.maintenance_type|capitalize }}</span>
+            {% if r.is_contractor %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">Contratista</span>
+            {% endif %}
+          </div>
+          <p class="font-medium text-gray-900 truncate">{{ r.title }}</p>
+          <div class="flex items-center gap-3 mt-1 text-xs text-gray-400">
+            <span>{{ r.work_date.strftime('%d/%m/%Y') }}</span>
+            <span class="hidden sm:inline">·</span>
+            <span class="hidden sm:inline">
+              {% if r.equipment %}
+                <span class="font-mono text-amber-600">{{ r.equipment.code }}</span> {{ r.equipment.name }}
+              {% elif r.equipment_text %}{{ r.equipment_text }}
+              {% elif r.location_text %}{{ r.location_text }}
+              {% else %}Sin equipo{% endif %}
+            </span>
+            <span class="hidden md:inline">·</span>
+            <span class="hidden md:inline">
+              {% if r.performer %}{{ r.performer.name }}
+              {% elif r.performed_by_text %}{{ r.performed_by_text }}
+              {% else %}Sin asignar{% endif %}
+            </span>
+          </div>
+        </div>
+        <div class="flex-shrink-0 text-right">
+          <span class="text-xs font-medium text-gray-500">{{ r.plant }}</span>
+          {% if r.total_cost %}
+          <p class="text-sm font-semibold text-gray-800 mt-0.5">$ {{ r.total_cost | fmt_num }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  <p class="text-xs text-gray-400 mt-3 text-right">{{ records|length }} registro(s)</p>
+  {% else %}
+  <div class="text-center py-16 text-gray-400">
+    <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+    <p class="font-medium">Sin registros</p>
+    <p class="text-xs mt-1">Probá cambiar los filtros o creá el primer registro.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

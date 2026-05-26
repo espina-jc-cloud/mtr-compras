@@ -31,6 +31,10 @@
     .status-borrador   { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
     .status-vencida    { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
     .status-convertida_en_compra { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
+    /* status mantenimiento */
+    .status-mant-abierto     { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+    .status-mant-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+    .status-mant-cerrado     { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
     a, button { transition: all .15s ease; }
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:#F9FAFB; }
@@ -55,8 +59,16 @@
       <nav class="flex items-center gap-0.5">
         <a href="/dashboard" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Dashboard</a>
         <a href="/purchases" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Compras</a>
+        {% if user.role not in ("tecnico",) %}
         <a href="/quotes" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Cotizaciones</a>
+        {% endif %}
+        {% if user.role not in ("planta",) %}
+        <a href="/maintenance" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Mantenimiento</a>
+        <a href="/equipment" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Equipos</a>
+        {% endif %}
+        {% if user.role not in ("tecnico",) %}
         <a href="/suppliers" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Proveedores</a>
+        {% endif %}
         {% if user.role in ("admin", "superadmin") %}
         <a href="/conciliation" class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Conciliación</a>
         {% endif %}
@@ -107,6 +119,28 @@
 {% if user %}
 <!-- Mobile bottom tab bar -->
 <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40" style="padding-bottom:env(safe-area-inset-bottom)">
+  {% if user.role == "tecnico" %}
+  <!-- Tecnico: Inicio | Nuevo Mant. | Mantenimiento | Equipos | Salir -->
+  <div class="grid grid-cols-4 h-16">
+    <a href="/dashboard" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span class="text-[10px] font-medium">Inicio</span>
+    </a>
+    <a href="/maintenance/new" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+      <span class="text-[10px] font-medium">Nuevo</span>
+    </a>
+    <a href="/maintenance" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="text-[10px] font-medium">Mant.</span>
+    </a>
+    <a href="/equipment" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+      <span class="text-[10px] font-medium">Equipos</span>
+    </a>
+  </div>
+  {% else %}
+  <!-- Otros roles: Inicio | Nueva | Compras | Mant. | Más -->
   <div class="grid grid-cols-5 h-16">
     <a href="/dashboard" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -120,15 +154,16 @@
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       <span class="text-[10px] font-medium">Compras</span>
     </a>
-    <a href="/quotes" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      <span class="text-[10px] font-medium">Cotiz.</span>
+    <a href="/maintenance" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="text-[10px] font-medium">Mant.</span>
     </a>
     <a href="/suppliers" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       <span class="text-[10px] font-medium">Prov.</span>
     </a>
   </div>
+  {% endif %}
 </nav>
 {% endif %}
 

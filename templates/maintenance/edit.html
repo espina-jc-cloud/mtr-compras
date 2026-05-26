@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Editar registro #{{ record.id }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="/maintenance/{{ record.id }}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Registro #{{ record.id }}
+    </a>
+    <h1 class="text-xl font-semibold text-gray-900">Editar registro</h1>
+  </div>
+
+  {% if error %}
+  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/maintenance/{{ record.id }}/edit" class="space-y-4">
+
+    <!-- Datos principales -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Datos principales</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta <span class="text-red-400">*</span></label>
+          <select name="plant" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            {% for p in plants %}
+            <option value="{{ p }}" {% if record.plant == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha del trabajo <span class="text-red-400">*</span></label>
+          <input type="date" name="work_date" required value="{{ record.work_date.strftime('%Y-%m-%d') }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Título / Tarea <span class="text-red-400">*</span></label>
+          <input type="text" name="title" required value="{{ record.title }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo</label>
+          <select name="maintenance_type" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            {% for mt in maintenance_types %}
+            <option value="{{ mt }}" {% if record.maintenance_type == mt %}selected{% endif %}>{{ mt|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Estado</label>
+          <select name="status" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if record.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Equipo -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Equipo / Ubicación</h2>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Equipo del catálogo</label>
+          <select name="equipment_id" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            <option value="">Sin equipo específico</option>
+            {% for eq in equipment_list %}
+            <option value="{{ eq.id }}" {% if record.equipment_id == eq.id %}selected{% endif %}>
+              [{{ eq.plant }}] {{ eq.code }} — {{ eq.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Equipo (texto libre)</label>
+          <input type="text" name="equipment_text" value="{{ record.equipment_text or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Ubicación / Sector</label>
+          <input type="text" name="location_text" value="{{ record.location_text or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo de trabajo</label>
+          <select name="work_type_code" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            <option value="">Sin especificar</option>
+            {% for code, label in work_type_codes.items() %}
+            <option value="{{ code }}" {% if record.work_type_code == code %}selected{% endif %}>{{ code }} — {{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ejecutado por -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Personal</h2>
+      <div class="space-y-3">
+        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="is_contractor" value="0" {% if not record.is_contractor %}checked{% endif %} onchange="toggleContractor(false)"
+              class="text-amber-500 focus:ring-amber-500">
+            <span class="text-sm text-gray-700">Personal interno</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer ml-4">
+            <input type="radio" name="is_contractor" value="1" {% if record.is_contractor %}checked{% endif %} onchange="toggleContractor(true)"
+              class="text-amber-500 focus:ring-amber-500">
+            <span class="text-sm text-gray-700">Contratista externo</span>
+          </label>
+        </div>
+        <div id="performer-internal" {% if record.is_contractor %}style="display:none"{% endif %}>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Ejecutado por (usuario)</label>
+          <select name="performed_by_id" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            <option value="">Sin especificar</option>
+            {% for u in users_list %}
+            <option value="{{ u.id }}" {% if record.performed_by_id == u.id %}selected{% endif %}>{{ u.name }} ({{ u.plant }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="performer-contractor" {% if not record.is_contractor %}style="display:none"{% endif %}>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre del contratista</label>
+              <input type="text" name="performed_by_text" value="{{ record.performed_by_text or '' }}"
+                class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5">Empresa</label>
+              <input type="text" name="contractor_company" value="{{ record.contractor_company or '' }}"
+                class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            </div>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Supervisado por</label>
+          <select name="supervised_by_id" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            <option value="">Sin supervisión específica</option>
+            {% for u in users_list %}
+            <option value="{{ u.id }}" {% if record.supervised_by_id == u.id %}selected{% endif %}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Descripción -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Descripción</h2>
+      <textarea name="description" rows="3"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50 resize-y">{{ record.description or '' }}</textarea>
+      <div class="flex items-center gap-6 mt-2">
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <input type="checkbox" name="did_lubrication" value="1" {% if record.did_lubrication %}checked{% endif %} class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+          Incluye lubricación
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <input type="checkbox" name="did_cleaning" value="1" {% if record.did_cleaning %}checked{% endif %} class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+          Incluye limpieza
+        </label>
+      </div>
+    </div>
+
+    <!-- Costos -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Costos</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Horas trabajadas</label>
+          <input type="text" name="hours_worked" value="{{ record.hours_worked or '' }}" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Personas</label>
+          <input type="number" name="workers_count" value="{{ record.workers_count or 1 }}" min="1"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Precio hora ($)</label>
+          <input type="text" name="hourly_rate" value="{{ record.hourly_rate or '' }}" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Mano de obra ($)</label>
+          <input type="text" name="labor_cost" value="{{ record.labor_cost or '' }}" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Repuestos ($)</label>
+          <input type="text" name="parts_cost" value="{{ record.parts_cost or '' }}" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Total ($)</label>
+          <input type="text" name="total_cost" value="{{ record.total_cost or '' }}" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50 font-semibold">
+        </div>
+      </div>
+    </div>
+
+    <!-- Proveedor -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Proveedor vinculado</h2>
+      <select name="supplier_id" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        <option value="">Sin proveedor</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" {% if record.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Motivo de edición (audit) -->
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+      <h2 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Motivo de la edición</h2>
+      <textarea name="edit_reason" rows="2"
+        placeholder="Ej: Corrección de fecha, se agrega costo de repuesto..."
+        class="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white resize-none"></textarea>
+      <p class="text-xs text-amber-600 mt-1">Se guarda en el historial de cambios.</p>
+    </div>
+
+    <button type="submit"
+      class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-4 rounded-2xl text-sm shadow-sm">
+      Guardar cambios
+    </button>
+  </form>
+</div>
+
+<script>
+function toggleContractor(isContractor) {
+  document.getElementById('performer-internal').style.display = isContractor ? 'none' : 'block';
+  document.getElementById('performer-contractor').style.display = isContractor ? 'block' : 'none';
+}
+</script>
+
+{% endblock %}

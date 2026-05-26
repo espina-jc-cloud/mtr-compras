@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Registro #{{ record.id }} — Mantenimiento MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="mb-6">
+    <a href="/maintenance" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Mantenimiento
+    </a>
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="status-mant-{{ record.status }} inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold">
+            {{ record.status|replace('_',' ')|capitalize }}
+          </span>
+          <span class="text-sm text-gray-400">{{ record.maintenance_type|capitalize }}</span>
+          {% if record.is_contractor %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">Contratista</span>
+          {% endif %}
+        </div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ record.title }}</h1>
+        <p class="text-sm text-gray-400 mt-0.5">
+          #{{ record.id }} · {{ record.plant }} · Trabajo: {{ record.work_date.strftime('%d/%m/%Y') }}
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% if can_edit and record.status != 'cerrado' %}
+        <form method="post" action="/maintenance/{{ record.id }}/close" class="inline">
+          <button type="submit"
+            class="inline-flex items-center gap-1.5 text-sm bg-green-500 hover:bg-green-600 text-white font-medium px-3 py-2 rounded-xl">
+            ✓ Cerrar
+          </button>
+        </form>
+        {% endif %}
+        {% if can_edit %}
+        <a href="/maintenance/{{ record.id }}/edit"
+           class="inline-flex items-center gap-1.5 text-sm border border-gray-200 rounded-xl px-3 py-2 text-gray-600 hover:bg-gray-50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Editar
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Columna principal -->
+    <div class="lg:col-span-2 space-y-5">
+
+      <!-- Equipo -->
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Equipo / Ubicación</h2>
+        <div class="space-y-2 text-sm">
+          {% if record.equipment %}
+          <div class="flex items-center gap-2">
+            <span class="font-mono font-semibold text-amber-600">{{ record.equipment.code }}</span>
+            <span class="text-gray-700">{{ record.equipment.name }}</span>
+            <a href="/equipment/{{ record.equipment.id }}" class="text-xs text-amber-600 hover:underline ml-1">ver equipo →</a>
+          </div>
+          {% endif %}
+          {% if record.equipment_text %}
+          <p class="text-gray-600"><span class="text-gray-400 text-xs">Equipo:</span> {{ record.equipment_text }}</p>
+          {% endif %}
+          {% if record.location_text %}
+          <p class="text-gray-600"><span class="text-gray-400 text-xs">Ubicación:</span> {{ record.location_text }}</p>
+          {% endif %}
+          {% if record.work_type_code %}
+          <p class="text-gray-600"><span class="text-gray-400 text-xs">Tipo trabajo:</span> {{ record.work_type_code }} — {{ work_type_codes.get(record.work_type_code, '') }}</p>
+          {% endif %}
+          {% if not record.equipment and not record.equipment_text and not record.location_text %}
+          <p class="text-gray-400">Sin equipo ni ubicación especificados.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Descripción -->
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Descripción del trabajo</h2>
+        {% if record.description %}
+        <p class="text-sm text-gray-700 whitespace-pre-line">{{ record.description }}</p>
+        {% else %}
+        <p class="text-sm text-gray-400">Sin descripción.</p>
+        {% endif %}
+        {% if record.did_lubrication or record.did_cleaning %}
+        <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
+          {% if record.did_lubrication %}
+          <span class="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8"/></svg>
+            Lubricación
+          </span>
+          {% endif %}
+          {% if record.did_cleaning %}
+          <span class="inline-flex items-center gap-1 text-xs text-teal-700 bg-teal-50 px-2 py-1 rounded-full">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8"/></svg>
+            Limpieza
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Documentos adjuntos -->
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Adjuntos</h2>
+        {% if record.documents %}
+        <div class="space-y-2 mb-4">
+          {% for doc in record.documents %}
+          <a href="{{ doc.file_url }}" target="_blank"
+             class="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-gray-700 truncate">{{ doc.filename }}</p>
+              <p class="text-xs text-gray-400">{{ doc.doc_type }} · {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</p>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if can_edit or user.role in ("tecnico","admin","superadmin") %}
+        <form method="post" action="/maintenance/{{ record.id }}/documents" enctype="multipart/form-data">
+          <div class="flex items-center gap-2">
+            <select name="doc_type" class="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="foto">Foto</option>
+              <option value="pdf">PDF</option>
+              <option value="remito">Remito</option>
+              <option value="otro">Otro</option>
+            </select>
+            <input type="file" name="file" accept="image/*,application/pdf" required
+              class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-50 file:text-amber-600">
+            <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-2 rounded-xl">
+              Subir
+            </button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+
+      <!-- Audit log -->
+      {% if record.audit_logs %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Historial de cambios</h2>
+        <div class="space-y-2">
+          {% for log in record.audit_logs|sort(attribute='created_at', reverse=True) %}
+          <div class="flex items-start gap-3 text-sm">
+            <span class="text-gray-300 font-mono text-xs mt-0.5">{{ log.created_at.strftime('%d/%m %H:%M') }}</span>
+            <div>
+              <span class="font-medium text-gray-700">{{ log.user.name }}</span>
+              <span class="text-gray-400"> · {{ log.action }}</span>
+              {% if log.comment %}
+              <p class="text-gray-500 text-xs mt-0.5">{{ log.comment }}</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-4">
+
+      <!-- Quién -->
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Personal</h2>
+        <div class="space-y-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Ejecutado por</p>
+            {% if record.performer %}
+            <p class="text-gray-800 font-medium">{{ record.performer.name }}</p>
+            {% elif record.performed_by_text %}
+            <p class="text-gray-800">{{ record.performed_by_text }}</p>
+            {% if record.contractor_company %}
+            <p class="text-gray-500 text-xs">{{ record.contractor_company }}</p>
+            {% endif %}
+            {% else %}
+            <p class="text-gray-400">—</p>
+            {% endif %}
+          </div>
+          {% if record.supervised_by %}
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Supervisado por</p>
+            <p class="text-gray-800">{{ record.supervised_by.name }}</p>
+          </div>
+          {% endif %}
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Cargado por</p>
+            <p class="text-gray-700">{{ record.entered_by.name }}</p>
+            <p class="text-xs text-gray-400">{{ record.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Costos -->
+      {% if record.total_cost or record.labor_cost or record.parts_cost %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Costos</h2>
+        <div class="space-y-2 text-sm">
+          {% if record.hours_worked %}
+          <div class="flex justify-between">
+            <span class="text-gray-500">Horas trabajadas</span>
+            <span class="text-gray-800">{{ record.hours_worked }} h × {{ record.workers_count or 1 }} pers.</span>
+          </div>
+          {% endif %}
+          {% if record.labor_cost %}
+          <div class="flex justify-between">
+            <span class="text-gray-500">Mano de obra</span>
+            <span class="text-gray-800">$ {{ record.labor_cost | fmt_num }}</span>
+          </div>
+          {% endif %}
+          {% if record.parts_cost %}
+          <div class="flex justify-between">
+            <span class="text-gray-500">Repuestos / materiales</span>
+            <span class="text-gray-800">$ {{ record.parts_cost | fmt_num }}</span>
+          </div>
+          {% endif %}
+          {% if record.total_cost %}
+          <div class="flex justify-between font-semibold pt-2 border-t border-gray-100">
+            <span class="text-gray-700">Total</span>
+            <span class="text-gray-900">$ {{ record.total_cost | fmt_num }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Proveedor / Compra vinculada -->
+      {% if record.supplier or record.purchase %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Vinculaciones</h2>
+        {% if record.supplier %}
+        <div class="mb-2">
+          <p class="text-xs text-gray-400 mb-0.5">Proveedor</p>
+          <a href="/suppliers/{{ record.supplier.id }}" class="text-sm text-amber-600 hover:underline">{{ record.supplier.name }}</a>
+        </div>
+        {% endif %}
+        {% if record.purchase %}
+        <div>
+          <p class="text-xs text-gray-400 mb-0.5">Compra relacionada</p>
+          <a href="/purchases/{{ record.purchase.id }}" class="text-sm text-amber-600 hover:underline">OC #{{ record.purchase.id }}</a>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Eliminar (solo superadmin) -->
+      {% if user.role == 'superadmin' %}
+      <div class="bg-white border border-red-100 rounded-2xl shadow-sm p-4">
+        <h2 class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-3">Zona peligrosa</h2>
+        <form method="post" action="/maintenance/{{ record.id }}/delete"
+          onsubmit="return confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')">
+          <textarea name="deleted_reason" rows="2" required
+            placeholder="Motivo de eliminación (requerido)"
+            class="w-full border border-red-200 rounded-xl px-3 py-2 text-sm bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 mb-2 resize-none"></textarea>
+          <button type="submit"
+            class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-xl">
+            Eliminar registro
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

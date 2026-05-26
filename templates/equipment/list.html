@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Equipos — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Equipos</h1>
+      <p class="text-sm text-gray-400 mt-0.5">Catálogo de equipos registrados en el sistema.</p>
+    </div>
+    {% if user.role in ("admin","superadmin") %}
+    <a href="/equipment/new"
+       class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nuevo equipo
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" action="/equipment" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="col-span-2 sm:col-span-2">
+        <input type="text" name="q" value="{{ params.q }}" placeholder="Buscar código o nombre..."
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+      </div>
+      {% if user.role not in ("tecnico","planta") %}
+      <div>
+        <select name="plant" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todas las plantas</option>
+          {% for p in plants %}
+          <option value="{{ p }}" {% if params.plant == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <select name="category" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todas las categorías</option>
+          {% for c in categories %}
+          <option value="{{ c }}" {% if params.category == c %}selected{% endif %}>{{ c|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium py-2.5 rounded-xl">
+          Filtrar
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Tabla -->
+  {% if equipment %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+          <th class="text-left px-4 py-3">Código</th>
+          <th class="text-left px-4 py-3">Nombre</th>
+          <th class="text-left px-4 py-3 hidden sm:table-cell">Planta</th>
+          <th class="text-left px-4 py-3 hidden md:table-cell">Categoría</th>
+          <th class="text-left px-4 py-3 hidden md:table-cell">Tipo trabajo</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for eq in equipment %}
+        <tr class="hover:bg-amber-50/30 cursor-pointer" onclick="window.location='/equipment/{{ eq.id }}'">
+          <td class="px-4 py-3 font-mono font-semibold text-amber-700">{{ eq.code }}</td>
+          <td class="px-4 py-3 text-gray-800">{{ eq.name }}</td>
+          <td class="px-4 py-3 hidden sm:table-cell">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+              {% if eq.plant == 'MTR1' %}bg-blue-50 text-blue-700{% else %}bg-purple-50 text-purple-700{% endif %}">
+              {{ eq.plant }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-gray-500 hidden md:table-cell">{{ eq.category or '—' }}</td>
+          <td class="px-4 py-3 text-gray-500 hidden md:table-cell">
+            {% if eq.work_type_code %}
+              <span class="font-mono">{{ eq.work_type_code }}</span>
+              <span class="text-gray-400 text-xs"> · {{ work_type_codes.get(eq.work_type_code, '') }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-gray-400 mt-2 text-right">{{ equipment|length }} equipo(s)</p>
+  {% else %}
+  <div class="text-center py-16 text-gray-400">
+    <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+    <p class="font-medium">Sin equipos</p>
+    <p class="text-xs mt-1">No hay equipos que coincidan con los filtros aplicados.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
