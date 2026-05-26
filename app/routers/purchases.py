@@ -352,6 +352,26 @@ async def delete_purchase(
 
 # ── Edit purchase (admin/superadmin) ─────────────────────────────────────────
 
+@router.post("/{purchase_id}/link-quote")
+async def link_quote_to_purchase(
+    purchase_id: int,
+    quote_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "superadmin")),
+):
+    purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404)
+    quote = db.query(models.Quote).filter(models.Quote.id == quote_id).first()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    quote.purchase_id = purchase_id
+    add_audit(db, purchase_id, current_user.id, "linked_quote", purchase.status, purchase.status,
+              f"Vinculada cotización #{quote_id}")
+    db.commit()
+    return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
+
+
 @router.get("/{purchase_id}/edit", response_class=HTMLResponse)
 async def edit_purchase_form(
     purchase_id: int, request: Request,

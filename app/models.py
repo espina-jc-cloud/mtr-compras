@@ -60,6 +60,7 @@ class Purchase(Base):
     authorizer = relationship("User", foreign_keys=[authorized_by_id], back_populates="purchases_authorized")
     documents = relationship("Document", back_populates="purchase", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="purchase", cascade="all, delete-orphan")
+    quote = relationship("Quote", back_populates="purchase", uselist=False, foreign_keys="Quote.purchase_id")
 
 class Document(Base):
     __tablename__ = "documents"
@@ -90,4 +91,74 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     purchase = relationship("Purchase", back_populates="audit_logs")
+    user = relationship("User")
+
+
+class Quote(Base):
+    __tablename__ = "quotes"
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    supplier_name_text = Column(String, nullable=True)   # texto libre si no está en sistema
+    plant = Column(String, nullable=False)
+    area = Column(String, nullable=False)
+    requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    quote_date = Column(DateTime, nullable=False)
+    valid_until = Column(DateTime, nullable=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    estimated_total = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String, default="ARS")  # ARS / USD
+    status = Column(String, default="borrador")
+    notes = Column(Text, nullable=True)
+    purchase_id = Column(Integer, ForeignKey("purchases.id"), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
+    requester = relationship("User", foreign_keys=[requested_by_id])
+    purchase = relationship("Purchase", foreign_keys=[purchase_id], back_populates="quote")
+    documents = relationship("QuoteDocument", back_populates="quote", cascade="all, delete-orphan")
+    items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan", order_by="QuoteItem.id")
+    audit_logs = relationship("QuoteAuditLog", back_populates="quote", cascade="all, delete-orphan")
+
+
+class QuoteDocument(Base):
+    __tablename__ = "quote_documents"
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=False)
+    file_url = Column(String, nullable=False)
+    filename = Column(String, nullable=False)
+    doc_type = Column(String, default="pdf")   # pdf / imagen / otro
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    quote = relationship("Quote", back_populates="documents")
+    uploader = relationship("User")
+
+
+class QuoteItem(Base):
+    __tablename__ = "quote_items"
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=False)
+    description = Column(String, nullable=False)
+    quantity = Column(Numeric(10, 3), nullable=True)
+    unit = Column(String, nullable=True)
+    unit_price = Column(Numeric(12, 2), nullable=True)
+    subtotal = Column(Numeric(12, 2), nullable=True)
+
+    quote = relationship("Quote", back_populates="items")
+
+
+class QuoteAuditLog(Base):
+    __tablename__ = "quote_audit_log"
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    quote = relationship("Quote", back_populates="audit_logs")
     user = relationship("User")

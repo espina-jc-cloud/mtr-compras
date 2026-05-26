@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Cotización #{{ quote.id }} — MTR{% endblock %}
+{% block content %}
+
+{% set is_expired = quote.valid_until and quote.valid_until < now and quote.status not in ("convertida_en_compra","rechazada") %}
+{% set supplier_name = quote.supplier.name if quote.supplier else (quote.supplier_name_text or "Sin proveedor") %}
+
+<!-- Header -->
+<div class="mb-5">
+  <a href="/quotes" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    Cotizaciones
+  </a>
+  <div class="flex flex-wrap items-center gap-2">
+    <h1 class="text-xl font-semibold text-gray-900">Cotización #{{ quote.id }}</h1>
+    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold status-{{ quote.status }}">{{ quote.status|replace("_"," ")|capitalize }}</span>
+    {% if quote.deleted_at %}
+    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-300">ANULADA</span>
+    {% endif %}
+    {% if is_expired %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Vencida
+    </span>
+    {% endif %}
+    {% if quote.purchase_id %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      Vinculada a compra
+    </span>
+    {% endif %}
+    {% if user.role in ("admin","superadmin") and not quote.deleted_at %}
+    <a href="/quotes/{{ quote.id }}/edit"
+       class="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg bg-amber-50">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      Editar
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  <!-- Col principal -->
+  <div class="lg:col-span-2 space-y-4">
+
+    <!-- Info general -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Información</h2>
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div class="col-span-2">
+          <dt class="text-xs text-gray-400 mb-0.5">Asunto</dt>
+          <dd class="font-semibold text-gray-900 text-base">{{ quote.title }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Proveedor</dt>
+          <dd class="font-semibold text-gray-900">{{ supplier_name }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Planta · Área</dt>
+          <dd class="font-medium text-gray-700">{{ quote.plant }} · {{ quote.area }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Solicitado por</dt>
+          <dd class="text-gray-700">{{ quote.requester.name }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Fecha cotización</dt>
+          <dd class="text-gray-700">{{ quote.quote_date | fmt_ar("%d/%m/%Y") }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Válido hasta</dt>
+          <dd class="{% if is_expired %}text-amber-600 font-semibold{% else %}text-gray-700{% endif %}">
+            {% if quote.valid_until %}{{ quote.valid_until | fmt_ar("%d/%m/%Y") }}{% if is_expired %} — vencida{% endif %}{% else %}<span class="text-gray-300">No indicado</span>{% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Monto total</dt>
+          <dd class="font-semibold text-gray-900 text-base">
+            {% if quote.estimated_total %}
+            <span class="{% if quote.currency == 'USD' %}text-blue-700{% endif %}">
+              {{ quote.currency }} ${{ "%.2f"|format(quote.estimated_total) }}
+            </span>
+            {% else %}<span class="text-gray-300 font-normal">No indicado</span>{% endif %}
+          </dd>
+        </div>
+        {% if quote.purchase_id and quote.purchase %}
+        <div>
+          <dt class="text-xs text-gray-400 mb-0.5">Compra vinculada</dt>
+          <dd><a href="/purchases/{{ quote.purchase_id }}" class="text-violet-600 hover:text-violet-800 font-semibold text-sm">Compra #{{ quote.purchase_id }}</a></dd>
+        </div>
+        {% endif %}
+      </dl>
+
+      {% if quote.description %}
+      <div class="mt-4 pt-4 border-t border-gray-50">
+        <p class="text-xs text-gray-400 mb-1">Descripción</p>
+        <p class="text-sm text-gray-700" style="white-space: pre-wrap">{{ quote.description }}</p>
+      </div>
+      {% endif %}
+
+      {% if quote.notes %}
+      <div class="mt-3 pt-3 border-t border-gray-50">
+        <p class="text-xs text-gray-400 mb-1">Notas</p>
+        <p class="text-sm text-gray-600" style="white-space: pre-wrap">{{ quote.notes }}</p>
+      </div>
+      {% endif %}
+
+      {% if quote.deleted_at %}
+      <div class="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+        <p class="text-xs text-red-500 font-semibold uppercase tracking-wide mb-0.5">Cotización anulada</p>
+        <p class="text-xs text-red-600">{{ quote.deleted_reason }}</p>
+        <p class="text-xs text-red-400 mt-0.5">{{ quote.deleted_at | fmt_ar("%d/%m/%Y %H:%M") }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Ítems -->
+    {% if quote.items %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Ítems</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-50">
+              <th class="pb-2 text-left text-xs font-semibold text-gray-400">Descripción</th>
+              <th class="pb-2 text-center text-xs font-semibold text-gray-400 w-20">Cant.</th>
+              <th class="pb-2 text-center text-xs font-semibold text-gray-400 w-16">Unid.</th>
+              <th class="pb-2 text-right text-xs font-semibold text-gray-400 w-28">P. Unitario</th>
+              <th class="pb-2 text-right text-xs font-semibold text-gray-400 w-28">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for item in quote.items %}
+            <tr>
+              <td class="py-2.5 text-gray-800">{{ item.description }}</td>
+              <td class="py-2.5 text-center text-gray-600 font-mono text-xs">
+                {% if item.quantity %}{{ "%.2g"|format(item.quantity|float) }}{% else %}—{% endif %}
+              </td>
+              <td class="py-2.5 text-center text-gray-400 text-xs">{{ item.unit or "—" }}</td>
+              <td class="py-2.5 text-right font-mono text-xs text-gray-600">
+                {% if item.unit_price %}{{ quote.currency }} ${{ "%.2f"|format(item.unit_price) }}{% else %}—{% endif %}
+              </td>
+              <td class="py-2.5 text-right font-mono text-xs font-semibold text-gray-800">
+                {% if item.subtotal %}{{ quote.currency }} ${{ "%.2f"|format(item.subtotal) }}{% elif item.unit_price and item.quantity %}{{ quote.currency }} ${{ "%.2f"|format(item.unit_price|float * item.quantity|float) }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% if quote.estimated_total %}
+          <tfoot>
+            <tr class="border-t-2 border-gray-100">
+              <td colspan="4" class="pt-2 text-xs font-semibold text-gray-500 uppercase">Total</td>
+              <td class="pt-2 text-right font-mono font-bold text-gray-900">{{ quote.currency }} ${{ "%.2f"|format(quote.estimated_total) }}</td>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Adjuntos -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Adjuntos</h2>
+        <span class="text-xs {% if quote.documents %}text-amber-600 bg-amber-50 border border-amber-200{% else %}text-gray-400 bg-gray-50 border border-gray-200{% endif %} px-2 py-0.5 rounded-full font-medium">
+          {% if quote.documents %}{{ quote.documents|length }} archivo{% if quote.documents|length != 1 %}s{% endif %}{% else %}Sin adjuntos{% endif %}
+        </span>
+      </div>
+
+      {% if quote.documents %}
+      <div class="space-y-2 mb-4">
+        {% for doc in quote.documents %}
+        <div class="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+              {% if doc.doc_type == 'pdf' %}bg-red-100 text-red-600
+              {% elif doc.doc_type == 'imagen' %}bg-amber-100 text-amber-600
+              {% else %}bg-gray-200 text-gray-500{% endif %}">
+              {% if doc.doc_type == 'pdf' %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              {% else %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              {% endif %}
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ doc.doc_type }}</p>
+              <p class="text-xs text-gray-400 truncate mt-0.5">{{ doc.filename }} · {{ doc.uploader.name }} · {{ doc.uploaded_at | fmt_ar("%d/%m/%Y") }}</p>
+            </div>
+          </div>
+          <a href="{{ doc.file_url }}" target="_blank"
+            class="flex-shrink-0 ml-3 text-amber-600 hover:text-amber-700 text-xs font-medium flex items-center gap-1">
+            Ver
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-5 text-gray-400 text-sm mb-3">Sin archivos adjuntos.</div>
+      {% endif %}
+
+      <!-- Upload form -->
+      {% if not quote.deleted_at %}
+      <details class="border border-gray-100 rounded-xl overflow-hidden">
+        <summary class="flex items-center gap-2 px-4 py-3 cursor-pointer text-sm font-medium text-amber-600 hover:bg-amber-50/50 transition-colors bg-amber-50/30">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          Adjuntar PDF / foto
+        </summary>
+        <form method="post" action="/quotes/{{ quote.id }}/documents" enctype="multipart/form-data" class="p-4 border-t border-gray-100 space-y-3 bg-white">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Archivo <span class="text-red-400">*</span></label>
+            <input type="file" name="file" required accept="image/*,application/pdf"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-50 file:text-amber-600 file:font-medium">
+            <p class="text-xs text-gray-400 mt-1">PDF, foto o captura · Máx. 10 MB</p>
+          </div>
+          <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm">Subir adjunto</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+
+    <!-- Historial -->
+    {% if quote.audit_logs %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Historial</h2>
+      <div class="space-y-3">
+        {% for log in quote.audit_logs | reverse %}
+        <div class="flex gap-3">
+          <div class="flex flex-col items-center">
+            <div class="w-6 h-6 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 text-xs font-semibold flex-shrink-0">{{ log.user.name[0]|upper }}</div>
+            {% if not loop.last %}<div class="w-px flex-1 bg-gray-100 mt-1"></div>{% endif %}
+          </div>
+          <div class="pb-3 min-w-0">
+            <div class="flex flex-wrap items-center gap-1.5 text-sm">
+              <span class="font-medium text-gray-800">{{ log.user.name }}</span>
+              <span class="text-gray-400">·</span>
+              <span class="text-gray-500">{{ log.action }}</span>
+            </div>
+            {% if log.comment %}<p class="text-sm text-gray-600 mt-0.5">{{ log.comment }}</p>{% endif %}
+            <p class="text-xs text-gray-400 mt-0.5">{{ log.created_at | fmt_ar("%d/%m/%Y %H:%M") }}</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Col acciones -->
+  <div class="space-y-3">
+
+    <!-- Compra vinculada -->
+    {% if quote.purchase %}
+    <div class="bg-violet-50 border border-violet-200 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-violet-700 uppercase tracking-wide mb-3">Compra generada</h2>
+      <a href="/purchases/{{ quote.purchase_id }}" class="block hover:opacity-80 transition-opacity">
+        <p class="font-semibold text-gray-900 text-sm">Compra #{{ quote.purchase_id }}</p>
+        <p class="text-xs text-gray-500 mt-1 truncate">{{ quote.purchase.description[:60] }}{% if quote.purchase.description|length > 60 %}…{% endif %}</p>
+        <div class="flex items-center justify-between mt-2">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ quote.purchase.status }}">{{ quote.purchase.status|capitalize }}</span>
+          <span class="text-xs text-violet-600 font-semibold">Ver compra →</span>
+        </div>
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- Acciones principales -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Acciones</h2>
+      <div class="space-y-2">
+
+        {% if not quote.deleted_at and not quote.purchase_id %}
+
+          <!-- Crear compra desde cotización -->
+          {% if user.role in ("admin","superadmin") %}
+          <a href="/quotes/{{ quote.id }}/to-purchase"
+            class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl text-sm shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            Crear compra desde cotización
+          </a>
+          {% endif %}
+
+          <!-- Vincular a compra existente -->
+          {% if user.role in ("admin","superadmin") %}
+          <details class="border border-gray-100 rounded-xl overflow-hidden">
+            <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              Vincular a compra existente
+            </summary>
+            <form method="post" action="/quotes/{{ quote.id }}/link-purchase" class="p-3 border-t border-gray-100 space-y-2">
+              <select name="purchase_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+                <option value="">Seleccioná una compra...</option>
+                {% for p in purchases_list %}
+                <option value="{{ p.id }}">#{{ p.id }} — {{ p.supplier.name }} — {{ p.description[:40] }}{% if p.description|length > 40 %}…{% endif %}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="w-full bg-gray-700 hover:bg-gray-800 text-white py-2 rounded-lg text-sm font-medium">Vincular</button>
+            </form>
+          </details>
+          {% endif %}
+
+          <!-- Aprobar -->
+          {% if user.role in ("autorizador","admin","superadmin") and quote.status not in ("aprobada","rechazada","vencida") %}
+          <form method="post" action="/quotes/{{ quote.id }}/status">
+            <input type="hidden" name="new_status" value="aprobada">
+            <button type="submit" class="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Aprobar cotización
+            </button>
+          </form>
+          {% endif %}
+
+          <!-- Rechazar -->
+          {% if user.role in ("autorizador","admin","superadmin") and quote.status not in ("rechazada","vencida") %}
+          <details class="border border-red-100 rounded-xl overflow-hidden">
+            <summary class="flex items-center gap-2 px-4 py-3 cursor-pointer text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              Rechazar
+            </summary>
+            <form method="post" action="/quotes/{{ quote.id }}/status" class="p-3 border-t border-red-100">
+              <input type="hidden" name="new_status" value="rechazada">
+              <textarea name="comment" rows="2" placeholder="Motivo del rechazo (opcional)"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 resize-none mb-2"></textarea>
+              <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold">Confirmar rechazo</button>
+            </form>
+          </details>
+          {% endif %}
+
+          <!-- Marcar vencida -->
+          {% if user.role in ("admin","superadmin") and quote.status not in ("vencida","rechazada") %}
+          <form method="post" action="/quotes/{{ quote.id }}/status">
+            <input type="hidden" name="new_status" value="vencida">
+            <button type="submit" class="w-full flex items-center justify-center gap-2 border border-amber-200 text-amber-700 hover:bg-amber-50 font-medium py-2.5 rounded-xl text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Marcar como vencida
+            </button>
+          </form>
+          {% endif %}
+
+        {% elif quote.purchase_id %}
+        <div class="flex items-center gap-2 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 text-sm text-violet-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          Convertida en compra #{{ quote.purchase_id }}
+        </div>
+        {% endif %}
+
+        <!-- Anular -->
+        {% if user.role == "superadmin" and not quote.deleted_at %}
+        <details class="border border-red-100 rounded-xl mt-2 overflow-hidden">
+          <summary class="px-4 py-2 text-xs text-red-400 cursor-pointer hover:bg-red-50">⚠ Anular cotización</summary>
+          <form method="post" action="/quotes/{{ quote.id }}/delete" class="p-3 border-t border-red-100 bg-red-50">
+            <p class="text-xs text-red-600 mb-2">La cotización quedará marcada como anulada.</p>
+            <textarea name="deleted_reason" required rows="2" placeholder="Motivo de la anulación..."
+              class="w-full border border-red-200 rounded-lg px-3 py-2 text-sm resize-none mb-2 bg-white focus:outline-none focus:ring-1 focus:ring-red-400 placeholder-red-300"></textarea>
+            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold">Confirmar anulación</button>
+          </form>
+        </details>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Resumen</h2>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-500">Creada</span>
+          <span class="text-gray-700 font-medium">{{ quote.created_at | fmt_ar("%d/%m/%Y") }}</span>
+        </div>
+        {% if quote.estimated_total %}
+        <div class="flex justify-between">
+          <span class="text-gray-500">Monto</span>
+          <span class="font-semibold {% if quote.currency == 'USD' %}text-blue-700{% else %}text-gray-900{% endif %}">{{ quote.currency }} ${{ "%.0f"|format(quote.estimated_total) }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between">
+          <span class="text-gray-500">Ítems</span>
+          <span class="text-gray-700">{% if quote.items %}{{ quote.items|length }}{% else %}—{% endif %}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Adjuntos</span>
+          <span class="text-gray-700">{% if quote.documents %}{{ quote.documents|length }}{% else %}—{% endif %}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

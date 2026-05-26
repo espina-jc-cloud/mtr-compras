@@ -124,6 +124,18 @@ async def supplier_account(
 
     params = {"date_from": date_from, "date_to": date_to, "status": status_f, "q": q}
 
+    # Cotizaciones del proveedor (últimas 20)
+    supplier_quotes = (
+        db.query(models.Quote)
+        .options(joinedload(models.Quote.supplier))
+        .filter(models.Quote.supplier_id == supplier_id, models.Quote.deleted_at.is_(None))
+        .order_by(models.Quote.quote_date.desc())
+        .limit(20)
+        .all()
+    )
+
+    now = datetime.utcnow()
+
     return templates.TemplateResponse(request, "suppliers/account.html", {
         "user": current_user,
         "supplier": supplier,
@@ -139,6 +151,8 @@ async def supplier_account(
         "n_alerta_monto": n_alerta_monto,
         "n_sin_remito": n_sin_remito,
         "n_sin_factura": n_sin_factura,
+        "quotes": supplier_quotes,
+        "now": now,
     })
 
 

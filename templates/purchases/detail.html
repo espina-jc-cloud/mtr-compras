@@ -271,6 +271,34 @@
 
   <!-- Col acciones -->
   <div class="space-y-3">
+
+    <!-- Cotización vinculada -->
+    {% if purchase.quote %}
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">Cotización de origen</h2>
+      <a href="/quotes/{{ purchase.quote.id }}" class="block hover:opacity-80 transition-opacity">
+        <p class="font-semibold text-gray-900 text-sm truncate">{{ purchase.quote.title }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">
+          {% if purchase.quote.supplier %}{{ purchase.quote.supplier.name }}{% elif purchase.quote.supplier_name_text %}{{ purchase.quote.supplier_name_text }}{% else %}Sin proveedor{% endif %}
+        </p>
+        <div class="flex items-center justify-between mt-2">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ purchase.quote.status }}">{{ purchase.quote.status|replace("_"," ")|capitalize }}</span>
+          {% if purchase.quote.estimated_total %}<span class="text-xs font-semibold text-amber-700">{{ purchase.quote.currency }} ${{ "%.0f"|format(purchase.quote.estimated_total) }}</span>{% endif %}
+        </div>
+        <p class="text-xs text-amber-600 font-semibold mt-2">Ver cotización #{{ purchase.quote.id }} →</p>
+      </a>
+    </div>
+    {% elif user.role in ("admin","superadmin") and not purchase.deleted_at %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Cotización vinculada</h2>
+      <p class="text-xs text-gray-400 mb-3">No hay cotización vinculada a esta compra.</p>
+      <a href="/quotes?no_purchase=1" class="inline-flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-amber-50">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        Ver cotizaciones sin compra
+      </a>
+    </div>
+    {% endif %}
+
     <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
       <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Acciones</h2>
       <div class="space-y-2">

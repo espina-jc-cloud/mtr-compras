@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Nueva cotización — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="/quotes" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Cotizaciones
+    </a>
+    <h1 class="text-xl font-semibold text-gray-900">Nueva cotización</h1>
+    <p class="text-sm text-gray-400 mt-0.5">Cargá los datos de la cotización recibida o armala vos mismo.</p>
+  </div>
+
+  {% if error %}
+  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/quotes/new" enctype="multipart/form-data" class="space-y-4">
+
+    <!-- Origen -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Origen</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta <span class="text-red-400">*</span></label>
+          <select name="plant" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            {% for p in plants %}
+            <option value="{{ p }}" {% if prefill.plant == p or user.plant == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Área <span class="text-red-400">*</span></label>
+          <select name="area" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            {% for a in areas %}
+            <option value="{{ a }}" {% if prefill.area == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha de cotización <span class="text-red-400">*</span></label>
+          <input type="date" name="quote_date" required value="{{ today }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Válido hasta</label>
+          <input type="date" name="valid_until" value=""
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+          <p class="text-xs text-gray-400 mt-1">Opcional. Si vence, la cotización se marca automáticamente.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proveedor -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Proveedor</h2>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Proveedor</label>
+          <select name="supplier_id" id="supplier-select" onchange="toggleSupplierText()" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            <option value="">Sin proveedor específico</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {% if prefill.supplier_id and prefill.supplier_id|string == s.id|string %}selected{% endif %}>{{ s.name }}{% if s.cuit %} · {{ s.cuit }}{% endif %}</option>
+            {% endfor %}
+            <option value="otro">Otro / texto libre</option>
+          </select>
+        </div>
+        <div id="supplier-text-field" style="display:none">
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre del proveedor</label>
+          <input type="text" name="supplier_name_text" placeholder="Ej: Distribuidora Norte SRL"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Cotización -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Detalle de la cotización</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Asunto / Título <span class="text-red-400">*</span></label>
+          <input type="text" name="title" required value="{{ prefill.title or '' }}"
+            placeholder="Ej: Cotización repuestos compresor línea 2"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Descripción general</label>
+          <textarea name="description" rows="3"
+            placeholder="Descripción libre de la cotización..."
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50 resize-y placeholder-gray-400">{{ prefill.description or '' }}</textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
+            <select name="currency" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+              <option value="ARS">ARS — Pesos</option>
+              <option value="USD">USD — Dólares</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Monto total estimado</label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm" id="currency-symbol">$</span>
+              <input type="text" name="estimated_total" inputmode="decimal" id="estimated-total-input"
+                value="{{ prefill.estimated_amount or '' }}" placeholder="0.00"
+                class="w-full pl-7 pr-4 border border-gray-200 rounded-xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ítems -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Ítems de cotización</h2>
+        <span class="text-xs text-gray-400">Opcional — podés usar la descripción general si preferís</span>
+      </div>
+      <div id="items-container" class="space-y-2 mb-3">
+        <!-- rows injected by JS -->
+      </div>
+      <button type="button" onclick="addItem()"
+        class="w-full border border-dashed border-amber-300 hover:border-amber-400 text-amber-600 hover:text-amber-700 text-sm font-medium py-2.5 rounded-xl bg-amber-50/30 hover:bg-amber-50 transition-colors">
+        + Agregar ítem
+      </button>
+      <p class="text-xs text-gray-400 mt-2">El total se calcula automáticamente si cargás cantidades y precios.</p>
+    </div>
+
+    <!-- Notas -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Notas</h2>
+      <textarea name="notes" rows="2"
+        placeholder="Condiciones de pago, plazo de entrega, contacto..."
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50 resize-y placeholder-gray-400">{{ prefill.notes or '' }}</textarea>
+    </div>
+
+    <!-- Adjunto -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Adjunto (opcional)</h2>
+      <input type="file" name="file" accept="image/*,application/pdf"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-50 file:text-amber-600 file:font-medium">
+      <p class="text-xs text-gray-400 mt-1">PDF, foto de WhatsApp o captura de pantalla · Máx. 10 MB</p>
+    </div>
+
+    <button type="submit"
+      class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-4 rounded-2xl text-sm shadow-sm">
+      Guardar cotización
+    </button>
+  </form>
+</div>
+
+<script>
+function toggleSupplierText() {
+  const sel = document.getElementById('supplier-select').value;
+  document.getElementById('supplier-text-field').style.display = sel === 'otro' ? 'block' : 'none';
+}
+
+let itemIndex = 0;
+
+function addItem(desc, qty, unit, price) {
+  const container = document.getElementById('items-container');
+  const row = document.createElement('div');
+  row.className = 'grid grid-cols-12 gap-2 items-center';
+  row.innerHTML = `
+    <div class="col-span-5">
+      <input type="text" name="item_desc[]" value="${desc||''}" placeholder="Descripción del ítem"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-amber-500">
+    </div>
+    <div class="col-span-2">
+      <input type="text" name="item_qty[]" value="${qty||''}" placeholder="Cant."
+        oninput="recalcRow(this)"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-amber-500 text-center">
+    </div>
+    <div class="col-span-1">
+      <input type="text" name="item_unit[]" value="${unit||''}" placeholder="u"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-amber-500 text-center">
+    </div>
+    <div class="col-span-2">
+      <input type="text" name="item_price[]" value="${price||''}" placeholder="P. unit."
+        oninput="recalcRow(this)"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-amber-500 text-right">
+    </div>
+    <div class="col-span-1 text-right text-xs text-gray-500 font-mono subtotal-cell">—</div>
+    <div class="col-span-1 flex justify-end">
+      <button type="button" onclick="this.closest('.grid').remove(); recalcTotal()"
+        class="text-gray-300 hover:text-red-500 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>`;
+  container.appendChild(row);
+  itemIndex++;
+}
+
+function recalcRow(input) {
+  const row = input.closest('.grid');
+  const qty = parseFloat(row.querySelector('[name="item_qty[]"]').value.replace(',','.')) || 0;
+  const price = parseFloat(row.querySelector('[name="item_price[]"]').value.replace(',','.')) || 0;
+  const sub = qty * price;
+  row.querySelector('.subtotal-cell').textContent = sub > 0 ? '$' + sub.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0}) : '—';
+  recalcTotal();
+}
+
+function recalcTotal() {
+  let total = 0;
+  document.querySelectorAll('#items-container .grid').forEach(row => {
+    const qty = parseFloat(row.querySelector('[name="item_qty[]"]').value.replace(',','.')) || 0;
+    const price = parseFloat(row.querySelector('[name="item_price[]"]').value.replace(',','.')) || 0;
+    total += qty * price;
+  });
+  if (total > 0) {
+    document.getElementById('estimated-total-input').value = total.toFixed(2);
+  }
+}
+
+// Pre-fill items from prefill if any
+{% if prefill.items %}
+{% for item in prefill.items %}
+addItem({{ item.description|tojson }}, '{{ item.quantity or "" }}', '{{ item.unit or "" }}', '{{ item.unit_price or "" }}');
+{% endfor %}
+{% endif %}
+</script>
+
+{% endblock %}

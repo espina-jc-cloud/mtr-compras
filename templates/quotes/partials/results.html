@@ -1,0 +1,109 @@
+<!-- Mobile: cards -->
+<div class="md:hidden space-y-2">
+  {% for q in quotes %}
+  {% set is_expired = q.valid_until and q.valid_until < now and q.status not in ("convertida_en_compra","rechazada") %}
+  <a href="/quotes/{{ q.id }}" class="block bg-white border {% if is_expired %}border-amber-200{% elif q.deleted_at %}border-red-100{% else %}border-gray-100{% endif %} rounded-2xl shadow-sm p-4 hover:shadow-md transition-all {% if q.deleted_at %}opacity-60{% endif %}">
+    <div class="flex items-start justify-between gap-3 mb-2">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1 flex-wrap">
+          <span class="text-xs text-gray-400 font-mono">#{{ q.id }}</span>
+          <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{{ q.plant }}</span>
+          {% if q.currency == "USD" %}<span class="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">USD</span>{% endif %}
+          {% if is_expired %}<span class="text-xs font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Vencida</span>{% endif %}
+          {% if q.purchase_id %}<span class="text-xs font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">En compra</span>{% endif %}
+        </div>
+        <p class="font-semibold text-gray-900 text-sm truncate">{{ q.title }}</p>
+        <p class="text-xs text-gray-500 truncate mt-0.5">
+          {% if q.supplier %}{{ q.supplier.name }}{% elif q.supplier_name_text %}{{ q.supplier_name_text }}{% else %}<span class="italic">Sin proveedor</span>{% endif %}
+        </p>
+      </div>
+      <span class="flex-shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ q.status }}">{{ q.status|replace("_"," ")|capitalize }}</span>
+    </div>
+    <div class="flex items-center justify-between pt-2 border-t border-gray-50 text-xs text-gray-400">
+      <div class="flex items-center gap-3">
+        {% if q.documents %}<span class="text-amber-600">📎 {{ q.documents|length }}</span>{% endif %}
+        {% if q.items %}<span class="text-gray-500">{{ q.items|length }} ítem{% if q.items|length != 1 %}s{% endif %}</span>{% endif %}
+      </div>
+      <div class="text-right">
+        {% if q.estimated_total %}<span class="font-semibold text-gray-700">{{ q.currency }} ${{ "%.0f"|format(q.estimated_total) }}</span>{% endif %}
+        {% if q.valid_until %}<span class="ml-2 {% if is_expired %}text-amber-600 font-medium{% endif %}">vence {{ q.valid_until | fmt_ar("%d/%m/%y") }}</span>{% endif %}
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-10 text-center">
+    <svg class="w-10 h-10 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    <p class="text-gray-400 text-sm">No hay cotizaciones con estos filtros</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Desktop: tabla -->
+<div class="hidden md:block bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-50 bg-gray-50/50">
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-16">#</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Asunto</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Proveedor</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-16">Planta</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-16">Ítems</th>
+        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide w-28">Monto</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Estado</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Fecha</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Vence</th>
+        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide w-14">Docs</th>
+        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide w-14">Compra</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for q in quotes %}
+      {% set is_expired = q.valid_until and q.valid_until < now and q.status not in ("convertida_en_compra","rechazada") %}
+      <tr class="hover:bg-gray-50 cursor-pointer transition-colors {% if q.deleted_at %}opacity-60{% endif %} {% if is_expired %}bg-amber-50/30{% endif %}"
+          onclick="window.location='/quotes/{{ q.id }}'">
+        <td class="px-4 py-3.5 text-gray-400 text-xs font-mono">#{{ q.id }}</td>
+        <td class="px-4 py-3.5 max-w-[200px]">
+          <p class="font-medium text-gray-900 truncate">{{ q.title }}</p>
+          {% if q.currency == "USD" %}<span class="text-xs text-blue-600 font-semibold">USD</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5 text-gray-600 text-xs max-w-[150px] truncate">
+          {% if q.supplier %}{{ q.supplier.name }}
+          {% elif q.supplier_name_text %}{{ q.supplier_name_text }}
+          {% else %}<span class="text-gray-300 italic">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5">
+          <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{{ q.plant }}</span>
+        </td>
+        <td class="px-4 py-3.5 text-center text-xs text-gray-500">
+          {% if q.items %}{{ q.items|length }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5 text-right font-mono text-xs font-semibold text-gray-700">
+          {% if q.estimated_total %}{{ q.currency }} ${{ "%.0f"|format(q.estimated_total) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ q.status }}">{{ q.status|replace("_"," ")|capitalize }}</span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">{{ q.quote_date | fmt_ar("%d/%m/%y") }}</td>
+        <td class="px-4 py-3.5 text-xs whitespace-nowrap {% if is_expired %}text-amber-600 font-semibold{% else %}text-gray-400{% endif %}">
+          {% if q.valid_until %}{{ q.valid_until | fmt_ar("%d/%m/%y") }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5 text-center">
+          {% if q.documents %}<span class="text-amber-600 text-xs font-semibold">{{ q.documents|length }}</span>{% else %}<span class="text-gray-300 text-xs">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3.5 text-center">
+          {% if q.purchase_id %}
+          <svg class="w-4 h-4 text-violet-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          {% else %}<span class="text-gray-300 text-xs">—</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="11" class="px-5 py-16 text-center">
+          <svg class="w-10 h-10 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <p class="text-gray-400 text-sm">No hay cotizaciones con estos filtros</p>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

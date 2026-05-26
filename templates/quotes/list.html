@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Cotizaciones — MTR{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Cotizaciones</h1>
+    <p class="text-sm text-gray-400 mt-0.5" id="result-count">{{ quotes|length }} resultado{% if quotes|length != 1 %}s{% endif %}</p>
+  </div>
+  <a href="/quotes/new" class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nueva
+  </a>
+</div>
+
+<!-- Barra de búsqueda global -->
+<form id="filter-form"
+      hx-get="/quotes"
+      hx-target="#quotes-results"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-indicator="#search-spinner">
+  <div class="relative mb-3">
+    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <input type="text" name="q" value="{{ params.q }}"
+      placeholder="Buscar por asunto, descripción, proveedor..."
+      hx-get="/quotes"
+      hx-target="#quotes-results"
+      hx-swap="innerHTML"
+      hx-trigger="input changed delay:350ms"
+      hx-include="#filter-form"
+      hx-push-url="true"
+      class="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm placeholder-gray-400">
+    <span id="search-spinner" class="htmx-indicator absolute right-4 top-1/2 -translate-y-1/2">
+      <svg class="w-4 h-4 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+    </span>
+  </div>
+
+  <!-- Panel de filtros desktop -->
+  <div class="hidden md:block bg-white border border-gray-100 rounded-xl shadow-sm p-4 mb-4">
+    <div class="grid grid-cols-4 gap-3 mb-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Planta</label>
+        <select name="plant" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todas</option>
+          <option value="MTR1" {% if params.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+          <option value="MTR2" {% if params.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+        <select name="status" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todos</option>
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+        <select name="supplier_id" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50">
+          <option value="">Todos</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}" {% if params.supplier_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Fecha cotización</label>
+        <div class="flex gap-1">
+          <input type="date" name="date_from" value="{{ params.date_from }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50" placeholder="Desde">
+          <input type="date" name="date_to" value="{{ params.date_to }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50" placeholder="Hasta">
+        </div>
+      </div>
+    </div>
+    <div class="grid grid-cols-4 gap-3 items-center">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Vencimiento</label>
+        <div class="flex gap-1">
+          <input type="date" name="valid_from" value="{{ params.valid_from }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50">
+          <input type="date" name="valid_to" value="{{ params.valid_to }}" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-gray-50">
+        </div>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" name="only_expired" value="1" onchange="this.form.dispatchEvent(new Event('submit'))"
+            {% if params.only_expired == "1" %}checked{% endif %}
+            class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+          Solo vencidas
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" name="no_purchase" value="1" onchange="this.form.dispatchEvent(new Event('submit'))"
+            {% if params.no_purchase == "1" %}checked{% endif %}
+            class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+          Sin compra vinculada
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" name="converted" value="1" onchange="this.form.dispatchEvent(new Event('submit'))"
+            {% if params.converted == "1" %}checked{% endif %}
+            class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+          Solo convertidas
+        </label>
+      </div>
+      <div></div>
+      <div>
+        {% set has_filters = params.q or params.plant or params.status or params.supplier_id or params.date_from or params.date_to or params.valid_from or params.valid_to or params.only_expired or params.no_purchase or params.converted %}
+        {% if has_filters %}
+        <a href="/quotes" class="flex items-center justify-center gap-1.5 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 bg-white">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          Limpiar
+        </a>
+        {% else %}
+        <div class="text-xs text-gray-400 py-2">Sin filtros activos</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if user.role == "superadmin" %}
+    <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-50">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+        <input type="checkbox" name="include_deleted" value="1" onchange="this.form.dispatchEvent(new Event('submit'))"
+          {% if params.include_deleted == "1" %}checked{% endif %}
+          class="rounded border-gray-300 text-amber-500 focus:ring-amber-500">
+        Incluir cotizaciones anuladas
+      </label>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Panel filtros mobile -->
+  <div class="md:hidden mb-3">
+    <details class="bg-white border border-gray-100 rounded-xl shadow-sm">
+      <summary class="px-4 py-3 text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-2">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+        Filtros
+        {% set has_filters = params.plant or params.status or params.supplier_id or params.date_from or params.only_expired or params.no_purchase %}
+        {% if has_filters %}<span class="ml-auto bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">Activos</span>{% endif %}
+      </summary>
+      <div class="px-4 pb-4 space-y-3 border-t border-gray-50">
+        <div class="grid grid-cols-2 gap-3 pt-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Planta</label>
+            <select name="plant" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todas</option>
+              <option value="MTR1" {% if params.plant == "MTR1" %}selected{% endif %}>MTR1</option>
+              <option value="MTR2" {% if params.plant == "MTR2" %}selected{% endif %}>MTR2</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+            <select name="status" onchange="this.form.dispatchEvent(new Event('submit'))" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50">
+              <option value="">Todos</option>
+              {% for s in statuses %}
+              <option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <label class="flex items-center gap-2 text-xs text-gray-500">
+            <input type="checkbox" name="only_expired" value="1" onchange="this.form.dispatchEvent(new Event('submit'))" {% if params.only_expired == "1" %}checked{% endif %} class="rounded border-gray-300 text-amber-500">
+            Solo vencidas
+          </label>
+          <label class="flex items-center gap-2 text-xs text-gray-500">
+            <input type="checkbox" name="no_purchase" value="1" onchange="this.form.dispatchEvent(new Event('submit'))" {% if params.no_purchase == "1" %}checked{% endif %} class="rounded border-gray-300 text-amber-500">
+            Sin compra vinculada
+          </label>
+        </div>
+        <a href="/quotes" class="block text-center text-sm text-gray-500 border border-gray-200 rounded-lg py-2 hover:bg-gray-50">Limpiar filtros</a>
+      </div>
+    </details>
+  </div>
+</form>
+
+<!-- Resultados -->
+<div id="quotes-results">
+  {% include "quotes/partials/results.html" %}
+</div>
+
+{% endblock %}

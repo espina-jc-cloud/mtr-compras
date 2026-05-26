@@ -2,7 +2,7 @@ import os
 import subprocess
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, JSONResponse
-from app.routers import auth, dashboard, purchases, suppliers, documents, users
+from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes
 
 app = FastAPI(title="MTR Compras")
 
@@ -12,6 +12,7 @@ app.include_router(purchases.router)
 app.include_router(suppliers.router)
 app.include_router(documents.router)
 app.include_router(users.router)
+app.include_router(quotes.router)
 
 @app.get("/")
 async def root():
@@ -35,6 +36,7 @@ async def debug():
         "suppliers": db.query(models.Supplier).count(),
         "purchases": db.query(models.Purchase).count(),
         "documents": db.query(models.Document).count(),
+        "quotes": db.query(models.Quote).count(),
     }
     db.close()
     return {"git_sha": git_sha, "counts": counts}
