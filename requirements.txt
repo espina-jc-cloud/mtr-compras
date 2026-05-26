@@ -8,3 +8,4 @@ python-multipart
 jinja2
 cloudinary
 python-dotenv
+openpyxl
