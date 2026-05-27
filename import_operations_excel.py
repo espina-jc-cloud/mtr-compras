@@ -308,8 +308,10 @@ def main():
     # ── Insert pass ──────────────────────────────────────────────────────────
     db = SessionLocal()
     try:
-        trips_imported    = 0
-        trips_skipped_dup = 0
+        trips_imported      = 0
+        trips_skipped_dup   = 0
+        ops_new             = 0
+        ops_skipped_dup     = 0
 
         for op_data in operations_data:
             trips = op_data["trips"]
@@ -341,26 +343,37 @@ def main():
             client  = most_common([t["client"]  for t in trips])
             product = most_common([t["product"] for t in trips])
 
-            op = models.Operation(
-                raw_name          = op_data["raw_name"],
-                ship_name         = op_data["ship_name"],
-                operation_type    = op_data["operation_type"],
-                client            = client,
-                product           = product,
-                start_date        = start_date,
-                end_date          = end_date,
-                declared_trips    = op_data.get("declared_trips"),
-                actual_trips      = actual_trips,
-                total_neto_kg     = total_neto,
-                total_origen_kg   = total_origen,
-                total_diff_kg     = total_diff,
-                avg_duration_min  = avg_dur,
-                avg_tons_per_trip = avg_tons_per_trip,
-                avg_tons_per_hour = avg_tons_per_hour,
-                source_file       = SOURCE_FILE,
-            )
-            db.add(op)
-            db.flush()
+            # ── Skip if operation already exists (idempotent re-run) ────────
+            existing_op = db.query(models.Operation).filter(
+                models.Operation.raw_name       == op_data["raw_name"],
+                models.Operation.declared_trips == op_data.get("declared_trips"),
+            ).first()
+            if existing_op:
+                op = existing_op
+                ops_skipped_dup += 1
+                # still scan trips below in case of partial import
+            else:
+                ops_new += 1
+                op = models.Operation(
+                    raw_name          = op_data["raw_name"],
+                    ship_name         = op_data["ship_name"],
+                    operation_type    = op_data["operation_type"],
+                    client            = client,
+                    product           = product,
+                    start_date        = start_date,
+                    end_date          = end_date,
+                    declared_trips    = op_data.get("declared_trips"),
+                    actual_trips      = actual_trips,
+                    total_neto_kg     = total_neto,
+                    total_origen_kg   = total_origen,
+                    total_diff_kg     = total_diff,
+                    avg_duration_min  = avg_dur,
+                    avg_tons_per_trip = avg_tons_per_trip,
+                    avg_tons_per_hour = avg_tons_per_hour,
+                    source_file       = SOURCE_FILE,
+                )
+                db.add(op)
+                db.flush()
 
             for t in trips:
                 existing = db.query(models.OperationTrip).filter(
@@ -393,7 +406,8 @@ def main():
 
         db.commit()
         print(f"\n[COMMIT] OK")
-        print(f"  Operaciones importadas:        {len(operations_data)}")
+        print(f"  Operaciones nuevas:            {ops_new}")
+        print(f"  Operaciones ya existentes:     {ops_skipped_dup}")
         print(f"  Viajes importados:             {trips_imported}")
         print(f"  Viajes duplicados omitidos:    {trips_skipped_dup}")
         if warnings:

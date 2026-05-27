@@ -273,10 +273,24 @@ async def operation_detail(
 
 @api_router.get("")
 async def api_list_operations(
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    ops = db.query(models.Operation).order_by(models.Operation.start_date.desc()).all()
+    q = db.query(models.Operation)
+    op_type = request.query_params.get("op_type", "")
+    ship    = request.query_params.get("ship", "")
+    client  = request.query_params.get("client", "")
+    product = request.query_params.get("product", "")
+    if op_type:
+        q = q.filter(models.Operation.operation_type == op_type)
+    if ship:
+        q = q.filter(models.Operation.ship_name.ilike(f"%{ship}%"))
+    if client:
+        q = q.filter(models.Operation.client == client)
+    if product:
+        q = q.filter(models.Operation.product == product)
+    ops = q.order_by(models.Operation.start_date.desc()).all()
     return JSONResponse([_op_to_dict(o) for o in ops])
 
 
