@@ -316,6 +316,7 @@ class Operation(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
 
     trips = relationship("OperationTrip", back_populates="operation", cascade="all, delete-orphan")
+    product_totals = relationship("OperationProductTotal", back_populates="operation", cascade="all, delete-orphan")
 
 
 class OperationTrip(Base):
@@ -340,3 +341,32 @@ class OperationTrip(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     operation = relationship("Operation", back_populates="trips")
+
+
+class OperationProductTotal(Base):
+    """
+    Stores per-product discharge totals combining depot (from trips) and
+    Costado Vapor (from the CV Excel). One row per operation+product combination.
+    Idempotency key: (source_file, raw_ship_name, product, cv_start_date).
+    """
+    __tablename__ = "operation_product_totals"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    operation_id          = Column(Integer, ForeignKey("operations.id"), nullable=True, index=True)
+    raw_ship_name         = Column(String, nullable=False)
+    ship_name             = Column(String, nullable=False)
+    client                = Column(String, nullable=True)
+    product               = Column(String, nullable=False)
+    cv_start_date         = Column(DateTime, nullable=True)
+    cv_end_date           = Column(DateTime, nullable=True)
+    cv_excel_tons         = Column(Numeric(12, 3), nullable=False, default=0)
+    depot_tons            = Column(Numeric(12, 3), nullable=False, default=0)
+    costado_vapor_tons    = Column(Numeric(12, 3), nullable=False, default=0)
+    total_discharged_tons = Column(Numeric(12, 3), nullable=False, default=0)
+    match_status          = Column(String, nullable=False, default="matched")  # matched/unmatched/ambiguous
+    notes                 = Column(String, nullable=True)
+    source_file           = Column(String, nullable=True)
+    source_year           = Column(Integer, nullable=True)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+    operation = relationship("Operation", back_populates="product_totals")

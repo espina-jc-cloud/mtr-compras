@@ -198,6 +198,22 @@ async def list_operations(
             tmp2[oid].append(cli)
         clients_map = {oid: sorted(clis) for oid, clis in tmp2.items()}
 
+    # CV data per operation (batch query)
+    cv_totals = {}
+    if op_ids:
+        cv_rows = (
+            db.query(models.OperationProductTotal)
+            .filter(models.OperationProductTotal.operation_id.in_(op_ids))
+            .all()
+        )
+        for row in cv_rows:
+            oid = row.operation_id
+            if oid not in cv_totals:
+                cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
+            cv_totals[oid]["cv_t"] += float(row.costado_vapor_tons or 0)
+            cv_totals[oid]["discharged_t"] += float(row.total_discharged_tons or 0)
+            cv_totals[oid]["has_cv"] = True
+
     # Unique filter options sourced from trips (catches multi-product ops)
     all_products = sorted(set(
         r[0] for r in db.query(models.OperationTrip.product)
@@ -224,6 +240,7 @@ async def list_operations(
         "all_products": all_products,
         "products_map": products_map,
         "clients_map":  clients_map,
+        "cv_totals":    cv_totals,
     })
 
 
@@ -329,6 +346,38 @@ async def operations_dashboard(
     total_product_kg = sum(v["neto_kg"] for v in prod_stats.values())
     total_client_kg  = sum(v["neto_kg"] for v in client_stats.values())
 
+    # CV totals for filtered operations
+    cv_rows_all = []
+    if op_ids:
+        cv_rows_all = db.query(models.OperationProductTotal).filter(
+            models.OperationProductTotal.operation_id.in_(op_ids)
+        ).all()
+
+    total_cv_t = sum(float(r.costado_vapor_tons or 0) for r in cv_rows_all)
+    total_neto_t_value = total_neto / 1000 if total_neto else 0
+    total_discharged_t = total_neto_t_value + total_cv_t
+    pct_cv = total_cv_t / total_discharged_t * 100 if total_discharged_t > 0 else 0
+
+    # Top 5 by costado vapor
+    from collections import defaultdict as _dd
+    cv_by_op = _dd(float)
+    for r in cv_rows_all:
+        if r.operation_id:
+            cv_by_op[r.operation_id] += float(r.costado_vapor_tons or 0)
+    top_by_cv = sorted(
+        [o for o in all_ops if cv_by_op.get(o.id, 0) > 0],
+        key=lambda o: cv_by_op[o.id],
+        reverse=True
+    )[:5]
+    for o in top_by_cv:
+        o._cv_tons = cv_by_op[o.id]
+        o._discharged_t = (o.total_neto_kg or 0) / 1000 + cv_by_op[o.id]
+
+    # Product breakdown including CV
+    prod_cv = _dd(float)
+    for r in cv_rows_all:
+        prod_cv[r.product] += float(r.costado_vapor_tons or 0)
+
     # Filter options for dropdowns (always full list)
     all_products = sorted(set(
         r[0] for r in db.query(models.OperationTrip.product)
@@ -366,6 +415,11 @@ async def operations_dashboard(
         "has_filters":      has_filters,
         "all_products":     all_products,
         "all_clients":      all_clients,
+        "total_cv_t":       total_cv_t,
+        "total_discharged_t": total_discharged_t,
+        "pct_cv":           pct_cv,
+        "top_by_cv":        top_by_cv,
+        "prod_cv":          dict(prod_cv),
     })
 
 
@@ -401,12 +455,64 @@ async def operation_detail(
         v["pct"] = round(v["neto_kg"] / total_neto_bk * 100, 1) if total_neto_bk else 0
     product_breakdown = sorted(prod_bk.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
 
+    # CV breakdown for this operation
+    cv_rows = (
+        db.query(models.OperationProductTotal)
+        .filter(models.OperationProductTotal.operation_id == op_id)
+        .order_by(models.OperationProductTotal.costado_vapor_tons.desc())
+        .all()
+    )
+    has_cv = len(cv_rows) > 0
+
+    _DEPOT_ALIASES = {"MOP": "CLORURO DE POTASIO", "AMSUL": "SULFATO DE AMONIO"}
+
+    if has_cv:
+        depot_by_prod = {}
+        for t in trips:
+            pnorm = _DEPOT_ALIASES.get(t.product, t.product) if t.product else "(sin producto)"
+            depot_by_prod[pnorm] = depot_by_prod.get(pnorm, 0.0) + (t.neto_kg or 0) / 1000
+
+        discharge_bk = {}
+        for row in cv_rows:
+            p = row.product
+            discharge_bk[p] = {
+                "depot":  float(row.depot_tons or 0),
+                "cv":     float(row.costado_vapor_tons or 0),
+                "total":  float(row.total_discharged_tons or 0),
+                "status": row.match_status,
+            }
+        for p, dt in depot_by_prod.items():
+            if p not in discharge_bk:
+                discharge_bk[p] = {"depot": dt, "cv": 0.0, "total": dt, "status": "depot_only"}
+
+        for v in discharge_bk.values():
+            v["pct_cv"] = v["cv"] / v["total"] * 100 if v["total"] > 0 else 0
+
+        discharge_list = sorted(discharge_bk.items(), key=lambda x: -x[1]["total"])
+        total_discharge_depot = sum(v["depot"] for v in discharge_bk.values())
+        total_discharge_cv    = sum(v["cv"]    for v in discharge_bk.values())
+        total_discharged      = total_discharge_depot + total_discharge_cv
+        pct_cv_op = total_discharge_cv / total_discharged * 100 if total_discharged > 0 else 0
+    else:
+        discharge_list = []
+        total_discharge_depot = (op.total_neto_kg or 0) / 1000
+        total_discharge_cv = 0.0
+        total_discharged = total_discharge_depot
+        pct_cv_op = 0.0
+
     return templates.TemplateResponse(request, "operations/detail.html", {
-        "user":              current_user,
-        "op":                op,
-        "trips":             trips,
-        "shifts":            shifts,
-        "product_breakdown": product_breakdown,
+        "user":                  current_user,
+        "op":                    op,
+        "trips":                 trips,
+        "shifts":                shifts,
+        "product_breakdown":     product_breakdown,
+        "cv_rows":               cv_rows,
+        "has_cv":                has_cv,
+        "discharge_list":        discharge_list,
+        "total_discharge_depot": total_discharge_depot,
+        "total_discharge_cv":    total_discharge_cv,
+        "total_discharged":      total_discharged,
+        "pct_cv_op":             pct_cv_op,
     })
 
 

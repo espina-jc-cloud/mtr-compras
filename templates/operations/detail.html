@@ -70,7 +70,9 @@
   </div>
   <div>
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Producto</p>
-    {% if product_breakdown|length > 1 %}
+    {% if has_cv and discharge_list|length > 1 %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ discharge_list | map(attribute=0) | list | join(' + ') }}</p>
+    {% elif product_breakdown|length > 1 %}
     <p class="font-semibold text-gray-800 mt-0.5">{{ product_breakdown | map(attribute=0) | list | join(' + ') }}</p>
     {% else %}
     <p class="font-semibold text-gray-800 mt-0.5">{{ op.product or '—' }}</p>
@@ -78,8 +80,60 @@
   </div>
 </div>
 
-<!-- Breakdown por producto (solo si > 1 producto) -->
-{% if product_breakdown|length > 1 %}
+<!-- Desestiba total del operativo -->
+{% if has_cv %}
+<div class="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">🚢</span>
+    <h2 class="text-sm font-semibold text-gray-700">Desestiba total del operativo</h2>
+    <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">
+      {{ pct_cv_op | fmt_num(1) }}% costado vapor
+    </span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50 bg-gray-50/40">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Producto</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Depósito MTR</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Costado Vapor</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Total</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">% CV</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for prod, v in discharge_list %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-800">{{ prod }}</td>
+          <td class="px-4 py-3 text-right text-gray-700">{{ v.depot | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-semibold {% if v.cv > 0 %}text-teal-700{% else %}text-gray-300{% endif %}">
+            {% if v.cv > 0 %}{{ v.cv | fmt_num(1) }} t{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ v.total | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right">
+            {% if v.pct_cv > 0 %}
+            <span class="text-xs font-bold text-teal-700">{{ v.pct_cv | fmt_num(1) }}%</span>
+            {% else %}
+            <span class="text-gray-300 text-xs">0%</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="border-t-2 border-gray-100 bg-gray-50">
+        <tr>
+          <td class="px-4 py-3 text-xs font-bold text-gray-600 uppercase">Total</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_discharge_depot | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-teal-700">{{ total_discharge_cv | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ total_discharged | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-teal-700">{{ pct_cv_op | fmt_num(1) }}%</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% elif product_breakdown|length > 1 %}
+<!-- fallback: show depot-only breakdown when no CV data -->
 <div class="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden mb-4">
   <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
     <span class="text-base">📦</span>
