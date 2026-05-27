@@ -252,3 +252,40 @@ class MaintenanceAuditLog(Base):
 
     record = relationship("MaintenanceRecord", back_populates="audit_logs")
     user = relationship("User")
+
+
+# ─── Combustible ──────────────────────────────────────────────────────────────
+
+class FuelLoad(Base):
+    __tablename__ = "fuel_loads"
+    id               = Column(Integer, primary_key=True, index=True)
+
+    fuel_date        = Column(DateTime, nullable=False, index=True)   # fecha real de carga
+
+    responsible_text = Column(String, nullable=False)                 # quien cargó (libre)
+    entered_by_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    vehicle_plate    = Column(String, nullable=False, index=True)     # patente o "Bidón"/"PASTO"
+    vehicle_type     = Column(String, default="vehiculo")             # vehiculo/bidon/equipo
+
+    fuel_type        = Column(String, nullable=False)                 # gasoil_premium/nafta/nafta_premium
+    liters           = Column(Numeric(8, 3), nullable=False)
+    station          = Column(String, default="Hipolito")
+    amount           = Column(Numeric(12, 2), nullable=True)
+
+    company          = Column(String, nullable=False, index=True)     # MTR SA / INGEE
+    order_number     = Column(String, nullable=True)
+
+    receipt_url      = Column(String, nullable=True)
+    receipt_filename = Column(String, nullable=True)
+
+    odometer_km      = Column(Integer, nullable=True)
+    hourmeter        = Column(Numeric(8, 1), nullable=True)
+    notes            = Column(Text, nullable=True)
+
+    deleted_at       = Column(DateTime, nullable=True)
+    deleted_reason   = Column(Text, nullable=True)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    entered_by       = relationship("User", foreign_keys=[entered_by_id])

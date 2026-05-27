@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Combustible — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Combustible</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Registro de cargas</p>
+  </div>
+  <a href="/fuel/new"
+    class="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nueva carga
+  </a>
+</div>
+
+<!-- Resumen del mes actual -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Este mes — Total</p>
+    <p class="text-2xl font-bold text-gray-900">{{ this_month.total_liters | fmt_num(1) }} L</p>
+    <p class="text-sm text-gray-500 mt-0.5">$ {{ this_month.total_amount | fmt_num }} · {{ this_month.total_count }} cargas</p>
+  </div>
+  {% for co in companies %}
+  {% set s = this_month.by_company[co] %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{{ co }}</p>
+    <p class="text-2xl font-bold {% if co == 'MTR SA' %}text-indigo-700{% else %}text-teal-700{% endif %}">{{ s.liters | fmt_num(1) }} L</p>
+    <p class="text-sm text-gray-500 mt-0.5">$ {{ s.amount | fmt_num }} · {{ s.count }} cargas</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filtros -->
+<form method="get" action="/fuel" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <!-- Empresa -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Empresa</label>
+      <select name="company" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        <option value="">Todas</option>
+        {% for co in companies %}
+        <option value="{{ co }}" {% if params.company == co %}selected{% endif %}>{{ co }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Tipo -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Combustible</label>
+      <select name="fuel_type" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for key, label in fuel_types.items() %}
+        <option value="{{ key }}" {% if params.fuel_type == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Patente -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Patente</label>
+      <input type="text" name="plate" value="{{ params.plate }}" placeholder="AG703SW…"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 uppercase">
+    </div>
+    <!-- Fecha desde -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
+      <input type="date" name="date_from" value="{{ params.date_from }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+    </div>
+    <!-- Fecha hasta -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
+      <input type="date" name="date_to" value="{{ params.date_to }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+    </div>
+  </div>
+  <div class="flex gap-2 mt-3">
+    <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">Filtrar</button>
+    <a href="/fuel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-xl">Limpiar</a>
+  </div>
+</form>
+
+<!-- Totales del filtro -->
+{% if loads %}
+<div class="flex items-center gap-4 px-1 mb-3 text-sm text-gray-500">
+  <span><strong class="text-gray-800">{{ loads|length }}</strong> cargas</span>
+  <span>·</span>
+  <span><strong class="text-gray-800">{{ total_liters | fmt_num(1) }}</strong> litros</span>
+  {% if total_amount > 0 %}
+  <span>·</span>
+  <span><strong class="text-gray-800">$ {{ total_amount | fmt_num }}</strong></span>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Mobile: cards -->
+<div class="md:hidden space-y-2">
+  {% for r in loads %}
+  <a href="/fuel/{{ r.id }}" class="block bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 hover:shadow-md transition-all">
+    <div class="flex items-start justify-between gap-2">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1.5">
+          <!-- Empresa badge -->
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full
+            {% if r.company == 'MTR SA' %}bg-indigo-50 text-indigo-700{% else %}bg-teal-50 text-teal-700{% endif %}">
+            {{ r.company }}
+          </span>
+          <!-- Tipo combustible badge -->
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full
+            {% if r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
+            {% elif r.fuel_type == 'nafta' %}bg-emerald-50 text-emerald-700
+            {% else %}bg-purple-50 text-purple-700{% endif %}">
+            {{ fuel_types[r.fuel_type] if r.fuel_type in fuel_types else r.fuel_type }}
+          </span>
+        </div>
+        <p class="font-bold text-gray-900 text-base">{{ r.vehicle_plate }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">{{ r.responsible_text }} · {{ r.fuel_date | fmt_ar("%d/%m/%y") }}</p>
+        {% if r.order_number %}
+        <p class="text-xs text-gray-400 mt-0.5">Orden #{{ r.order_number }}</p>
+        {% endif %}
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-lg font-bold text-gray-900">{{ r.liters | fmt_num(1) }}<span class="text-sm font-normal text-gray-400"> L</span></p>
+        {% if r.amount %}
+        <p class="text-sm font-semibold text-gray-600">$ {{ r.amount | fmt_num }}</p>
+        {% if r.liters and r.amount %}
+        <p class="text-xs text-orange-600 font-medium">$ {{ (r.amount / r.liters) | fmt_num(0) }}/L</p>
+        {% endif %}
+        {% endif %}
+        {% if r.receipt_url %}
+        <svg class="w-4 h-4 text-gray-300 mt-1 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+        {% endif %}
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-12 text-center">
+    <div class="text-4xl mb-3">⛽</div>
+    <p class="text-gray-500 text-sm">No hay cargas registradas.</p>
+    <a href="/fuel/new" class="inline-block mt-3 text-orange-600 font-semibold text-sm">Registrar primera carga →</a>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Desktop: tabla -->
+<div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fecha</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Patente</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Empresa</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Tipo</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Litros</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Monto</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">$/L</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Estación</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Orden</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Responsable</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Comp.</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for r in loads %}
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/fuel/{{ r.id }}'">
+          <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ r.fuel_date | fmt_ar("%d/%m/%y") }}</td>
+          <td class="px-4 py-3 font-bold text-gray-900">{{ r.vehicle_plate }}</td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full
+              {% if r.company == 'MTR SA' %}bg-indigo-50 text-indigo-700{% else %}bg-teal-50 text-teal-700{% endif %}">
+              {{ r.company }}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full
+              {% if r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
+              {% elif r.fuel_type == 'nafta' %}bg-emerald-50 text-emerald-700
+              {% else %}bg-purple-50 text-purple-700{% endif %}">
+              {{ fuel_types[r.fuel_type] if r.fuel_type in fuel_types else r.fuel_type }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-right font-semibold text-gray-800">{{ r.liters | fmt_num(1) }}</td>
+          <td class="px-4 py-3 text-right text-gray-600">{% if r.amount %}$ {{ r.amount | fmt_num }}{% else %}<span class="text-gray-300">—</span>{% endif %}</td>
+          <td class="px-4 py-3 text-right text-orange-600 text-xs font-medium">
+            {% if r.liters and r.amount %}$ {{ (r.amount / r.liters) | fmt_num(0) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-500 text-xs">{{ r.station }}</td>
+          <td class="px-4 py-3 text-gray-400 text-xs">{{ r.order_number or '—' }}</td>
+          <td class="px-4 py-3 text-gray-600 text-xs">{{ r.responsible_text }}</td>
+          <td class="px-4 py-3 text-center">
+            {% if r.receipt_url %}
+            <svg class="w-4 h-4 text-emerald-400 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            {% else %}
+            <span class="text-gray-200">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="11" class="px-4 py-12 text-center text-gray-400">
+          No hay cargas. <a href="/fuel/new" class="text-orange-500 font-medium">Registrar la primera →</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if loads %}
+      <!-- Fila totales -->
+      <tfoot class="border-t-2 border-gray-100 bg-gray-50">
+        <tr>
+          <td colspan="4" class="px-4 py-3 text-xs font-semibold text-gray-500">TOTAL ({{ loads|length }} cargas)</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ total_liters | fmt_num(1) }} L</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">$ {{ total_amount | fmt_num }}</td>
+          <td colspan="5"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% endblock %}

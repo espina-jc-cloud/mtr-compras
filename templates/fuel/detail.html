@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Carga #{{ load.id }} — Combustible MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-lg mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 mb-5">
+    <a href="/fuel" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div class="flex-1">
+      <h1 class="text-lg font-semibold text-gray-900">Carga #{{ load.id }}</h1>
+      <p class="text-xs text-gray-500">{{ load.fuel_date | fmt_ar("%d/%m/%Y") }} · Cargado el {{ load.created_at | fmt_ar("%d/%m/%y %H:%M") }}</p>
+    </div>
+    {% if can_edit %}
+    <a href="/fuel/{{ load.id }}/edit"
+      class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all">
+      Editar
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Éxito -->
+  {% if saved %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-emerald-700 font-medium">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+    Carga guardada correctamente
+  </div>
+  {% endif %}
+
+  <!-- Card principal -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+
+    <!-- Empresa + tipo (color) -->
+    <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+      <span class="font-bold px-3 py-1 rounded-full text-sm
+        {% if load.company == 'MTR SA' %}bg-indigo-100 text-indigo-700{% else %}bg-teal-100 text-teal-700{% endif %}">
+        {{ load.company }}
+      </span>
+      <span class="font-medium px-3 py-1 rounded-full text-sm
+        {% if load.fuel_type == 'gasoil_premium' %}bg-amber-100 text-amber-700
+        {% elif load.fuel_type == 'nafta' %}bg-emerald-100 text-emerald-700
+        {% else %}bg-purple-100 text-purple-700{% endif %}">
+        {{ fuel_types[load.fuel_type] if load.fuel_type in fuel_types else load.fuel_type }}
+      </span>
+    </div>
+
+    <!-- Patente + métricas principales -->
+    <div class="px-5 py-5 border-b border-gray-50">
+      <p class="text-3xl font-black text-gray-900 tracking-wider mb-4">{{ load.vehicle_plate }}</p>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="text-center">
+          <p class="text-2xl font-bold text-gray-900">{{ load.liters | fmt_num(3) }}</p>
+          <p class="text-xs text-gray-400 font-medium mt-0.5">Litros</p>
+        </div>
+        <div class="text-center border-l border-r border-gray-100">
+          <p class="text-2xl font-bold text-gray-900">{% if load.amount %}$ {{ load.amount | fmt_num }}{% else %}<span class="text-gray-300">—</span>{% endif %}</p>
+          <p class="text-xs text-gray-400 font-medium mt-0.5">Total ARS</p>
+        </div>
+        <div class="text-center">
+          {% if load.amount and load.liters %}
+          <p class="text-2xl font-bold text-orange-600">$ {{ (load.amount / load.liters) | fmt_num(0) }}</p>
+          {% else %}
+          <p class="text-2xl font-bold text-gray-300">—</p>
+          {% endif %}
+          <p class="text-xs text-gray-400 font-medium mt-0.5">por litro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalles -->
+    <div class="px-5 py-4 space-y-3">
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">Responsable</span>
+        <span class="font-medium text-gray-800">{{ load.responsible_text }}</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">Estación</span>
+        <span class="font-medium text-gray-800">{{ load.station }}</span>
+      </div>
+      {% if load.order_number %}
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">N° Orden de carga</span>
+        <span class="font-medium text-gray-800">{{ load.order_number }}</span>
+      </div>
+      {% endif %}
+      {% if load.odometer_km %}
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">Odómetro</span>
+        <span class="font-medium text-gray-800">{{ load.odometer_km | fmt_num }} km</span>
+      </div>
+      {% endif %}
+      {% if load.hourmeter %}
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">Horómetro</span>
+        <span class="font-medium text-gray-800">{{ load.hourmeter | fmt_num(1) }} h</span>
+      </div>
+      {% endif %}
+      {% if load.notes %}
+      <div class="pt-2 border-t border-gray-50">
+        <p class="text-xs text-gray-400 font-medium mb-1">Observaciones</p>
+        <p class="text-sm text-gray-700">{{ load.notes }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Comprobante -->
+    {% if load.receipt_url %}
+    <div class="px-5 pb-5">
+      <a href="{{ load.receipt_url }}" target="_blank"
+        class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl px-4 py-3 transition-all">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+        Ver comprobante — {{ load.receipt_filename or "adjunto" }}
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Metadatos + borrar -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 text-xs text-gray-400 space-y-1">
+    <p>Cargado por: <span class="text-gray-600">{{ load.entered_by.name if load.entered_by else "—" }}</span></p>
+    <p>Creado: <span class="text-gray-600">{{ load.created_at | fmt_ar("%d/%m/%Y %H:%M") }}</span></p>
+    {% if load.updated_at and load.updated_at != load.created_at %}
+    <p>Modificado: <span class="text-gray-600">{{ load.updated_at | fmt_ar("%d/%m/%Y %H:%M") }}</span></p>
+    {% endif %}
+  </div>
+
+  <!-- Eliminar (superadmin/admin) -->
+  {% if user.role in ("superadmin", "admin") %}
+  <div class="mt-4">
+    <details class="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+      <summary class="px-5 py-4 text-sm font-medium text-red-500 cursor-pointer hover:bg-red-50 list-none flex items-center justify-between">
+        Eliminar registro
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </summary>
+      <form method="post" action="/fuel/{{ load.id }}/delete" class="px-5 pb-5 pt-3 border-t border-red-50">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Motivo (opcional)</label>
+        <input type="text" name="reason" placeholder="Carga duplicada, error de datos…"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-3">
+        <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-xl"
+          onclick="return confirm('¿Eliminar esta carga de combustible?')">
+          Eliminar registro
+        </button>
+      </form>
+    </details>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, exists
+from datetime import datetime
 from app.database import get_db
 from app.deps import get_current_user
 from app import models
@@ -43,6 +44,11 @@ async def dashboard(request: Request, db: Session = Depends(get_db), current_use
     recent = bq.order_by(models.Purchase.created_at.desc()).limit(10).all()
     total = bq.count()
 
+    # ── Combustible este mes ──
+    from app.routers.fuel import _month_stats as _fuel_month_stats
+    now = datetime.utcnow()
+    fuel_stats = _fuel_month_stats(db, now.year, now.month)
+
     # ── Mantenimiento (no para rol planta) ──
     maint_counts = {"abierto": 0, "en_progreso": 0, "cerrado": 0, "total": 0}
     maint_recent = []
@@ -68,6 +74,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db), current_use
         "total": total,
         "maint_counts": maint_counts,
         "maint_recent": maint_recent,
+        "fuel_stats": fuel_stats,
     })
 
 

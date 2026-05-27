@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Editar carga #{{ load.id }} — Combustible MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-lg mx-auto">
+
+  <div class="flex items-center gap-3 mb-5">
+    <a href="/fuel/{{ load.id }}" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h1 class="text-lg font-semibold text-gray-900">Editar carga #{{ load.id }}</h1>
+  </div>
+
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4 text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/fuel/{{ load.id }}/edit" enctype="multipart/form-data" class="space-y-4">
+
+    <!-- Empresa -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Empresa</p>
+      <div class="grid grid-cols-2 gap-2">
+        {% for co in companies %}
+        <label class="company-btn cursor-pointer rounded-xl border-2 py-3 text-center font-semibold text-sm transition-all
+          {% if load.company == co %}border-indigo-500 bg-indigo-600 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-300{% endif %}">
+          <input type="radio" name="company" value="{{ co }}" class="sr-only"
+            {% if load.company == co %}checked{% endif %}>
+          {{ co }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Patente -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Patente / Vehículo</label>
+      <input type="text" name="vehicle_plate"
+        value="{{ load.vehicle_plate }}"
+        required autocapitalize="characters"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 uppercase"
+        list="plates-list">
+      <datalist id="plates-list">
+        {% for p in recent_plates %}<option value="{{ p }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <!-- Tipo combustible -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tipo de combustible</p>
+      <div class="grid grid-cols-3 gap-2">
+        {% for key, label in fuel_types.items() %}
+        <label class="fuel-btn cursor-pointer rounded-xl border-2 py-3 px-1 text-center font-semibold text-xs transition-all
+          {% if load.fuel_type == key %}
+            {{ 'border-amber-500 bg-amber-500 text-white' if key == 'gasoil_premium' else 'border-emerald-500 bg-emerald-500 text-white' if key == 'nafta' else 'border-purple-500 bg-purple-500 text-white' }}
+          {% else %}
+            border-gray-200 text-gray-600
+          {% endif %}"
+          data-key="{{ key }}">
+          <input type="radio" name="fuel_type" value="{{ key }}" class="sr-only"
+            {% if load.fuel_type == key %}checked{% endif %}>
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Litros + Monto -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Litros</label>
+          <input type="number" name="liters" id="liters"
+            value="{{ load.liters }}" step="0.001" min="0.1" required inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Monto ARS</label>
+          <input type="number" name="amount" id="amount"
+            value="{{ load.amount or '' }}" step="0.01" min="0" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+      <div class="mt-2 h-6 text-center">
+        <span id="price_per_liter" class="text-sm font-semibold text-orange-600"></span>
+      </div>
+    </div>
+
+    <!-- Responsable + Fecha -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Responsable</label>
+          <input type="text" name="responsible_text"
+            value="{{ load.responsible_text }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Fecha</label>
+          <input type="date" name="fuel_date"
+            value="{{ load.fuel_date | fmt_ar('%Y-%m-%d') }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Estación + Orden -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estación</label>
+          <input type="text" name="station"
+            value="{{ load.station }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">N° Orden</label>
+          <input type="text" name="order_number"
+            value="{{ load.order_number or '' }}"
+            inputmode="numeric"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Comprobante nuevo -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        Reemplazar comprobante
+        {% if load.receipt_url %}<a href="{{ load.receipt_url }}" target="_blank" class="text-indigo-500 font-normal normal-case ml-2">ver actual →</a>{% endif %}
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer border-2 border-dashed border-gray-200 rounded-xl px-4 py-3 hover:border-orange-300 transition-all">
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span class="text-sm text-gray-500" id="receipt-label">Seleccionar archivo</span>
+        <input type="file" name="receipt" accept="image/*,application/pdf" class="sr-only"
+          onchange="document.getElementById('receipt-label').textContent = this.files[0]?.name || 'Seleccionar archivo'">
+      </label>
+    </div>
+
+    <!-- Extras -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 space-y-4">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Opcionales</p>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Odómetro (km)</label>
+          <input type="number" name="odometer_km"
+            value="{{ load.odometer_km or '' }}" min="0" inputmode="numeric"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Horómetro (h)</label>
+          <input type="number" name="hourmeter"
+            value="{{ load.hourmeter or '' }}" step="0.1" min="0" inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Observaciones</label>
+        <textarea name="notes" rows="2"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 resize-none">{{ load.notes or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <a href="/fuel/{{ load.id }}"
+        class="text-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3.5 rounded-2xl text-sm">
+        Cancelar
+      </a>
+      <button type="submit"
+        class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl text-sm shadow-sm">
+        Guardar cambios
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+// Company toggle
+document.querySelectorAll('input[name="company"]').forEach(r => r.addEventListener('change', updateCompanyButtons));
+function updateCompanyButtons() {
+  document.querySelectorAll('.company-btn').forEach(label => {
+    const r = label.querySelector('input[type="radio"]');
+    if (r.checked) { label.classList.add('border-indigo-500','bg-indigo-600','text-white'); label.classList.remove('border-gray-200','text-gray-600'); }
+    else { label.classList.remove('border-indigo-500','bg-indigo-600','text-white'); label.classList.add('border-gray-200','text-gray-600'); }
+  });
+}
+// Fuel type toggle
+const fuelColors = {
+  gasoil_premium: ['border-amber-500','bg-amber-500','text-white'],
+  nafta:          ['border-emerald-500','bg-emerald-500','text-white'],
+  nafta_premium:  ['border-purple-500','bg-purple-500','text-white'],
+};
+document.querySelectorAll('input[name="fuel_type"]').forEach(r => r.addEventListener('change', updateFuelButtons));
+function updateFuelButtons() {
+  document.querySelectorAll('.fuel-btn').forEach(label => {
+    const r = label.querySelector('input[type="radio"]');
+    const col = fuelColors[label.dataset.key] || fuelColors.nafta;
+    Object.values(fuelColors).flat().forEach(c => label.classList.remove(c));
+    label.classList.remove('border-gray-200','text-gray-600');
+    if (r.checked) col.forEach(c => label.classList.add(c));
+    else label.classList.add('border-gray-200','text-gray-600');
+  });
+}
+// Price/liter
+document.getElementById('liters').addEventListener('input', calcPPL);
+document.getElementById('amount').addEventListener('input', calcPPL);
+function calcPPL() {
+  const l = parseFloat(document.getElementById('liters').value) || 0;
+  const a = parseFloat(document.getElementById('amount').value) || 0;
+  const el = document.getElementById('price_per_liter');
+  el.textContent = (l > 0 && a > 0) ? `$ ${(a/l).toLocaleString('es-AR', {maximumFractionDigits:0})}/L` : '';
+}
+calcPPL();
+</script>
+{% endblock %}

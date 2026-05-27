@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block title %}Nueva carga — Combustible MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-lg mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 mb-5">
+    <a href="/fuel" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div>
+      <h1 class="text-lg font-semibold text-gray-900">Nueva carga de combustible</h1>
+      <p class="text-xs text-gray-500 mt-0.5">Cargado por: {{ user.name.split()[0] }}</p>
+    </div>
+  </div>
+
+  <!-- Alerta de duplicado -->
+  {% if warning %}
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <div class="flex-1">
+        <p class="text-sm font-medium text-amber-800">{{ warning }}</p>
+        <label class="flex items-center gap-2 mt-3 cursor-pointer">
+          <input type="checkbox" id="force_save_check" class="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+          <span class="text-sm text-amber-700 font-medium">Sí, guardar de todas formas</span>
+        </label>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Error -->
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-red-700">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/fuel/new" enctype="multipart/form-data" class="space-y-4">
+    <input type="hidden" name="force_save" id="force_save" value="">
+
+    <!-- ① EMPRESA — toggle buttons grandes -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Empresa</p>
+      <div class="grid grid-cols-2 gap-2">
+        {% for co in companies %}
+        <label class="company-btn cursor-pointer rounded-xl border-2 py-3 text-center font-semibold text-sm transition-all
+          {% if prefill.company == co or (not prefill and loop.first) %}border-indigo-500 bg-indigo-600 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-300{% endif %}"
+          id="label-co-{{ loop.index }}">
+          <input type="radio" name="company" value="{{ co }}" class="sr-only"
+            {% if prefill.company == co or (not prefill and loop.first) %}checked{% endif %}>
+          {{ co }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ② PATENTE + chips recientes -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        Patente / Vehículo <span class="text-red-400">*</span>
+      </label>
+      <input type="text" name="vehicle_plate" id="vehicle_plate"
+        value="{{ prefill.vehicle_plate or '' }}"
+        placeholder="AG703SW, Bidón, PASTO…"
+        required autocomplete="off" autocapitalize="characters"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50 uppercase"
+        list="plates-list">
+      <datalist id="plates-list">
+        {% for p in recent_plates %}<option value="{{ p }}">{% endfor %}
+      </datalist>
+
+      {% if recent_plates %}
+      <div class="flex flex-wrap gap-2 mt-3">
+        <span class="text-xs text-gray-400">Recientes:</span>
+        {% for p in recent_plates[:8] %}
+        <button type="button" onclick="setPlate('{{ p }}')"
+          class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-orange-100 hover:text-orange-700 transition-colors">
+          {{ p }}
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ③ TIPO DE COMBUSTIBLE — 3 botones -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tipo de combustible <span class="text-red-400">*</span></p>
+      <div class="grid grid-cols-3 gap-2">
+        {% for key, label in fuel_types.items() %}
+        <label class="fuel-btn cursor-pointer rounded-xl border-2 py-3 px-1 text-center font-semibold text-xs transition-all
+          {% if prefill.fuel_type == key or (not prefill and key == 'gasoil_premium') %}
+            {{ 'border-amber-500 bg-amber-500 text-white' if key == 'gasoil_premium' else 'border-emerald-500 bg-emerald-500 text-white' if key == 'nafta' else 'border-purple-500 bg-purple-500 text-white' }}
+          {% else %}
+            border-gray-200 text-gray-600 hover:border-gray-300
+          {% endif %}"
+          data-key="{{ key }}"
+          data-color="{{ 'amber' if key == 'gasoil_premium' else 'emerald' if key == 'nafta' else 'purple' }}">
+          <input type="radio" name="fuel_type" value="{{ key }}" class="sr-only"
+            {% if prefill.fuel_type == key or (not prefill and key == 'gasoil_premium') %}checked{% endif %}>
+          {% if key == 'gasoil_premium' %}⛽ Gasoil Prem.
+          {% elif key == 'nafta' %}🟢 Nafta
+          {% else %}🟣 Nafta Prem.{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ④ LITROS + MONTO — dos columnas grandes -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Litros <span class="text-red-400">*</span>
+          </label>
+          <input type="number" name="liters" id="liters"
+            value="{{ prefill.liters or '' }}"
+            placeholder="0" step="0.001" min="0.1" max="2000" required
+            inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Monto ARS
+          </label>
+          <input type="number" name="amount" id="amount"
+            value="{{ prefill.amount or '' }}"
+            placeholder="0" step="0.01" min="0"
+            inputmode="decimal"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50">
+        </div>
+      </div>
+      <!-- Precio por litro calculado -->
+      <div class="mt-2 h-6 text-center">
+        <span id="price_per_liter" class="text-sm font-semibold text-orange-600"></span>
+      </div>
+    </div>
+
+    <!-- ⑤ RESPONSABLE + FECHA -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Responsable</label>
+          <input type="text" name="responsible_text"
+            value="{{ prefill.responsible_text or user.name }}"
+            placeholder="{{ user.name }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Fecha</label>
+          <input type="date" name="fuel_date"
+            value="{{ prefill.fuel_date or today }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ ESTACIÓN + ORDEN (compacto) -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estación</label>
+          <input type="text" name="station"
+            value="{{ prefill.station or 'Hipolito' }}"
+            placeholder="Hipolito"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">N° Orden <span class="text-gray-300">(opc.)</span></label>
+          <input type="text" name="order_number"
+            value="{{ prefill.order_number or '' }}"
+            placeholder="ej. 1143"
+            inputmode="numeric"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ COMPROBANTE -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Comprobante <span class="text-gray-300">(opcional)</span></label>
+      <label class="flex items-center gap-3 cursor-pointer border-2 border-dashed border-gray-200 rounded-xl px-4 py-4 hover:border-orange-300 hover:bg-orange-50 transition-all">
+        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-gray-700" id="receipt-label">Foto del ticket o archivo</p>
+          <p class="text-xs text-gray-400">JPG, PNG, PDF · Desde cámara o galería</p>
+        </div>
+        <input type="file" name="receipt" accept="image/*,application/pdf" capture="environment"
+          class="sr-only" id="receipt-input" onchange="updateReceiptLabel(this)">
+      </label>
+    </div>
+
+    <!-- ⑧ MÁS OPCIONES (colapsable) -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <button type="button" onclick="toggleExtras()" id="extras-toggle"
+        class="w-full flex items-center justify-between px-4 py-4 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          Odómetro / Horómetro / Observaciones
+        </span>
+        <svg id="extras-arrow" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+
+      <div id="extras-panel" class="hidden px-4 pb-4 space-y-4 border-t border-gray-50">
+        <div class="grid grid-cols-2 gap-4 pt-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Odómetro (km)</label>
+            <input type="number" name="odometer_km"
+              value="{{ prefill.odometer_km or '' }}"
+              placeholder="ej. 123456" min="0" inputmode="numeric"
+              class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Horómetro (h)</label>
+            <input type="number" name="hourmeter"
+              value="{{ prefill.hourmeter or '' }}"
+              placeholder="ej. 4532.5" step="0.1" min="0" inputmode="decimal"
+              class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Observaciones</label>
+          <textarea name="notes" rows="2"
+            placeholder="Algo a destacar…"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 resize-none">{{ prefill.notes or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑨ SUBMIT -->
+    <button type="submit" id="submit-btn"
+      class="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold py-4 rounded-2xl text-base shadow-sm transition-all">
+      Guardar carga
+    </button>
+
+    <p class="text-center text-xs text-gray-400 pb-2">Los campos con * son obligatorios</p>
+  </form>
+</div>
+
+<script>
+// ── Toggle buttons: Empresa ──────────────────────────────────────────────────
+document.querySelectorAll('input[name="company"]').forEach(radio => {
+  radio.addEventListener('change', updateCompanyButtons);
+});
+function updateCompanyButtons() {
+  document.querySelectorAll('.company-btn').forEach(label => {
+    const r = label.querySelector('input[type="radio"]');
+    if (r.checked) {
+      label.className = label.className.replace(/border-\S+ bg-\S+ text-\S+/, '');
+      label.classList.add('border-indigo-500', 'bg-indigo-600', 'text-white');
+      label.classList.remove('border-gray-200', 'text-gray-600', 'hover:border-gray-300');
+    } else {
+      label.classList.remove('border-indigo-500', 'bg-indigo-600', 'text-white');
+      label.classList.add('border-gray-200', 'text-gray-600', 'hover:border-gray-300');
+    }
+  });
+}
+
+// ── Toggle buttons: Tipo combustible ────────────────────────────────────────
+const fuelColors = {
+  gasoil_premium: { on: ['border-amber-500','bg-amber-500','text-white'],  off: ['border-gray-200','text-gray-600'] },
+  nafta:          { on: ['border-emerald-500','bg-emerald-500','text-white'], off: ['border-gray-200','text-gray-600'] },
+  nafta_premium:  { on: ['border-purple-500','bg-purple-500','text-white'], off: ['border-gray-200','text-gray-600'] },
+};
+document.querySelectorAll('input[name="fuel_type"]').forEach(radio => {
+  radio.addEventListener('change', updateFuelButtons);
+});
+function updateFuelButtons() {
+  document.querySelectorAll('.fuel-btn').forEach(label => {
+    const r   = label.querySelector('input[type="radio"]');
+    const key = label.dataset.key;
+    const col = fuelColors[key] || fuelColors.nafta;
+    col.on.concat(col.off).forEach(c => label.classList.remove(c));
+    (r.checked ? col.on : col.off).forEach(c => label.classList.add(c));
+  });
+}
+
+// ── Precio por litro ─────────────────────────────────────────────────────────
+document.getElementById('liters').addEventListener('input', calcPPL);
+document.getElementById('amount').addEventListener('input', calcPPL);
+function calcPPL() {
+  const l = parseFloat(document.getElementById('liters').value) || 0;
+  const a = parseFloat(document.getElementById('amount').value) || 0;
+  const el = document.getElementById('price_per_liter');
+  if (l > 0 && a > 0) {
+    const ppl = a / l;
+    el.textContent = '$ ' + ppl.toLocaleString('es-AR', {maximumFractionDigits: 0}) + '/L';
+  } else {
+    el.textContent = '';
+  }
+}
+// Calcular al cargar si hay prefill
+calcPPL();
+
+// ── Patente — chip tap ───────────────────────────────────────────────────────
+function setPlate(p) {
+  const inp = document.getElementById('vehicle_plate');
+  inp.value = p;
+  inp.focus();
+}
+
+// ── Extras colapsable ────────────────────────────────────────────────────────
+function toggleExtras() {
+  const panel = document.getElementById('extras-panel');
+  const arrow = document.getElementById('extras-arrow');
+  panel.classList.toggle('hidden');
+  arrow.classList.toggle('rotate-180');
+}
+{% if prefill.odometer_km or prefill.hourmeter or prefill.notes %}
+// Auto-abrir si hay datos de extras en prefill
+document.addEventListener('DOMContentLoaded', () => toggleExtras());
+{% endif %}
+
+// ── Nombre del archivo adjunto ───────────────────────────────────────────────
+function updateReceiptLabel(input) {
+  const label = document.getElementById('receipt-label');
+  if (input.files && input.files[0]) {
+    label.textContent = input.files[0].name;
+  }
+}
+
+// ── Duplicado: activar force_save ────────────────────────────────────────────
+const forceCheck = document.getElementById('force_save_check');
+if (forceCheck) {
+  forceCheck.addEventListener('change', function() {
+    document.getElementById('force_save').value = this.checked ? '1' : '';
+  });
+}
+
+// ── Uppercase automático en patente ─────────────────────────────────────────
+document.getElementById('vehicle_plate').addEventListener('input', function() {
+  const start = this.selectionStart, end = this.selectionEnd;
+  this.value = this.value.toUpperCase();
+  this.setSelectionRange(start, end);
+});
+
+// ── Prevenir doble submit ────────────────────────────────────────────────────
+document.querySelector('form').addEventListener('submit', function() {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+});
+</script>
+{% endblock %}
