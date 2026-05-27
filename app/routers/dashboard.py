@@ -10,7 +10,7 @@ from app.templates import templates
 router = APIRouter()
 
 
-def _base_query(db, current_user):
+def _base_purchase_query(db, current_user):
     q = db.query(models.Purchase).options(
         joinedload(models.Purchase.supplier),
         joinedload(models.Purchase.requester),
@@ -23,16 +23,51 @@ def _base_query(db, current_user):
     return q
 
 
+def _base_maintenance_query(db, current_user):
+    q = db.query(models.MaintenanceRecord).filter(
+        models.MaintenanceRecord.deleted_at.is_(None)
+    )
+    if current_user.role in ("tecnico", "planta") and current_user.plant != "TODAS":
+        q = q.filter(models.MaintenanceRecord.plant == current_user.plant)
+    elif current_user.role == "autorizador" and current_user.plant != "TODAS":
+        q = q.filter(models.MaintenanceRecord.plant == current_user.plant)
+    return q
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    bq = _base_query(db, current_user)
+    # ── Compras ──
+    bq = _base_purchase_query(db, current_user)
     counts = {s: bq.filter(models.Purchase.status == s).count()
               for s in ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada"]}
     recent = bq.order_by(models.Purchase.created_at.desc()).limit(10).all()
     total = bq.count()
+
+    # ── Mantenimiento (no para rol planta) ──
+    maint_counts = {"abierto": 0, "en_progreso": 0, "cerrado": 0, "total": 0}
+    maint_recent = []
+    if current_user.role not in ("planta",):
+        mq = _base_maintenance_query(db, current_user)
+        for s in ["abierto", "en_progreso", "cerrado"]:
+            maint_counts[s] = mq.filter(models.MaintenanceRecord.status == s).count()
+        maint_counts["total"] = sum(maint_counts[s] for s in ["abierto", "en_progreso", "cerrado"])
+
+        # Últimos trabajos para rol técnico (en lugar de compras)
+        if current_user.role == "tecnico":
+            maint_recent = (
+                mq.options(joinedload(models.MaintenanceRecord.equipment))
+                .order_by(models.MaintenanceRecord.work_date.desc())
+                .limit(10)
+                .all()
+            )
+
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": current_user,
-        "counts": counts, "recent": recent, "total": total,
+        "counts": counts,
+        "recent": recent,
+        "total": total,
+        "maint_counts": maint_counts,
+        "maint_recent": maint_recent,
     })
 
 

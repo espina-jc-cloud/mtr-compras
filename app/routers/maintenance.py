@@ -42,6 +42,10 @@ def _can_edit(user, record) -> bool:
     """¿Puede este usuario editar/borrar este registro?"""
     if user.role in ("admin", "superadmin"):
         return True
+    # Autorizador puede editar registros de su planta
+    if user.role == "autorizador":
+        return user.plant == "TODAS" or record.plant == user.plant
+    # Técnico solo puede editar lo que él mismo cargó
     if user.role == "tecnico" and record.entered_by_id == user.id:
         return True
     return False
