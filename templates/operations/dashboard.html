@@ -11,7 +11,10 @@
     <div>
       <h1 class="text-xl font-semibold text-gray-900">Dashboard Operativos</h1>
       {% if period_start and period_end %}
-      <p class="text-xs text-gray-400 mt-0.5">{{ period_start | fmt_ar("%b %Y") }} – {{ period_end | fmt_ar("%b %Y") }}</p>
+      <p class="text-xs text-gray-400 mt-0.5">
+        {{ period_start | fmt_ar("%b %Y") }} – {{ period_end | fmt_ar("%b %Y") }}
+        {% if has_filters %}<span class="ml-1 text-amber-500 font-semibold">· filtrado</span>{% endif %}
+      </p>
       {% endif %}
     </div>
   </div>
@@ -21,9 +24,68 @@
   </a>
 </div>
 
+<!-- Filtros del dashboard -->
+<form method="get" action="/operations/dashboard" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
+      <select name="client" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for c in all_clients %}
+        <option value="{{ c }}" {% if params.client == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
+      <select name="product" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for p in all_products %}
+        <option value="{{ p }}" {% if params.product == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
+      <input type="date" name="date_from" value="{{ params.date_from }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
+      <input type="date" name="date_to" value="{{ params.date_to }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div class="flex flex-col justify-end gap-2">
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl w-full">Filtrar</button>
+    </div>
+  </div>
+  <div class="flex flex-wrap items-center gap-2 mt-3">
+    {% if has_filters %}
+    <a href="/operations/dashboard" class="inline-flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      Limpiar filtros
+    </a>
+    {% endif %}
+    <div class="ml-auto flex gap-1.5">
+      <a href="/operations/dashboard?op_type=vessel"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'vessel' %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-500 border-gray-200 hover:border-indigo-300{% endif %}">
+        ⛵ Barcos
+      </a>
+      <a href="/operations/dashboard?op_type=special"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'special' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-500 border-gray-200 hover:border-amber-300{% endif %}">
+        ★ Especiales
+      </a>
+    </div>
+  </div>
+</form>
+
 <!-- Hero: toneladas totales -->
 <div class="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 md:p-7 mb-5 text-white shadow-lg">
-  <p class="text-xs font-bold uppercase tracking-widest text-indigo-200 mb-1">Neto total descargado</p>
+  <p class="text-xs font-bold uppercase tracking-widest text-indigo-200 mb-1">
+    Neto total descargado{% if has_filters %} <span class="normal-case font-normal opacity-75">— filtrado</span>{% endif %}
+  </p>
   <div class="flex items-end gap-3 mb-1">
     <p class="text-4xl md:text-5xl font-black tracking-tight">{{ total_neto_t | fmt_num(1) }}</p>
     <p class="text-xl md:text-2xl font-light text-indigo-200 mb-0.5">toneladas</p>

@@ -70,9 +70,46 @@
   </div>
   <div>
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Producto</p>
+    {% if product_breakdown|length > 1 %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ product_breakdown | map(attribute=0) | list | join(' + ') }}</p>
+    {% else %}
     <p class="font-semibold text-gray-800 mt-0.5">{{ op.product or '—' }}</p>
+    {% endif %}
   </div>
 </div>
+
+<!-- Breakdown por producto (solo si > 1 producto) -->
+{% if product_breakdown|length > 1 %}
+<div class="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">📦</span>
+    <h2 class="text-sm font-semibold text-gray-700">Mix de productos</h2>
+    <span class="ml-auto text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{{ product_breakdown|length }} productos</span>
+  </div>
+  <div class="divide-y divide-gray-50">
+    {% for prod, s in product_breakdown %}
+    <div class="px-4 py-3">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-sm font-semibold text-gray-800">{{ prod }}</span>
+        <div class="flex items-center gap-3 text-right">
+          <span class="text-xs text-gray-500">{{ s.trips }} viajes</span>
+          <span class="text-sm font-bold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+          <span class="text-xs font-semibold {% if s.diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
+            {% if s.diff_kg > 0 %}+{% endif %}{{ (s.diff_kg / 1000) | fmt_num(2) }} t
+          </span>
+          <span class="text-xs font-bold text-indigo-700 w-10 text-right">{{ s.pct }}%</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+          <div class="bg-indigo-400 h-1.5 rounded-full" style="width: {{ s.pct }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <!-- Distribución por turno -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">

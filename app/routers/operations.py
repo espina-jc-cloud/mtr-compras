@@ -7,7 +7,7 @@ from collections import defaultdict
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, exists
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -130,10 +130,6 @@ async def list_operations(
 
     if q_ship:
         fq = fq.filter(models.Operation.ship_name.ilike(f"%{q_ship}%"))
-    if q_client:
-        fq = fq.filter(models.Operation.client == q_client)
-    if q_product:
-        fq = fq.filter(models.Operation.product == q_product)
     if q_op_type:
         fq = fq.filter(models.Operation.operation_type == q_op_type)
     if q_date_from:
@@ -146,6 +142,21 @@ async def list_operations(
             fq = fq.filter(models.Operation.start_date <= datetime.strptime(q_date_to + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
         except ValueError:
             pass
+    # Filter by client/product via trips (supports multi-product ops)
+    if q_client:
+        fq = fq.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.client == q_client)
+            )
+        )
+    if q_product:
+        fq = fq.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.product == q_product)
+            )
+        )
 
     operations = fq.order_by(models.Operation.start_date.desc()).all()
 
@@ -154,11 +165,48 @@ async def list_operations(
     total_neto   = sum(op.total_neto_kg or 0 for op in operations)
     total_trips  = sum(op.actual_trips  or 0 for op in operations)
 
-    # Unique filter options
-    all_clients  = sorted(set(r[0] for r in db.query(models.Operation.client).filter(
-        models.Operation.client.isnot(None)).distinct().all()))
-    all_products = sorted(set(r[0] for r in db.query(models.Operation.product).filter(
-        models.Operation.product.isnot(None)).distinct().all()))
+    # Build products_map and clients_map (one query each, avoids N+1)
+    op_ids = [op.id for op in operations]
+    products_map: dict[int, list[str]] = {}
+    clients_map:  dict[int, list[str]] = {}
+    if op_ids:
+        prod_rows = (
+            db.query(models.OperationTrip.operation_id, models.OperationTrip.product)
+            .filter(
+                models.OperationTrip.operation_id.in_(op_ids),
+                models.OperationTrip.product.isnot(None),
+            )
+            .distinct()
+            .all()
+        )
+        tmp: dict = defaultdict(list)
+        for oid, prod in prod_rows:
+            tmp[oid].append(prod)
+        products_map = {oid: sorted(prods) for oid, prods in tmp.items()}
+
+        cli_rows = (
+            db.query(models.OperationTrip.operation_id, models.OperationTrip.client)
+            .filter(
+                models.OperationTrip.operation_id.in_(op_ids),
+                models.OperationTrip.client.isnot(None),
+            )
+            .distinct()
+            .all()
+        )
+        tmp2: dict = defaultdict(list)
+        for oid, cli in cli_rows:
+            tmp2[oid].append(cli)
+        clients_map = {oid: sorted(clis) for oid, clis in tmp2.items()}
+
+    # Unique filter options sourced from trips (catches multi-product ops)
+    all_products = sorted(set(
+        r[0] for r in db.query(models.OperationTrip.product)
+        .filter(models.OperationTrip.product.isnot(None)).distinct().all()
+    ))
+    all_clients = sorted(set(
+        r[0] for r in db.query(models.OperationTrip.client)
+        .filter(models.OperationTrip.client.isnot(None)).distinct().all()
+    ))
 
     params = {
         "ship": q_ship, "client": q_client, "product": q_product,
@@ -174,6 +222,8 @@ async def list_operations(
         "total_trips":  total_trips,
         "all_clients":  all_clients,
         "all_products": all_products,
+        "products_map": products_map,
+        "clients_map":  clients_map,
     })
 
 
@@ -183,8 +233,54 @@ async def operations_dashboard(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    all_ops   = db.query(models.Operation).all()
-    all_trips = db.query(models.OperationTrip).all()
+    def qp(name, default=""):
+        vals = request.query_params.getlist(name)
+        return vals[0].strip() if vals else default
+
+    q_client    = qp("client")
+    q_product   = qp("product")
+    q_op_type   = qp("op_type")
+    q_date_from = qp("date_from")
+    q_date_to   = qp("date_to")
+
+    fq = db.query(models.Operation)
+    if q_op_type:
+        fq = fq.filter(models.Operation.operation_type == q_op_type)
+    if q_date_from:
+        try:
+            fq = fq.filter(models.Operation.start_date >= datetime.strptime(q_date_from, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if q_date_to:
+        try:
+            fq = fq.filter(models.Operation.start_date <= datetime.strptime(q_date_to + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            pass
+    if q_client:
+        fq = fq.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.client == q_client)
+            )
+        )
+    if q_product:
+        fq = fq.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.product == q_product)
+            )
+        )
+
+    all_ops = fq.order_by(models.Operation.start_date).all()
+
+    # Trips only from filtered operations
+    op_ids = [op.id for op in all_ops]
+    if op_ids:
+        all_trips = db.query(models.OperationTrip).filter(
+            models.OperationTrip.operation_id.in_(op_ids)
+        ).all()
+    else:
+        all_trips = []
 
     total_ops    = len(all_ops)
     total_neto   = sum(op.total_neto_kg or 0 for op in all_ops)
@@ -201,7 +297,7 @@ async def operations_dashboard(
         reverse=True
     )[:5]
 
-    # Product distribution
+    # Product distribution (from trips — correct for multi-product ops)
     prod_stats = defaultdict(lambda: {"trips": 0, "neto_kg": 0})
     for t in all_trips:
         key = t.product or "(sin producto)"
@@ -217,7 +313,7 @@ async def operations_dashboard(
         client_stats[key]["neto_kg"] += t.neto_kg or 0
     client_list = sorted(client_stats.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
 
-    # Shift distribution (global)
+    # Shift distribution
     shift_stats = {k: {"label": SHIFT_LABELS[k], "trips": 0, "neto_kg": 0} for k in (1, 2, 3, 4)}
     for t in all_trips:
         sn = t.shift_number or 1
@@ -232,6 +328,22 @@ async def operations_dashboard(
 
     total_product_kg = sum(v["neto_kg"] for v in prod_stats.values())
     total_client_kg  = sum(v["neto_kg"] for v in client_stats.values())
+
+    # Filter options for dropdowns (always full list)
+    all_products = sorted(set(
+        r[0] for r in db.query(models.OperationTrip.product)
+        .filter(models.OperationTrip.product.isnot(None)).distinct().all()
+    ))
+    all_clients = sorted(set(
+        r[0] for r in db.query(models.OperationTrip.client)
+        .filter(models.OperationTrip.client.isnot(None)).distinct().all()
+    ))
+
+    params = {
+        "client": q_client, "product": q_product, "op_type": q_op_type,
+        "date_from": q_date_from, "date_to": q_date_to,
+    }
+    has_filters = any(v for v in params.values())
 
     return templates.TemplateResponse(request, "operations/dashboard.html", {
         "user":             current_user,
@@ -250,6 +362,10 @@ async def operations_dashboard(
         "total_diff_t":     total_diff / 1000 if total_diff else 0,
         "total_product_kg": total_product_kg,
         "total_client_kg":  total_client_kg,
+        "params":           params,
+        "has_filters":      has_filters,
+        "all_products":     all_products,
+        "all_clients":      all_clients,
     })
 
 
@@ -273,11 +389,24 @@ async def operation_detail(
 
     shifts = _compute_shift_stats(trips)
 
+    # Product breakdown (only shown when > 1 product)
+    prod_bk: dict = defaultdict(lambda: {"trips": 0, "neto_kg": 0, "diff_kg": 0})
+    for t in trips:
+        key = t.product or "(sin producto)"
+        prod_bk[key]["trips"]   += 1
+        prod_bk[key]["neto_kg"] += t.neto_kg or 0
+        prod_bk[key]["diff_kg"] += t.diff_kg or 0
+    total_neto_bk = sum(v["neto_kg"] for v in prod_bk.values())
+    for v in prod_bk.values():
+        v["pct"] = round(v["neto_kg"] / total_neto_bk * 100, 1) if total_neto_bk else 0
+    product_breakdown = sorted(prod_bk.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
+
     return templates.TemplateResponse(request, "operations/detail.html", {
-        "user":   current_user,
-        "op":     op,
-        "trips":  trips,
-        "shifts": shifts,
+        "user":              current_user,
+        "op":                op,
+        "trips":             trips,
+        "shifts":            shifts,
+        "product_breakdown": product_breakdown,
     })
 
 
@@ -299,9 +428,19 @@ async def api_list_operations(
     if ship:
         q = q.filter(models.Operation.ship_name.ilike(f"%{ship}%"))
     if client:
-        q = q.filter(models.Operation.client == client)
+        q = q.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.client == client)
+            )
+        )
     if product:
-        q = q.filter(models.Operation.product == product)
+        q = q.filter(
+            exists().where(
+                (models.OperationTrip.operation_id == models.Operation.id) &
+                (models.OperationTrip.product == product)
+            )
+        )
     ops = q.order_by(models.Operation.start_date.desc()).all()
     return JSONResponse([_op_to_dict(o) for o in ops])
 

@@ -106,8 +106,13 @@
             {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-600{% else %}bg-amber-50 text-amber-600{% endif %}">
             {% if op.operation_type == 'vessel' %}BARCO{% else %}ESPECIAL{% endif %}
           </span>
-          {% if op.product %}
-          <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 truncate max-w-[120px]">{{ op.product }}</span>
+          {% set prods = products_map.get(op.id, []) %}
+          {% if prods|length > 1 %}
+            {% for p in prods %}
+            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 truncate max-w-[80px]">{{ p }}</span>
+            {% endfor %}
+          {% elif prods|length == 1 %}
+          <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 truncate max-w-[120px]">{{ prods[0] }}</span>
           {% endif %}
         </div>
         <p class="font-bold text-gray-900 text-sm leading-snug truncate">{{ op.ship_name }}</p>
@@ -170,7 +175,15 @@
           <td class="px-4 py-3 text-gray-500 text-xs max-w-[130px]">
             <span class="block truncate">{{ op.client or '—' }}</span>
           </td>
-          <td class="px-4 py-3 text-gray-600 text-xs">{{ op.product or '—' }}</td>
+          <td class="px-4 py-3 text-gray-600 text-xs">
+            {% set prods = products_map.get(op.id, []) %}
+            {% if prods|length > 1 %}
+              <span class="inline-flex flex-wrap gap-1">
+                {% for p in prods %}<span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap">{{ p }}</span>{% endfor %}
+              </span>
+            {% elif prods|length == 1 %}{{ prods[0] }}
+            {% else %}—{% endif %}
+          </td>
           <td class="px-4 py-3 text-right text-gray-700 font-medium">{{ op.actual_trips | fmt_num }}</td>
           <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} <span class="font-normal text-gray-400 text-xs">t</span></td>
           <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs">
