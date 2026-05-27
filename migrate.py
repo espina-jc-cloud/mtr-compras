@@ -43,10 +43,11 @@ def run():
 
     # ── Migraciones seguras de columnas nuevas ────────────────────────────────
     with engine.connect() as conn:
-        _add_column(conn, "purchases", "purchase_date",  "TIMESTAMP")
-        _add_column(conn, "purchases", "deleted_at",     "TIMESTAMP")
-        _add_column(conn, "purchases", "deleted_reason", "TEXT")
-        _add_column(conn, "documents", "remito_date",    "VARCHAR")
+        _add_column(conn, "purchases",  "purchase_date",  "TIMESTAMP")
+        _add_column(conn, "purchases",  "deleted_at",     "TIMESTAMP")
+        _add_column(conn, "purchases",  "deleted_reason", "TEXT")
+        _add_column(conn, "documents",  "remito_date",    "VARCHAR")
+        _add_column(conn, "fuel_loads", "plant",          "VARCHAR")
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

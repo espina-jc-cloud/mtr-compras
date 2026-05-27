@@ -34,7 +34,7 @@
 
 <!-- Filtros -->
 <form method="get" action="/fuel" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
     <!-- Empresa -->
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Empresa</label>
@@ -42,6 +42,16 @@
         <option value="">Todas</option>
         {% for co in companies %}
         <option value="{{ co }}" {% if params.company == co %}selected{% endif %}>{{ co }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Planta -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Planta</label>
+      <select name="plant" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        <option value="">Todas</option>
+        {% for pl in plants %}
+        <option value="{{ pl }}" {% if params.plant == pl %}selected{% endif %}>{{ pl }}</option>
         {% endfor %}
       </select>
     </div>
@@ -100,10 +110,10 @@
     <div class="flex items-start justify-between gap-2">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1.5">
-          <!-- Empresa badge -->
+          <!-- Empresa + planta badge -->
           <span class="text-xs font-bold px-2 py-0.5 rounded-full
             {% if r.company == 'MTR SA' %}bg-indigo-50 text-indigo-700{% else %}bg-teal-50 text-teal-700{% endif %}">
-            {{ r.company }}
+            {{ r.company }}{% if r.plant %} · {{ r.plant }}{% endif %}
           </span>
           <!-- Tipo combustible badge -->
           <span class="text-xs font-medium px-2 py-0.5 rounded-full
@@ -150,7 +160,7 @@
         <tr class="text-left border-b border-gray-50">
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fecha</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Patente</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Empresa</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Empresa / Planta</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Tipo</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Litros</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Monto</th>
@@ -171,6 +181,9 @@
               {% if r.company == 'MTR SA' %}bg-indigo-50 text-indigo-700{% else %}bg-teal-50 text-teal-700{% endif %}">
               {{ r.company }}
             </span>
+            {% if r.plant %}
+            <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 ml-1">{{ r.plant }}</span>
+            {% endif %}
           </td>
           <td class="px-4 py-3">
             <span class="text-xs font-medium px-2 py-0.5 rounded-full

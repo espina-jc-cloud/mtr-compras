@@ -31,6 +31,7 @@ FUEL_TYPES = {
     "nafta_premium":  "Nafta Premium",
 }
 COMPANIES = ["MTR SA", "INGEE"]
+PLANTS    = ["MTR1", "MTR2"]   # solo para company == "MTR SA"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -126,6 +127,7 @@ async def list_fuel(
         return vals[0].strip() if vals else default
 
     q_company   = qp("company")
+    q_plant     = qp("plant")
     q_plate     = qp("plate")
     q_fuel_type = qp("fuel_type")
     q_date_from = qp("date_from")
@@ -135,6 +137,8 @@ async def list_fuel(
 
     if q_company:
         fq = fq.filter(models.FuelLoad.company == q_company)
+    if q_plant:
+        fq = fq.filter(models.FuelLoad.plant == q_plant)
     if q_plate:
         fq = fq.filter(models.FuelLoad.vehicle_plate.ilike(f"%{q_plate}%"))
     if q_fuel_type:
@@ -161,7 +165,7 @@ async def list_fuel(
     this_month = _month_stats(db, now.year, now.month)
 
     params = {
-        "company": q_company, "plate": q_plate,
+        "company": q_company, "plant": q_plant, "plate": q_plate,
         "fuel_type": q_fuel_type, "date_from": q_date_from, "date_to": q_date_to,
     }
 
@@ -170,6 +174,7 @@ async def list_fuel(
         "loads":        loads,
         "params":       params,
         "companies":    COMPANIES,
+        "plants":       PLANTS,
         "fuel_types":   FUEL_TYPES,
         "total_liters": total_liters,
         "total_amount": total_amount,
@@ -190,14 +195,15 @@ async def new_fuel_form(
     plates = _recent_plates(db)
 
     return templates.TemplateResponse(request, "fuel/new.html", {
-        "user":         current_user,
-        "today":        today,
+        "user":          current_user,
+        "today":         today,
         "recent_plates": plates,
-        "companies":    COMPANIES,
-        "fuel_types":   FUEL_TYPES,
-        "error":        None,
-        "warning":      None,
-        "prefill":      {},
+        "companies":     COMPANIES,
+        "plants":        PLANTS,
+        "fuel_types":    FUEL_TYPES,
+        "error":         None,
+        "warning":       None,
+        "prefill":       {},
     })
 
 
@@ -206,6 +212,7 @@ async def create_fuel(
     request: Request,
     fuel_date:        str  = Form(...),
     company:          str  = Form(...),
+    plant:            str  = Form(""),
     vehicle_plate:    str  = Form(...),
     fuel_type:        str  = Form(...),
     liters:           str  = Form(...),
@@ -229,6 +236,7 @@ async def create_fuel(
             "today": fuel_date,
             "recent_plates": plates,
             "companies": COMPANIES,
+            "plants":    PLANTS,
             "fuel_types": FUEL_TYPES,
             "error": msg, "warning": warn,
             "prefill": prefill or {},
@@ -263,7 +271,7 @@ async def create_fuel(
         dup = _find_duplicate(db, vehicle_plate, fuel_dt)
         if dup:
             prefill = {
-                "fuel_date": fuel_date, "company": company,
+                "fuel_date": fuel_date, "company": company, "plant": plant,
                 "vehicle_plate": vehicle_plate, "fuel_type": fuel_type,
                 "liters": liters, "amount": amount, "station": station,
                 "order_number": order_number, "responsible_text": responsible_text,
@@ -290,6 +298,9 @@ async def create_fuel(
 
     resp_text = responsible_text.strip() or current_user.name
 
+    # Planta solo aplica para MTR SA
+    plant_val = plant.strip() if company == "MTR SA" and plant.strip() in PLANTS else None
+
     load = models.FuelLoad(
         fuel_date        = fuel_dt,
         responsible_text = resp_text,
@@ -301,6 +312,7 @@ async def create_fuel(
         station          = station.strip() or "Hipolito",
         amount           = amount_dec,
         company          = company,
+        plant            = plant_val,
         order_number     = order_number.strip() or None,
         receipt_url      = receipt_url,
         receipt_filename = receipt_filename,
@@ -366,6 +378,7 @@ async def edit_fuel_form(
         "load":          load,
         "recent_plates": plates,
         "companies":     COMPANIES,
+        "plants":        PLANTS,
         "fuel_types":    FUEL_TYPES,
         "error":         None,
     })
@@ -377,6 +390,7 @@ async def update_fuel(
     request: Request,
     fuel_date:        str  = Form(...),
     company:          str  = Form(...),
+    plant:            str  = Form(""),
     vehicle_plate:    str  = Form(...),
     fuel_type:        str  = Form(...),
     liters:           str  = Form(...),
@@ -432,6 +446,7 @@ async def update_fuel(
     load.station          = station.strip() or "Hipolito"
     load.amount           = amount_dec
     load.company          = company
+    load.plant            = plant.strip() if company == "MTR SA" and plant.strip() in PLANTS else None
     load.order_number     = order_number.strip() or None
     load.odometer_km      = int(odometer_km) if odometer_km.strip().isdigit() else None
     load.hourmeter        = _parse_decimal(hourmeter)

@@ -32,12 +32,17 @@
   <!-- Card principal -->
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
 
-    <!-- Empresa + tipo (color) -->
-    <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+    <!-- Empresa + planta + tipo (color) -->
+    <div class="px-5 py-4 border-b border-gray-50 flex items-center gap-2 flex-wrap">
       <span class="font-bold px-3 py-1 rounded-full text-sm
         {% if load.company == 'MTR SA' %}bg-indigo-100 text-indigo-700{% else %}bg-teal-100 text-teal-700{% endif %}">
         {{ load.company }}
       </span>
+      {% if load.plant %}
+      <span class="font-medium px-3 py-1 rounded-full text-sm bg-indigo-50 text-indigo-600 border border-indigo-100">
+        {{ load.plant }}
+      </span>
+      {% endif %}
       <span class="font-medium px-3 py-1 rounded-full text-sm
         {% if load.fuel_type == 'gasoil_premium' %}bg-amber-100 text-amber-700
         {% elif load.fuel_type == 'nafta' %}bg-emerald-100 text-emerald-700
@@ -71,6 +76,12 @@
 
     <!-- Detalles -->
     <div class="px-5 py-4 space-y-3">
+      {% if load.plant %}
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-500">Planta</span>
+        <span class="font-medium text-gray-800">{{ load.plant }}</span>
+      </div>
+      {% endif %}
       <div class="flex justify-between text-sm">
         <span class="text-gray-500">Responsable</span>
         <span class="font-medium text-gray-800">{{ load.responsible_text }}</span>

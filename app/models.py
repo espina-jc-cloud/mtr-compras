@@ -274,6 +274,7 @@ class FuelLoad(Base):
     amount           = Column(Numeric(12, 2), nullable=True)
 
     company          = Column(String, nullable=False, index=True)     # MTR SA / INGEE
+    plant            = Column(String, nullable=True)                  # MTR1 / MTR2 (solo MTR SA)
     order_number     = Column(String, nullable=True)
 
     receipt_url      = Column(String, nullable=True)
