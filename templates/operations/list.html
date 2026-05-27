@@ -5,42 +5,48 @@
 <!-- Header -->
 <div class="flex items-center justify-between mb-5">
   <div>
-    <h1 class="text-xl font-semibold text-gray-900">Operativos portuarios</h1>
-    <p class="text-sm text-gray-500 mt-0.5">Registro de cargas por barco</p>
+    <div class="flex items-center gap-2">
+      <span class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      </span>
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">Operativos portuarios</h1>
+        <p class="text-sm text-gray-500">Cargas por barco · {{ total_trips | fmt_num }} viajes totales</p>
+      </div>
+    </div>
   </div>
   <a href="/operations/dashboard"
     class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
-    Dashboard
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    <span class="hidden sm:inline">Dashboard</span>
   </a>
 </div>
 
-<!-- Resumen del filtro actual -->
-<div class="grid grid-cols-3 gap-3 mb-5">
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total operativos</p>
-    <p class="text-2xl font-bold text-gray-900">{{ total_ops }}</p>
+<!-- Summary cards -->
+<div class="grid grid-cols-3 gap-2 md:gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Operativos</p>
+    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_ops }}</p>
   </div>
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Toneladas netas</p>
-    <p class="text-2xl font-bold text-indigo-700">{{ (total_neto / 1000) | fmt_num(1) }}</p>
-    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Toneladas</p>
+    <p class="text-xl md:text-2xl font-bold text-indigo-700">{{ (total_neto / 1000) | fmt_num(1) }}</p>
+    <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 hidden sm:block">toneladas netas</p>
   </div>
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total viajes</p>
-    <p class="text-2xl font-bold text-gray-900">{{ total_trips | fmt_num }}</p>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
+    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_trips | fmt_num }}</p>
   </div>
 </div>
 
 <!-- Filtros -->
 <form method="get" action="/operations" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
   <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-    <!-- Barco -->
-    <div class="col-span-2 md:col-span-1">
+    <div class="col-span-2 md:col-span-2">
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Nombre del barco</label>
-      <input type="text" name="ship" value="{{ params.ship }}" placeholder="Nombre del barco…"
+      <input type="text" name="ship" value="{{ params.ship }}" placeholder="Buscar barco…"
         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
     </div>
-    <!-- Cliente -->
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
       <select name="client" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
@@ -50,7 +56,6 @@
         {% endfor %}
       </select>
     </div>
-    <!-- Producto -->
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
       <select name="product" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
@@ -60,64 +65,71 @@
         {% endfor %}
       </select>
     </div>
-    <!-- Tipo -->
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1.5">Tipo</label>
-      <select name="op_type" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
-        <option value="">Todos</option>
-        <option value="vessel"  {% if params.op_type == 'vessel'  %}selected{% endif %}>Barcos</option>
-        <option value="special" {% if params.op_type == 'special' %}selected{% endif %}>Especiales</option>
-      </select>
-    </div>
-    <!-- Desde -->
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
       <input type="date" name="date_from" value="{{ params.date_from }}"
         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
     </div>
-    <!-- Hasta -->
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
       <input type="date" name="date_to" value="{{ params.date_to }}"
         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
     </div>
   </div>
-  <div class="flex gap-2 mt-3">
+  <!-- Tipo chips + buttons -->
+  <div class="flex flex-wrap items-center gap-2 mt-3">
     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">Filtrar</button>
     <a href="/operations" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-xl">Limpiar</a>
+    <div class="ml-auto flex gap-1.5">
+      <a href="/operations?op_type=vessel"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'vessel' %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-500 border-gray-200 hover:border-indigo-300{% endif %}">
+        ⛵ Barcos
+      </a>
+      <a href="/operations?op_type=special"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'special' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-500 border-gray-200 hover:border-amber-300{% endif %}">
+        ★ Especiales
+      </a>
+    </div>
   </div>
 </form>
 
 <!-- Mobile: cards -->
 <div class="md:hidden space-y-2">
   {% for op in operations %}
-  <a href="/operations/{{ op.id }}" class="block bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 hover:shadow-md transition-all">
+  <a href="/operations/{{ op.id }}" class="block bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 hover:shadow-md transition-all active:scale-[0.99]">
     <div class="flex items-start justify-between gap-2">
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1.5">
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full
-            {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-700{% else %}bg-amber-50 text-amber-700{% endif %}">
-            {% if op.operation_type == 'vessel' %}Barco{% else %}Especial{% endif %}
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
+            {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-600{% else %}bg-amber-50 text-amber-600{% endif %}">
+            {% if op.operation_type == 'vessel' %}BARCO{% else %}ESPECIAL{% endif %}
           </span>
           {% if op.product %}
-          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ op.product }}</span>
+          <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 truncate max-w-[120px]">{{ op.product }}</span>
           {% endif %}
         </div>
-        <p class="font-bold text-gray-900">{{ op.ship_name }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">
+        <p class="font-bold text-gray-900 text-sm leading-snug truncate">{{ op.ship_name }}</p>
+        <p class="text-[11px] text-gray-400 mt-0.5 truncate">
           {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%Y") }}{% endif %}
-          {% if op.client %} · {{ op.client }}{% endif %}
+          {% if op.client %} · {{ op.client | truncate(28, True, '…') }}{% endif %}
         </p>
       </div>
-      <div class="text-right flex-shrink-0">
-        <p class="text-lg font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}<span class="text-sm font-normal text-gray-400"> t</span></p>
-        <p class="text-xs text-gray-500">{{ op.actual_trips }} viajes</p>
+      <div class="text-right flex-shrink-0 pl-2">
+        <p class="text-base font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}<span class="text-xs font-normal text-gray-400"> t</span></p>
+        <p class="text-[11px] text-gray-500">{{ op.actual_trips }} viajes</p>
+        {% if op.avg_tons_per_hour %}
+        <p class="text-[11px] font-semibold text-indigo-600">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+        {% endif %}
       </div>
     </div>
   </a>
   {% else %}
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-12 text-center">
-    <p class="text-gray-500 text-sm">No hay operativos.</p>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+    <div class="text-5xl mb-3">⚓</div>
+    <p class="text-gray-500 text-sm font-medium">No hay operativos que coincidan.</p>
+    <a href="/operations" class="inline-block mt-3 text-indigo-600 font-semibold text-sm">Ver todos →</a>
   </div>
   {% endfor %}
 </div>
@@ -127,9 +139,8 @@
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-left border-b border-gray-50">
+        <tr class="text-left border-b border-gray-100 bg-gray-50/60">
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Operación</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Tipo</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fechas</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Cliente</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Producto</th>
@@ -142,44 +153,49 @@
       </thead>
       <tbody class="divide-y divide-gray-50">
         {% for op in operations %}
-        <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/{{ op.id }}'">
-          <td class="px-4 py-3 font-semibold text-gray-900">{{ op.ship_name }}</td>
+        <tr class="hover:bg-indigo-50/40 cursor-pointer transition-colors" onclick="window.location='/operations/{{ op.id }}'">
           <td class="px-4 py-3">
-            <span class="text-xs font-bold px-2 py-0.5 rounded-full
-              {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-700{% else %}bg-amber-50 text-amber-700{% endif %}">
-              {% if op.operation_type == 'vessel' %}Barco{% else %}Especial{% endif %}
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0
+                {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-600{% else %}bg-amber-50 text-amber-600{% endif %}">
+                {% if op.operation_type == 'vessel' %}⛵{% else %}★{% endif %}
+              </span>
+              <span class="font-semibold text-gray-900">{{ op.ship_name }}</span>
+            </div>
           </td>
           <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
             {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%y") }}{% endif %}
-            {% if op.end_date and op.end_date != op.start_date %} – {{ op.end_date | fmt_ar("%d/%m/%y") }}{% endif %}
+            {% if op.end_date and op.end_date != op.start_date %}<span class="text-gray-300 mx-1">–</span>{{ op.end_date | fmt_ar("%d/%m/%y") }}{% endif %}
           </td>
-          <td class="px-4 py-3 text-gray-600 text-xs">{{ op.client or '—' }}</td>
+          <td class="px-4 py-3 text-gray-500 text-xs max-w-[130px]">
+            <span class="block truncate">{{ op.client or '—' }}</span>
+          </td>
           <td class="px-4 py-3 text-gray-600 text-xs">{{ op.product or '—' }}</td>
-          <td class="px-4 py-3 text-right font-medium text-gray-800">{{ op.actual_trips | fmt_num }}</td>
-          <td class="px-4 py-3 text-right font-semibold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} t</td>
-          <td class="px-4 py-3 text-right text-indigo-700 font-medium text-xs">
-            {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(2) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+          <td class="px-4 py-3 text-right text-gray-700 font-medium">{{ op.actual_trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} <span class="font-normal text-gray-400 text-xs">t</span></td>
+          <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs">
+            {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>
           <td class="px-4 py-3 text-right text-xs font-semibold
-            {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-600{% endif %}">
+            {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
             {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
           </td>
-          <td class="px-4 py-3 text-right text-gray-500 text-xs">
-            {% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(1) }} min{% else %}<span class="text-gray-300">—</span>{% endif %}
+          <td class="px-4 py-3 text-right text-gray-400 text-xs">
+            {% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(0) }} min{% else %}<span class="text-gray-200">—</span>{% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="px-4 py-12 text-center text-gray-400">
-          No hay operativos que coincidan con el filtro.
+        <tr><td colspan="9" class="px-4 py-16 text-center">
+          <div class="text-4xl mb-2">⚓</div>
+          <p class="text-gray-400">No hay operativos que coincidan con el filtro.</p>
         </td></tr>
         {% endfor %}
       </tbody>
       {% if operations %}
       <tfoot class="border-t-2 border-gray-100 bg-gray-50">
         <tr>
-          <td colspan="5" class="px-4 py-3 text-xs font-semibold text-gray-500">TOTAL ({{ total_ops }} operativos)</td>
-          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ total_trips | fmt_num }}</td>
+          <td colspan="4" class="px-4 py-3 text-xs font-semibold text-gray-500">TOTAL — {{ total_ops }} operativos</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_trips | fmt_num }}</td>
           <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (total_neto / 1000) | fmt_num(1) }} t</td>
           <td colspan="3"></td>
         </tr>

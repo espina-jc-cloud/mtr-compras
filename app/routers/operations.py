@@ -226,18 +226,30 @@ async def operations_dashboard(
         shift_stats[sn]["trips"]   += 1
         shift_stats[sn]["neto_kg"] += t.neto_kg or 0
 
+    period_start = min((o.start_date for o in all_ops if o.start_date), default=None)
+    period_end   = max((o.start_date for o in all_ops if o.start_date), default=None)
+    total_diff   = sum(op.total_diff_kg or 0 for op in all_ops)
+
+    total_product_kg = sum(v["neto_kg"] for v in prod_stats.values())
+    total_client_kg  = sum(v["neto_kg"] for v in client_stats.values())
+
     return templates.TemplateResponse(request, "operations/dashboard.html", {
-        "user":          current_user,
-        "total_ops":     total_ops,
-        "total_neto":    total_neto,
-        "total_trips":   total_trips,
-        "avg_per_op":    avg_per_op,
-        "top_by_tons":   top_by_tons,
-        "top_by_th":     top_by_th,
-        "prod_list":     prod_list,
-        "client_list":   client_list,
-        "shift_stats":   shift_stats,
-        "total_neto_t":  total_neto / 1000 if total_neto else 0,
+        "user":             current_user,
+        "total_ops":        total_ops,
+        "total_neto":       total_neto,
+        "total_trips":      total_trips,
+        "avg_per_op":       avg_per_op,
+        "top_by_tons":      top_by_tons,
+        "top_by_th":        top_by_th,
+        "prod_list":        prod_list,
+        "client_list":      client_list,
+        "shift_stats":      shift_stats,
+        "total_neto_t":     total_neto / 1000 if total_neto else 0,
+        "period_start":     period_start,
+        "period_end":       period_end,
+        "total_diff_t":     total_diff / 1000 if total_diff else 0,
+        "total_product_kg": total_product_kg,
+        "total_client_kg":  total_client_kg,
     })
 
 
