@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ op.ship_name }} — Operativos MTR{% endblock %}
+{% block content %}
+
+<!-- Back + header -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  </a>
+  <div class="flex-1">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h1 class="text-lg font-semibold text-gray-900">{{ op.ship_name }}</h1>
+      <span class="text-xs font-bold px-2 py-0.5 rounded-full
+        {% if op.operation_type == 'vessel' %}bg-indigo-100 text-indigo-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+        {% if op.operation_type == 'vessel' %}Barco{% else %}Especial{% endif %}
+      </span>
+    </div>
+    <p class="text-xs text-gray-500 mt-0.5">
+      {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%Y") }}{% endif %}
+      {% if op.end_date and op.end_date != op.start_date %} — {{ op.end_date | fmt_ar("%d/%m/%Y") }}{% endif %}
+      {% if op.source_file %} · {{ op.source_file }}{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Métricas principales -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Toneladas netas</p>
+    <p class="text-2xl font-bold text-indigo-700">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
+    <p class="text-2xl font-bold text-gray-900">{{ op.actual_trips | fmt_num }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">t/h</p>
+    <p class="text-2xl font-bold text-gray-900">
+      {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(2) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+    </p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Dif. total</p>
+    <p class="text-2xl font-bold {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-600{% endif %}">
+      {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
+    </p>
+  </div>
+</div>
+
+<!-- Segunda fila de métricas -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Avg t/viaje</p>
+    <p class="text-xl font-bold text-gray-900">
+      {% if op.avg_tons_per_trip %}{{ op.avg_tons_per_trip | fmt_num(3) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+    </p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas/viaje</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Dur. prom.</p>
+    <p class="text-xl font-bold text-gray-900">
+      {% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+    </p>
+    <p class="text-xs text-gray-400 mt-0.5">minutos</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Cliente</p>
+    <p class="text-sm font-semibold text-gray-900 mt-1 leading-tight">{{ op.client or '—' }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Producto</p>
+    <p class="text-sm font-semibold text-gray-900 mt-1 leading-tight">{{ op.product or '—' }}</p>
+  </div>
+</div>
+
+<!-- Distribución por turno -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-4 border-b border-gray-50">
+    <h2 class="text-sm font-semibold text-gray-700">Distribución por turno</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Turno</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Viajes</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Toneladas</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Diferencia</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">t/h est.</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Dur. prom.</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for sn, s in shifts.items() %}
+        <tr>
+          <td class="px-4 py-3 text-gray-700 font-medium">{{ s.label }}</td>
+          <td class="px-4 py-3 text-right text-gray-800">{{ s.trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-semibold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(2) }} t</td>
+          <td class="px-4 py-3 text-right text-xs font-semibold
+            {% if s.diff_kg >= 0 %}text-emerald-600{% else %}text-orange-600{% endif %}">
+            {% if s.diff_kg > 0 %}+{% endif %}{{ (s.diff_kg / 1000) | fmt_num(2) }} t
+          </td>
+          <td class="px-4 py-3 text-right text-indigo-700 font-medium">
+            {% if s.t_per_h %}{{ s.t_per_h | fmt_num(2) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-500 text-xs">
+            {% if s.avg_duration_min %}{{ s.avg_duration_min | fmt_num(1) }} min{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Viajes -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+    <h2 class="text-sm font-semibold text-gray-700">Viajes ({{ trips|length }})</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">Código</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">Fecha ent.</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">H. ent.</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">H. sal.</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">Patente</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide text-right">Neto (kg)</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide text-right">Origen</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide text-right">Dif.</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide text-right">Dur.</th>
+          <th class="px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide text-center">Turno</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for t in trips %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2.5 font-mono text-gray-500">{{ t.trip_code }}</td>
+          <td class="px-3 py-2.5 text-gray-600 whitespace-nowrap">
+            {% if t.entry_date %}{{ t.entry_date | fmt_ar("%d/%m/%y") }}{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2.5 text-gray-500">{{ t.entry_time or '—' }}</td>
+          <td class="px-3 py-2.5 text-gray-500">{{ t.exit_time or '—' }}</td>
+          <td class="px-3 py-2.5 font-medium text-gray-700">{{ t.plate or '—' }}</td>
+          <td class="px-3 py-2.5 text-right font-semibold text-gray-900">{{ t.neto_kg | fmt_num if t.neto_kg else '—' }}</td>
+          <td class="px-3 py-2.5 text-right text-gray-600">{{ t.origen_kg | fmt_num if t.origen_kg else '—' }}</td>
+          <td class="px-3 py-2.5 text-right font-semibold
+            {% if t.diff_kg is not none and t.diff_kg >= 0 %}text-emerald-600{% elif t.diff_kg is not none %}text-orange-600{% endif %}">
+            {% if t.diff_kg is not none %}{% if t.diff_kg > 0 %}+{% endif %}{{ t.diff_kg | fmt_num }}{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2.5 text-right text-gray-500">
+            {% if t.duration_min %}{{ t.duration_min | fmt_num(1) }} m{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2.5 text-center">
+            {% if t.shift_number %}
+            <span class="inline-block w-5 h-5 rounded-full text-center leading-5 font-bold
+              {% if t.shift_number == 1 %}bg-blue-50 text-blue-700
+              {% elif t.shift_number == 2 %}bg-amber-50 text-amber-700
+              {% elif t.shift_number == 3 %}bg-emerald-50 text-emerald-700
+              {% else %}bg-purple-50 text-purple-700{% endif %}">
+              {{ t.shift_number }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="px-4 py-12 text-center text-gray-400">Sin viajes registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

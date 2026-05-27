@@ -39,6 +39,7 @@ def run():
     is_prod = not DATABASE_URL.startswith("sqlite")
 
     Base.metadata.create_all(bind=engine)
+    # Las tablas `operations` y `operation_trips` se crean automáticamente aquí.
     print(f"✓ Tablas creadas ({DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL})")
 
     # ── Migraciones seguras de columnas nuevas ────────────────────────────────
@@ -76,6 +77,13 @@ def run():
         print(f"✓ Superadmin creado: {admin_email}")
     else:
         print(f"✓ Superadmin ya existe: {admin_email}")
+
+    # Stats de tablas operativas
+    counts = {
+        "operations":      db.query(models.Operation).count(),
+        "operation_trips": db.query(models.OperationTrip).count(),
+    }
+    print(f"✓ Operativos: {counts['operations']} operations, {counts['operation_trips']} operation_trips")
 
     db.close()
 

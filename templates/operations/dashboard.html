@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Operativos — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Dashboard Operativos</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Resumen global de operativos portuarios</p>
+  </div>
+  <a href="/operations" class="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl">
+    Ver lista
+  </a>
+</div>
+
+<!-- Top stats -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total operativos</p>
+    <p class="text-2xl font-bold text-gray-900">{{ total_ops }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total toneladas</p>
+    <p class="text-2xl font-bold text-indigo-700">{{ total_neto_t | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total viajes</p>
+    <p class="text-2xl font-bold text-gray-900">{{ total_trips | fmt_num }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Prom. t/operativo</p>
+    <p class="text-2xl font-bold text-gray-900">{{ avg_per_op | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+</div>
+
+<!-- Dos columnas: top toneladas + top t/h -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+
+  <!-- Top 5 por toneladas -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-50">
+      <h2 class="text-sm font-semibold text-gray-700">Top 5 por toneladas</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Operación</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for op in top_by_tons %}
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/{{ op.id }}'">
+          <td class="px-4 py-3 font-medium text-gray-900 text-xs">{{ op.ship_name }}</td>
+          <td class="px-4 py-3 text-right font-bold text-indigo-700">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right text-gray-500">{{ op.actual_trips }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Top 5 por t/h -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-50">
+      <h2 class="text-sm font-semibold text-gray-700">Top 5 por t/h</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Operación</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">t/h</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for op in top_by_th %}
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/{{ op.id }}'">
+          <td class="px-4 py-3 font-medium text-gray-900 text-xs">{{ op.ship_name }}</td>
+          <td class="px-4 py-3 text-right font-bold text-emerald-600">{{ op.avg_tons_per_hour | fmt_num(2) }}</td>
+          <td class="px-4 py-3 text-right text-gray-500">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} t</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Dos columnas: distribución producto + cliente -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+
+  <!-- Por producto -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-50">
+      <h2 class="text-sm font-semibold text-gray-700">Distribución por producto</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Producto</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">%</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% set total_prod_kg = prod_list | sum(attribute='1.neto_kg') %}
+        {% for prod, s in prod_list %}
+        <tr>
+          <td class="px-4 py-2.5 font-medium text-gray-800 text-xs">{{ prod }}</td>
+          <td class="px-4 py-2.5 text-right text-gray-500">{{ s.trips | fmt_num }}</td>
+          <td class="px-4 py-2.5 text-right font-semibold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</td>
+          <td class="px-4 py-2.5 text-right text-gray-400">
+            {% if total_prod_kg > 0 %}{{ ((s.neto_kg / total_prod_kg) * 100) | fmt_num(1) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Por cliente -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-50">
+      <h2 class="text-sm font-semibold text-gray-700">Distribución por cliente</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Cliente</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">%</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% set total_cli_kg = client_list | sum(attribute='1.neto_kg') %}
+        {% for cli, s in client_list %}
+        <tr>
+          <td class="px-4 py-2.5 font-medium text-gray-800 text-xs">{{ cli }}</td>
+          <td class="px-4 py-2.5 text-right text-gray-500">{{ s.trips | fmt_num }}</td>
+          <td class="px-4 py-2.5 text-right font-semibold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</td>
+          <td class="px-4 py-2.5 text-right text-gray-400">
+            {% if total_cli_kg > 0 %}{{ ((s.neto_kg / total_cli_kg) * 100) | fmt_num(1) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Mejores turnos -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-50">
+    <h2 class="text-sm font-semibold text-gray-700">Distribución por turno (global)</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Turno</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">% viajes</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% set total_shift_trips = shift_stats.values() | sum(attribute='trips') %}
+        {% for sn, s in shift_stats.items() %}
+        <tr>
+          <td class="px-4 py-3 font-medium text-gray-700">{{ s.label }}</td>
+          <td class="px-4 py-3 text-right text-gray-800">{{ s.trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-semibold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right text-gray-400 text-xs">
+            {% if total_shift_trips > 0 %}{{ ((s.trips / total_shift_trips) * 100) | fmt_num(1) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
