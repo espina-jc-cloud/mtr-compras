@@ -24,18 +24,23 @@
 
 <!-- Summary cards -->
 <div class="grid grid-cols-3 gap-2 md:gap-3 mb-5">
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
-    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Operativos</p>
-    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_ops }}</p>
+  <div class="bg-indigo-600 rounded-2xl p-3 md:p-4 text-white">
+    <p class="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-indigo-200 mb-1">Total desestibado</p>
+    <p class="text-xl md:text-2xl font-black">{{ grand_total_t | fmt_num(1) }}</p>
+    <p class="text-[10px] md:text-xs text-indigo-200 mt-0.5">
+      toneladas
+      {% if grand_cv_t > 0 %}<span class="ml-1 opacity-80">· {{ grand_pct_cv | fmt_num(0) }}% CV</span>{% endif %}
+    </p>
   </div>
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
-    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Toneladas</p>
-    <p class="text-xl md:text-2xl font-bold text-indigo-700">{{ (total_neto / 1000) | fmt_num(1) }}</p>
-    <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 hidden sm:block">toneladas netas</p>
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Depósito MTR</p>
+    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ grand_depot_t | fmt_num(1) }}</p>
+    <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 hidden sm:block">toneladas</p>
   </div>
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
     <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
     <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_trips | fmt_num }}</p>
+    <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 hidden sm:block">a depósito</p>
   </div>
 </div>
 
@@ -122,14 +127,14 @@
         </p>
       </div>
       <div class="text-right flex-shrink-0 pl-2">
-        <p class="text-base font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}<span class="text-xs font-normal text-gray-400"> t</span></p>
+        {% set cd = cargo_data.get(op.id, {}) %}
+        <p class="text-base font-bold text-gray-900">{{ cd.get('total_t', 0) | fmt_num(1) }}<span class="text-xs font-normal text-gray-400"> t</span></p>
         <p class="text-[11px] text-gray-500">{{ op.actual_trips }} viajes</p>
         {% if op.avg_tons_per_hour %}
         <p class="text-[11px] font-semibold text-indigo-600">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
         {% endif %}
-        {% set cv = cv_totals.get(op.id, {}) %}
-        {% if cv.get('has_cv') %}
-        <p class="text-[11px] font-semibold text-teal-600">{{ cv.get('cv_t', 0) | fmt_num(1) }} t vapor</p>
+        {% if cd.get('has_cv') %}
+        <p class="text-[11px] font-semibold text-teal-600">{{ cd.get('cv_t', 0) | fmt_num(1) }} t CV</p>
         {% endif %}
       </div>
     </div>
@@ -151,14 +156,14 @@
         <tr class="text-left border-b border-gray-100 bg-gray-50/60">
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Operación</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fechas</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Cliente</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell">Cliente</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Producto</th>
           <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Viajes</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Toneladas</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">t/h</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">C. Vapor</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Dif. total</th>
-          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Dur. prom.</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Total desest.</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right hidden md:table-cell">Depósito MTR</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right hidden md:table-cell">Costado Vapor</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right hidden lg:table-cell">% CV</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right hidden lg:table-cell">t/h</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
@@ -177,7 +182,7 @@
             {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%y") }}{% endif %}
             {% if op.end_date and op.end_date != op.start_date %}<span class="text-gray-300 mx-1">–</span>{{ op.end_date | fmt_ar("%d/%m/%y") }}{% endif %}
           </td>
-          <td class="px-4 py-3 text-gray-500 text-xs max-w-[130px]">
+          <td class="px-4 py-3 text-gray-500 text-xs max-w-[130px] hidden lg:table-cell">
             <span class="block truncate">{{ op.client or '—' }}</span>
           </td>
           <td class="px-4 py-3 text-gray-600 text-xs">
@@ -190,28 +195,28 @@
             {% else %}—{% endif %}
           </td>
           <td class="px-4 py-3 text-right text-gray-700 font-medium">{{ op.actual_trips | fmt_num }}</td>
-          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} <span class="font-normal text-gray-400 text-xs">t</span></td>
-          <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs">
+          {% set cd = cargo_data.get(op.id, {}) %}
+          <td class="px-4 py-3 text-right font-bold text-gray-900">
+            {{ cd.get('total_t', 0) | fmt_num(1) }} <span class="font-normal text-gray-400 text-xs">t</span>
+            {% if not cd.get('has_summary') %}<span class="text-[9px] text-gray-300 block">solo depósito</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-600 text-sm hidden md:table-cell">{{ cd.get('depot_t', 0) | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right text-xs hidden md:table-cell">
+            {% if cd.get('has_cv') %}
+            <span class="font-semibold text-teal-700">{{ cd.get('cv_t', 0) | fmt_num(1) }} t</span>
+            {% else %}<span class="text-gray-200">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-xs hidden lg:table-cell">
+            {% if cd.get('has_cv') %}
+            <span class="font-semibold text-teal-700">{{ cd.get('pct_cv', 0) | fmt_num(0) }}%</span>
+            {% else %}<span class="text-gray-200">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs hidden lg:table-cell">
             {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
-          </td>
-          <td class="px-4 py-3 text-right text-xs">
-            {% set cv = cv_totals.get(op.id, {}) %}
-            {% if cv.get('has_cv') %}
-            <span class="font-semibold text-teal-700">{{ cv.get('cv_t', 0) | fmt_num(1) }} t</span>
-            {% else %}
-            <span class="text-gray-200">—</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 text-right text-xs font-semibold
-            {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
-            {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
-          </td>
-          <td class="px-4 py-3 text-right text-gray-400 text-xs">
-            {% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(0) }} min{% else %}<span class="text-gray-200">—</span>{% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="px-4 py-16 text-center">
+        <tr><td colspan="10" class="px-4 py-16 text-center">
           <div class="text-4xl mb-2">⚓</div>
           <p class="text-gray-400">No hay operativos que coincidan con el filtro.</p>
         </td></tr>
@@ -222,8 +227,10 @@
         <tr>
           <td colspan="4" class="px-4 py-3 text-xs font-semibold text-gray-500">TOTAL — {{ total_ops }} operativos</td>
           <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_trips | fmt_num }}</td>
-          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (total_neto / 1000) | fmt_num(1) }} t</td>
-          <td colspan="4"></td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ grand_total_t | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-700 hidden md:table-cell">{{ grand_depot_t | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-teal-700 hidden md:table-cell">{{ grand_cv_t | fmt_num(1) }} t</td>
+          <td colspan="2" class="hidden lg:table-cell"></td>
         </tr>
       </tfoot>
       {% endif %}

@@ -27,46 +27,46 @@
 <!-- Métricas principales (1 fila, 4 cards) -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
   <div class="bg-indigo-600 rounded-2xl p-4 text-white">
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-200 mb-1">Neto total</p>
-    <p class="text-2xl font-black">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}</p>
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-200 mb-1">Total desestibado</p>
+    <p class="text-2xl font-black">{{ total_discharged | fmt_num(1) }}</p>
     <p class="text-xs text-indigo-200 mt-0.5">toneladas</p>
   </div>
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
-    <p class="text-2xl font-bold text-gray-900">{{ op.actual_trips | fmt_num }}</p>
-    {% if op.declared_trips and op.declared_trips != op.actual_trips %}
-    <p class="text-[10px] text-amber-500 mt-0.5">decl. {{ op.declared_trips }}</p>
-    {% endif %}
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Depósito MTR</p>
+    <p class="text-2xl font-bold text-gray-900">{{ total_discharge_depot | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
   </div>
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Ritmo</p>
-    <p class="text-2xl font-bold {% if op.avg_tons_per_hour %}text-emerald-600{% else %}text-gray-300{% endif %}">
-      {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }}{% else %}—{% endif %}
-    </p>
-    <p class="text-xs text-gray-400 mt-0.5">t/hora</p>
-  </div>
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Diferencia</p>
-    <p class="text-2xl font-bold {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
-      {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }}
+  <div class="bg-white rounded-2xl border {% if total_discharge_cv > 0 %}border-teal-100{% else %}border-gray-100{% endif %} shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Costado Vapor</p>
+    <p class="text-2xl font-bold {% if total_discharge_cv > 0 %}text-teal-700{% else %}text-gray-300{% endif %}">
+      {% if total_discharge_cv > 0 %}{{ total_discharge_cv | fmt_num(1) }}{% else %}—{% endif %}
     </p>
     <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">% CV</p>
+    <p class="text-2xl font-bold {% if pct_cv_op > 0 %}text-teal-700{% else %}text-gray-300{% endif %}">
+      {% if pct_cv_op > 0 %}{{ pct_cv_op | fmt_num(1) }}%{% else %}—{% endif %}
+    </p>
+    <p class="text-xs text-gray-400 mt-0.5">costado vapor</p>
   </div>
 </div>
 
 <!-- Info secundaria — fila compacta -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 mb-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5 text-sm">
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">t/viaje avg</p>
-    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_tons_per_trip %}{{ op.avg_tons_per_trip | fmt_num(1) }} t{% else %}—{% endif %}</p>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Viajes a depósito</p>
+    <p class="font-semibold text-gray-800 mt-0.5">{{ op.actual_trips | fmt_num }}</p>
   </div>
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Dur. prom.</p>
-    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(0) }} min{% else %}—{% endif %}</p>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Ritmo (t/h)</p>
+    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }} t/h{% else %}—{% endif %}</p>
   </div>
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Cliente</p>
-    <p class="font-semibold text-gray-800 mt-0.5 truncate">{{ op.client or '—' }}</p>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Diferencia neta</p>
+    <p class="font-semibold {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %} mt-0.5">
+      {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
+    </p>
   </div>
   <div>
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Producto</p>

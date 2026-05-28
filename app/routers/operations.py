@@ -164,8 +164,8 @@ async def list_operations(
 
     # Totals
     total_ops    = len(operations)
-    total_neto   = sum(op.total_neto_kg or 0 for op in operations)
     total_trips  = sum(op.actual_trips  or 0 for op in operations)
+    total_neto   = sum(op.total_neto_kg or 0 for op in operations)
 
     # Build products_map and clients_map (one query each, avoids N+1)
     op_ids = [op.id for op in operations]
@@ -200,37 +200,70 @@ async def list_operations(
             tmp2[oid].append(cli)
         clients_map = {oid: sorted(clis) for oid, clis in tmp2.items()}
 
-    # CV data per operation — new model first, fallback to legacy OperationProductTotal
-    cv_totals = {}
+    # ── Discharge data per operation (cargo_summaries → legacy → trip fallback) ──
+    cargo_data: dict = {}   # op_id → {total_t, depot_t, cv_t, pct_cv, has_cv, has_summary}
     if op_ids:
-        cs_rows = (
+        _cs_rows = (
             db.query(models.OperationCargoSummary)
             .filter(models.OperationCargoSummary.operation_id.in_(op_ids))
             .all()
         )
-        if cs_rows:
-            for cs in cs_rows:
-                oid = cs.operation_id
-                if oid not in cv_totals:
-                    cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
-                cv_totals[oid]["cv_t"]        += float(cs.cv_kg or 0) / 1000
-                cv_totals[oid]["discharged_t"] += float(cs.total_ship_kg or 0) / 1000
-                if cs.cv_kg and float(cs.cv_kg) > 0:
-                    cv_totals[oid]["has_cv"] = True
+        if _cs_rows:
+            _cs_by_op: dict = defaultdict(list)
+            for cs in _cs_rows:
+                _cs_by_op[cs.operation_id].append(cs)
+            for oid, rows in _cs_by_op.items():
+                total_t = sum(float(r.total_ship_kg or 0) for r in rows) / 1000
+                depot_t = sum(float(r.depot_kg      or 0) for r in rows) / 1000
+                cv_t    = sum(float(r.cv_kg          or 0) for r in rows) / 1000
+                cargo_data[oid] = {
+                    "total_t":    total_t,
+                    "depot_t":    depot_t,
+                    "cv_t":       cv_t,
+                    "pct_cv":     cv_t / total_t * 100 if total_t > 0 else 0.0,
+                    "has_cv":     cv_t > 0,
+                    "has_summary": True,
+                }
         else:
-            # legacy fallback
-            cv_rows = (
+            _cv_rows_legacy = (
                 db.query(models.OperationProductTotal)
                 .filter(models.OperationProductTotal.operation_id.in_(op_ids))
                 .all()
             )
-            for row in cv_rows:
-                oid = row.operation_id
-                if oid not in cv_totals:
-                    cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
-                cv_totals[oid]["cv_t"]        += float(row.costado_vapor_tons or 0)
-                cv_totals[oid]["discharged_t"] += float(row.total_discharged_tons or 0)
-                cv_totals[oid]["has_cv"] = True
+            _cv_by_op: dict = defaultdict(list)
+            for row in _cv_rows_legacy:
+                _cv_by_op[row.operation_id].append(row)
+            for oid, rows in _cv_by_op.items():
+                total_t = sum(float(r.total_discharged_tons or 0) for r in rows)
+                depot_t = sum(float(r.depot_tons            or 0) for r in rows)
+                cv_t    = sum(float(r.costado_vapor_tons    or 0) for r in rows)
+                cargo_data[oid] = {
+                    "total_t":    total_t,
+                    "depot_t":    depot_t,
+                    "cv_t":       cv_t,
+                    "pct_cv":     cv_t / total_t * 100 if total_t > 0 else 0.0,
+                    "has_cv":     cv_t > 0,
+                    "has_summary": True,
+                }
+
+    # Trip-based fallback for ops without any discharge summary
+    for op in operations:
+        if op.id not in cargo_data:
+            depot_t = (op.total_neto_kg or 0) / 1000
+            cargo_data[op.id] = {
+                "total_t":    depot_t,
+                "depot_t":    depot_t,
+                "cv_t":       0.0,
+                "pct_cv":     0.0,
+                "has_cv":     False,
+                "has_summary": False,
+            }
+
+    # Grand totals from cargo_data
+    grand_total_t = sum(d["total_t"] for d in cargo_data.values())
+    grand_depot_t = sum(d["depot_t"] for d in cargo_data.values())
+    grand_cv_t    = sum(d["cv_t"]    for d in cargo_data.values())
+    grand_pct_cv  = grand_cv_t / grand_total_t * 100 if grand_total_t > 0 else 0.0
 
     # Unique filter options sourced from trips (catches multi-product ops)
     all_products = sorted(set(
@@ -248,17 +281,21 @@ async def list_operations(
     }
 
     return templates.TemplateResponse(request, "operations/list.html", {
-        "user":         current_user,
-        "operations":   operations,
-        "params":       params,
-        "total_ops":    total_ops,
-        "total_neto":   total_neto,
-        "total_trips":  total_trips,
-        "all_clients":  all_clients,
-        "all_products": all_products,
-        "products_map": products_map,
-        "clients_map":  clients_map,
-        "cv_totals":    cv_totals,
+        "user":          current_user,
+        "operations":    operations,
+        "params":        params,
+        "total_ops":     total_ops,
+        "total_trips":   total_trips,
+        "all_clients":   all_clients,
+        "all_products":  all_products,
+        "products_map":  products_map,
+        "clients_map":   clients_map,
+        "cargo_data":    cargo_data,
+        "grand_total_t": grand_total_t,
+        "grand_depot_t": grand_depot_t,
+        "grand_cv_t":    grand_cv_t,
+        "grand_pct_cv":  grand_pct_cv,
+        "total_neto":    total_neto,   # keep as secondary / legacy
     })
 
 
@@ -320,10 +357,6 @@ async def operations_dashboard(
     total_ops    = len(all_ops)
     total_neto   = sum(op.total_neto_kg or 0 for op in all_ops)
     total_trips  = sum(op.actual_trips  or 0 for op in all_ops)
-    avg_per_op   = round(total_neto / 1000 / total_ops, 1) if total_ops > 0 else 0
-
-    # Top 5 by toneladas
-    top_by_tons = sorted(all_ops, key=lambda o: o.total_neto_kg or 0, reverse=True)[:5]
 
     # Top 5 by avg t/h
     top_by_th = sorted(
@@ -331,22 +364,6 @@ async def operations_dashboard(
         key=lambda o: _float(o.avg_tons_per_hour),
         reverse=True
     )[:5]
-
-    # Product distribution (from trips — correct for multi-product ops)
-    prod_stats = defaultdict(lambda: {"trips": 0, "neto_kg": 0})
-    for t in all_trips:
-        key = t.product or "(sin producto)"
-        prod_stats[key]["trips"]   += 1
-        prod_stats[key]["neto_kg"] += t.neto_kg or 0
-    prod_list = sorted(prod_stats.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
-
-    # Client distribution
-    client_stats = defaultdict(lambda: {"trips": 0, "neto_kg": 0})
-    for t in all_trips:
-        key = t.client or "(sin cliente)"
-        client_stats[key]["trips"]   += 1
-        client_stats[key]["neto_kg"] += t.neto_kg or 0
-    client_list = sorted(client_stats.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
 
     # Shift distribution
     shift_stats = {k: {"label": SHIFT_LABELS[k], "trips": 0, "neto_kg": 0} for k in (1, 2, 3, 4)}
@@ -361,53 +378,103 @@ async def operations_dashboard(
     period_end   = max((o.start_date for o in all_ops if o.start_date), default=None)
     total_diff   = sum(op.total_diff_kg or 0 for op in all_ops)
 
-    total_product_kg = sum(v["neto_kg"] for v in prod_stats.values())
-    total_client_kg  = sum(v["neto_kg"] for v in client_stats.values())
-
-    # CV totals for filtered operations — new model first, fallback to legacy
+    # ── Discharge data (cargo_summaries → legacy → trip fallback) ────────────
     from collections import defaultdict as _dd
-    _cv_norm = []   # list of {operation_id, cv_t, product}
+    _cs_norm: list = []   # {operation_id, total_t, depot_t, cv_t, product, client}
     if op_ids:
         _cs_all = db.query(models.OperationCargoSummary).filter(
             models.OperationCargoSummary.operation_id.in_(op_ids)
         ).all()
         if _cs_all:
-            _cv_norm = [
-                {"operation_id": r.operation_id, "cv_t": float(r.cv_kg or 0) / 1000, "product": r.product}
+            _cs_norm = [
+                {
+                    "operation_id": r.operation_id,
+                    "total_t": float(r.total_ship_kg or 0) / 1000,
+                    "depot_t": float(r.depot_kg      or 0) / 1000,
+                    "cv_t":    float(r.cv_kg          or 0) / 1000,
+                    "product": r.product,
+                    "client":  r.client,
+                }
                 for r in _cs_all
             ]
         else:
-            _legacy = db.query(models.OperationProductTotal).filter(
+            _legacy_all = db.query(models.OperationProductTotal).filter(
                 models.OperationProductTotal.operation_id.in_(op_ids)
             ).all()
-            _cv_norm = [
-                {"operation_id": r.operation_id, "cv_t": float(r.costado_vapor_tons or 0), "product": r.product}
-                for r in _legacy
+            _cs_norm = [
+                {
+                    "operation_id": r.operation_id,
+                    "total_t": float(r.total_discharged_tons or 0),
+                    "depot_t": float(r.depot_tons            or 0),
+                    "cv_t":    float(r.costado_vapor_tons    or 0),
+                    "product": r.product,
+                    "client":  None,
+                }
+                for r in _legacy_all
             ]
 
-    total_cv_t = sum(d["cv_t"] for d in _cv_norm)
-    total_neto_t_value = total_neto / 1000 if total_neto else 0
-    total_discharged_t = total_neto_t_value + total_cv_t
-    pct_cv = total_cv_t / total_discharged_t * 100 if total_discharged_t > 0 else 0
+    # Trip-based fallback for ops without any summary
+    _ops_with_cs = {d["operation_id"] for d in _cs_norm}
+    for op in all_ops:
+        if op.id not in _ops_with_cs:
+            _cs_norm.append({
+                "operation_id": op.id,
+                "total_t": (op.total_neto_kg or 0) / 1000,
+                "depot_t": (op.total_neto_kg or 0) / 1000,
+                "cv_t":    0.0,
+                "product": op.product,
+                "client":  op.client,
+            })
+
+    # Per-op aggregates
+    _op_cs: dict = _dd(lambda: {"total_t": 0.0, "depot_t": 0.0, "cv_t": 0.0})
+    for d in _cs_norm:
+        _op_cs[d["operation_id"]]["total_t"] += d["total_t"]
+        _op_cs[d["operation_id"]]["depot_t"] += d["depot_t"]
+        _op_cs[d["operation_id"]]["cv_t"]    += d["cv_t"]
+
+    # Grand totals
+    total_discharged_t = sum(v["total_t"] for v in _op_cs.values())
+    total_depot_t      = sum(v["depot_t"] for v in _op_cs.values())
+    total_cv_t         = sum(v["cv_t"]    for v in _op_cs.values())
+    pct_cv    = total_cv_t    / total_discharged_t * 100 if total_discharged_t > 0 else 0.0
+    pct_depot = total_depot_t / total_discharged_t * 100 if total_discharged_t > 0 else 0.0
+    avg_per_op_t = round(total_discharged_t / total_ops, 1) if total_ops > 0 else 0
+
+    # Top 5 by total desestibado
+    top_by_tons = sorted(all_ops, key=lambda o: _op_cs[o.id]["total_t"], reverse=True)[:5]
+    for o in top_by_tons:
+        o._total_t = _op_cs[o.id]["total_t"]
+        o._depot_t = _op_cs[o.id]["depot_t"]
+        o._cv_t    = _op_cs[o.id]["cv_t"]
 
     # Top 5 by costado vapor
-    cv_by_op = _dd(float)
-    for d in _cv_norm:
-        if d["operation_id"]:
-            cv_by_op[d["operation_id"]] += d["cv_t"]
     top_by_cv = sorted(
-        [o for o in all_ops if cv_by_op.get(o.id, 0) > 0],
-        key=lambda o: cv_by_op[o.id],
+        [o for o in all_ops if _op_cs[o.id]["cv_t"] > 0],
+        key=lambda o: _op_cs[o.id]["cv_t"],
         reverse=True
     )[:5]
     for o in top_by_cv:
-        o._cv_tons = cv_by_op[o.id]
-        o._discharged_t = (o.total_neto_kg or 0) / 1000 + cv_by_op[o.id]
+        o._cv_tons      = _op_cs[o.id]["cv_t"]
+        o._discharged_t = _op_cs[o.id]["total_t"]
 
-    # Product breakdown including CV
-    prod_cv = _dd(float)
-    for d in _cv_norm:
-        prod_cv[d["product"]] += d["cv_t"]
+    # Product and client distribution (from cargo summaries, not trips)
+    _cs_prod_stats:   dict = _dd(lambda: {"total_t": 0.0, "depot_t": 0.0, "cv_t": 0.0})
+    _cs_client_stats: dict = _dd(lambda: {"total_t": 0.0, "depot_t": 0.0, "cv_t": 0.0})
+    for d in _cs_norm:
+        prod   = d["product"] or "(sin producto)"
+        client = d["client"]  or "(sin cliente)"
+        _cs_prod_stats[prod]["total_t"]     += d["total_t"]
+        _cs_prod_stats[prod]["depot_t"]     += d["depot_t"]
+        _cs_prod_stats[prod]["cv_t"]        += d["cv_t"]
+        _cs_client_stats[client]["total_t"] += d["total_t"]
+        _cs_client_stats[client]["depot_t"] += d["depot_t"]
+        _cs_client_stats[client]["cv_t"]    += d["cv_t"]
+
+    prod_list   = sorted(_cs_prod_stats.items(),   key=lambda x: -x[1]["total_t"])
+    client_list = sorted(_cs_client_stats.items(), key=lambda x: -x[1]["total_t"])
+    total_product_t = sum(v["total_t"] for v in _cs_prod_stats.values())
+    total_client_t  = sum(v["total_t"] for v in _cs_client_stats.values())
 
     # Filter options for dropdowns (always full list)
     all_products = sorted(set(
@@ -426,31 +493,32 @@ async def operations_dashboard(
     has_filters = any(v for v in params.values())
 
     return templates.TemplateResponse(request, "operations/dashboard.html", {
-        "user":             current_user,
-        "total_ops":        total_ops,
-        "total_neto":       total_neto,
-        "total_trips":      total_trips,
-        "avg_per_op":       avg_per_op,
-        "top_by_tons":      top_by_tons,
-        "top_by_th":        top_by_th,
-        "prod_list":        prod_list,
-        "client_list":      client_list,
-        "shift_stats":      shift_stats,
-        "total_neto_t":     total_neto / 1000 if total_neto else 0,
-        "period_start":     period_start,
-        "period_end":       period_end,
-        "total_diff_t":     total_diff / 1000 if total_diff else 0,
-        "total_product_kg": total_product_kg,
-        "total_client_kg":  total_client_kg,
-        "params":           params,
-        "has_filters":      has_filters,
-        "all_products":     all_products,
-        "all_clients":      all_clients,
-        "total_cv_t":       total_cv_t,
-        "total_discharged_t": total_discharged_t,
-        "pct_cv":           pct_cv,
-        "top_by_cv":        top_by_cv,
-        "prod_cv":          dict(prod_cv),
+        "user":               current_user,
+        "total_ops":          total_ops,
+        "total_trips":        total_trips,
+        "total_neto":         total_neto,          # depot from trips, secondary
+        "total_neto_t":       total_neto / 1000 if total_neto else 0,
+        "total_discharged_t": total_discharged_t,  # PRIMARY
+        "total_depot_t":      total_depot_t,
+        "total_cv_t":         total_cv_t,
+        "pct_cv":             pct_cv,
+        "pct_depot":          pct_depot,
+        "avg_per_op":         avg_per_op_t,
+        "top_by_tons":        top_by_tons,
+        "top_by_th":          top_by_th,
+        "top_by_cv":          top_by_cv,
+        "prod_list":          prod_list,
+        "client_list":        client_list,
+        "total_product_t":    total_product_t,
+        "total_client_t":     total_client_t,
+        "shift_stats":        shift_stats,
+        "period_start":       period_start,
+        "period_end":         period_end,
+        "total_diff_t":       total_diff / 1000 if total_diff else 0,
+        "params":             params,
+        "has_filters":        has_filters,
+        "all_products":       all_products,
+        "all_clients":        all_clients,
     })
 
 

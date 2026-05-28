@@ -81,13 +81,13 @@
   </div>
 </form>
 
-<!-- Hero: toneladas totales -->
-<div class="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 md:p-7 mb-5 text-white shadow-lg">
+<!-- Hero: total desestibado -->
+<div class="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 md:p-7 mb-4 text-white shadow-lg">
   <p class="text-xs font-bold uppercase tracking-widest text-indigo-200 mb-1">
-    Neto total descargado{% if has_filters %} <span class="normal-case font-normal opacity-75">— filtrado</span>{% endif %}
+    Total desestibado{% if has_filters %} <span class="normal-case font-normal opacity-75">— filtrado</span>{% endif %}
   </p>
   <div class="flex items-end gap-3 mb-1">
-    <p class="text-4xl md:text-5xl font-black tracking-tight">{{ total_neto_t | fmt_num(1) }}</p>
+    <p class="text-4xl md:text-5xl font-black tracking-tight">{{ total_discharged_t | fmt_num(1) }}</p>
     <p class="text-xl md:text-2xl font-light text-indigo-200 mb-0.5">toneladas</p>
   </div>
   <div class="grid grid-cols-3 gap-3 mt-5 pt-4 border-t border-white/20">
@@ -97,7 +97,7 @@
     </div>
     <div>
       <p class="text-xl md:text-2xl font-bold">{{ total_trips | fmt_num }}</p>
-      <p class="text-[11px] text-indigo-200 mt-0.5">viajes totales</p>
+      <p class="text-[11px] text-indigo-200 mt-0.5">viajes a depósito</p>
     </div>
     <div>
       <p class="text-xl md:text-2xl font-bold">{{ avg_per_op | fmt_num(0) }}</p>
@@ -106,28 +106,27 @@
   </div>
 </div>
 
-<!-- Costado Vapor metrics (shown only if cv data exists) -->
-{% if total_cv_t > 0 %}
+<!-- Breakdown: depósito + CV -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-  <div class="bg-teal-600 rounded-2xl p-4 text-white">
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-teal-200 mb-1">Total desestibado</p>
-    <p class="text-2xl font-black">{{ total_discharged_t | fmt_num(1) }}</p>
-    <p class="text-xs text-teal-200 mt-0.5">toneladas</p>
-  </div>
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Costado Vapor</p>
-    <p class="text-2xl font-bold text-teal-700">{{ total_cv_t | fmt_num(1) }}</p>
-    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
-  </div>
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Depósito MTR</p>
-    <p class="text-2xl font-bold text-gray-900">{{ total_neto_t | fmt_num(1) }}</p>
-    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+    <p class="text-2xl font-bold text-gray-900">{{ total_depot_t | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">{{ pct_depot | fmt_num(1) }}% del total</p>
+  </div>
+  <div class="bg-teal-600 rounded-2xl p-4 text-white">
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-teal-200 mb-1">Costado Vapor</p>
+    <p class="text-2xl font-black">{{ total_cv_t | fmt_num(1) }}</p>
+    <p class="text-xs text-teal-200 mt-0.5">{{ pct_cv | fmt_num(1) }}% del total</p>
   </div>
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">% Costado Vapor</p>
-    <p class="text-2xl font-bold text-teal-700">{{ pct_cv | fmt_num(1) }}%</p>
-    <p class="text-xs text-gray-400 mt-0.5">del total desestibado</p>
+    <p class="text-2xl font-bold {% if pct_cv > 0 %}text-teal-700{% else %}text-gray-300{% endif %}">{{ pct_cv | fmt_num(1) }}%</p>
+    <p class="text-xs text-gray-400 mt-0.5">sobre total desestibado</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">% Depósito</p>
+    <p class="text-2xl font-bold text-gray-900">{{ pct_depot | fmt_num(1) }}%</p>
+    <p class="text-xs text-gray-400 mt-0.5">sobre total desestibado</p>
   </div>
 </div>
 
@@ -162,21 +161,20 @@
   </div>
 </div>
 {% endif %}
-{% endif %}
 
 <!-- Top ops: toneladas + t/h -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 
-  <!-- Top por toneladas -->
+  <!-- Top por total desestibado -->
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
       <span class="text-base">🏆</span>
-      <h2 class="text-sm font-semibold text-gray-800">Top 5 — toneladas descargadas</h2>
+      <h2 class="text-sm font-semibold text-gray-800">Top 5 — total desestibado</h2>
     </div>
     <div class="divide-y divide-gray-50">
       {% for op in top_by_tons %}
-      {% set max_neto = top_by_tons[0].total_neto_kg %}
-      {% set pct = ((op.total_neto_kg / max_neto) * 100) | round(0) if max_neto > 0 else 0 %}
+      {% set max_t = top_by_tons[0]._total_t %}
+      {% set pct = ((op._total_t / max_t) * 100) | round(0) if max_t > 0 else 0 %}
       <a href="/operations/{{ op.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50/40 transition-colors">
         <span class="text-xs font-black text-gray-300 w-4 flex-shrink-0">{{ loop.index }}</span>
         <div class="flex-1 min-w-0">
@@ -189,8 +187,10 @@
           </div>
         </div>
         <div class="text-right flex-shrink-0">
-          <p class="text-sm font-bold text-indigo-700">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} t</p>
-          <p class="text-[10px] text-gray-400">{{ op.actual_trips }} viajes</p>
+          <p class="text-sm font-bold text-indigo-700">{{ op._total_t | fmt_num(1) }} t</p>
+          <p class="text-[10px] text-gray-400">
+            {% if op._cv_t > 0 %}CV {{ op._cv_t | fmt_num(0) }} t{% else %}{{ op.actual_trips }} viajes{% endif %}
+          </p>
         </div>
       </a>
       {% else %}
@@ -287,7 +287,7 @@
     </div>
     <div class="divide-y divide-gray-50">
       {% for prod, s in prod_list %}
-      {% set pct = ((s.neto_kg / total_product_kg) * 100) | round(1) if total_product_kg > 0 else 0 %}
+      {% set pct = ((s.total_t / total_product_t) * 100) | round(1) if total_product_t > 0 else 0 %}
       <div class="px-4 py-3">
         <div class="flex items-center justify-between mb-1">
           <span class="text-sm font-medium text-gray-800">{{ prod }}</span>
@@ -297,8 +297,11 @@
           <div class="flex-1 bg-gray-100 rounded-full h-1.5">
             <div class="bg-indigo-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
           </div>
-          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ s.total_t | fmt_num(1) }} t</span>
         </div>
+        {% if s.cv_t > 0 %}
+        <p class="text-[10px] text-teal-600 mt-0.5 ml-0">CV: {{ s.cv_t | fmt_num(1) }} t</p>
+        {% endif %}
       </div>
       {% else %}
       <p class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</p>
@@ -314,7 +317,7 @@
     </div>
     <div class="divide-y divide-gray-50">
       {% for cli, s in client_list %}
-      {% set pct = ((s.neto_kg / total_client_kg) * 100) | round(1) if total_client_kg > 0 else 0 %}
+      {% set pct = ((s.total_t / total_client_t) * 100) | round(1) if total_client_t > 0 else 0 %}
       <div class="px-4 py-3">
         <div class="flex items-center justify-between mb-1">
           <span class="text-sm font-medium text-gray-800 truncate max-w-[180px]">{{ cli }}</span>
@@ -324,7 +327,7 @@
           <div class="flex-1 bg-gray-100 rounded-full h-1.5">
             <div class="bg-teal-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
           </div>
-          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ s.total_t | fmt_num(1) }} t</span>
         </div>
       </div>
       {% else %}
