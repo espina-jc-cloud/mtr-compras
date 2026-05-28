@@ -35,6 +35,18 @@ async def create_user(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("superadmin"))
 ):
+    if role not in ROLES:
+        return templates.TemplateResponse(request, "admin/user_form.html", {
+            "user": current_user,
+            "edit_user": None, "roles": ROLES, "plants": PLANTS,
+            "error": f"Rol inválido: '{role}'. Valores permitidos: {', '.join(ROLES)}"
+        })
+    if plant not in PLANTS:
+        return templates.TemplateResponse(request, "admin/user_form.html", {
+            "user": current_user,
+            "edit_user": None, "roles": ROLES, "plants": PLANTS,
+            "error": f"Planta inválida: '{plant}'. Valores permitidos: {', '.join(PLANTS)}"
+        })
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
         return templates.TemplateResponse(request, "admin/user_form.html", {

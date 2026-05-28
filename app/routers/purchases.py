@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -7,6 +8,8 @@ from app.database import get_db
 from app.deps import get_current_user, require_role, require_compras_access
 from app import models
 from app.templates import templates
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/purchases")
 
@@ -251,6 +254,14 @@ async def approve_purchase(purchase_id: int, db: Session = Depends(get_db), curr
     if current_user.role not in ("autorizador", "admin", "superadmin"):
         raise HTTPException(status_code=403)
     p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+    # Plant isolation: autorizador can only approve purchases from their own plant
+    if current_user.role == "autorizador" and current_user.plant != "TODAS":
+        if p.plant != current_user.plant:
+            _log.warning("SECURITY DENY approve purchase=%d user=%d role=%s plant=%s purchase_plant=%s",
+                         purchase_id, current_user.id, current_user.role, current_user.plant, p.plant)
+            raise HTTPException(status_code=403, detail="No podés aprobar compras de otra planta")
     if p.status != "pendiente":
         raise HTTPException(status_code=400)
     old = p.status
@@ -259,6 +270,8 @@ async def approve_purchase(purchase_id: int, db: Session = Depends(get_db), curr
     p.authorized_at = datetime.utcnow()
     add_audit(db, purchase_id, current_user.id, "approved", old, "aprobada")
     db.commit()
+    _log.info("SECURITY approve purchase=%d user=%d role=%s plant=%s",
+              purchase_id, current_user.id, current_user.role, current_user.plant)
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
 
@@ -267,6 +280,8 @@ async def reject_purchase(purchase_id: int, rejection_reason: str = Form(...), d
     if current_user.role not in ("autorizador", "admin", "superadmin"):
         raise HTTPException(status_code=403)
     p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
     if p.status != "pendiente":
         raise HTTPException(status_code=400)
     old = p.status
@@ -274,12 +289,18 @@ async def reject_purchase(purchase_id: int, rejection_reason: str = Form(...), d
     p.rejection_reason = rejection_reason
     add_audit(db, purchase_id, current_user.id, "rejected", old, "rechazada", rejection_reason)
     db.commit()
+    _log.info("SECURITY reject purchase=%d user=%d role=%s reason=%s",
+              purchase_id, current_user.id, current_user.role, rejection_reason[:80])
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
 
 @router.post("/{purchase_id}/receive")
 async def receive_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in ("autorizador", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Sin permiso para marcar como recibida")
     p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
     if p.status != "aprobada":
         raise HTTPException(status_code=400)
     if not any(d.doc_type == "remito" for d in p.documents):
@@ -288,6 +309,8 @@ async def receive_purchase(purchase_id: int, db: Session = Depends(get_db), curr
     p.status = "recibida"
     add_audit(db, purchase_id, current_user.id, "received", old, "recibida")
     db.commit()
+    _log.info("SECURITY receive purchase=%d user=%d role=%s",
+              purchase_id, current_user.id, current_user.role)
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
 
@@ -312,12 +335,16 @@ async def pay_purchase(purchase_id: int, db: Session = Depends(get_db), current_
     if current_user.role not in ("admin", "superadmin"):
         raise HTTPException(status_code=403)
     p = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
     if p.status != "facturada":
         raise HTTPException(status_code=400)
     old = p.status
     p.status = "pagada"
     add_audit(db, purchase_id, current_user.id, "paid", old, "pagada")
     db.commit()
+    _log.info("SECURITY pay purchase=%d user=%d role=%s amount=%s",
+              purchase_id, current_user.id, current_user.role, p.actual_amount)
     return RedirectResponse(url=f"/purchases/{purchase_id}", status_code=303)
 
 
@@ -347,6 +374,8 @@ async def delete_purchase(
     p.deleted_reason = deleted_reason or "Sin motivo indicado"
     add_audit(db, purchase_id, current_user.id, "deleted", p.status, p.status, p.deleted_reason)
     db.commit()
+    _log.warning("SECURITY delete purchase=%d user=%d role=%s reason=%s",
+                 purchase_id, current_user.id, current_user.role, p.deleted_reason[:80])
     return RedirectResponse(url="/purchases", status_code=303)
 
 

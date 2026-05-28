@@ -1,9 +1,22 @@
 import os
+import sys
 import subprocess
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel
 from app.routers import operations
+from app.deps import require_role
+
+# ── Startup security check ─────────────────────────────────────────────────────
+_DB_URL   = os.getenv("DATABASE_URL", "")
+_SK       = os.getenv("SECRET_KEY", "")
+_INSECURE = "dev-secret-key-CHANGE-IN-PRODUCTION-insecure"
+if _DB_URL and not _DB_URL.startswith("sqlite") and (not _SK or _SK == _INSECURE):
+    sys.stderr.write(
+        "FATAL: SECRET_KEY insegura en entorno de producción. "
+        "Configurá SECRET_KEY antes de iniciar.\n"
+    )
+    sys.exit(1)
 
 app = FastAPI(title="MTR Gestión")
 
@@ -29,7 +42,7 @@ async def health():
     return {"status": "ok"}
 
 @app.get("/api/debug")
-async def debug():
+async def debug(current_user=Depends(require_role("admin", "superadmin"))):
     try:
         git_sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
     except Exception:

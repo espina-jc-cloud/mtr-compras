@@ -135,6 +135,16 @@ async def list_fuel(
 
     fq = db.query(models.FuelLoad).filter(models.FuelLoad.deleted_at.is_(None))
 
+    # Backend plant enforcement: MTR SA loads are scoped to user's plant
+    from sqlalchemy import or_ as _or
+    if current_user.plant and current_user.plant != "TODAS":
+        fq = fq.filter(
+            _or(
+                models.FuelLoad.plant == current_user.plant,
+                models.FuelLoad.company != "MTR SA",   # INGEE and others are cross-plant
+            )
+        )
+
     if q_company:
         fq = fq.filter(models.FuelLoad.company == q_company)
     if q_plant:

@@ -10,8 +10,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, exists
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app import models
+
+_OPERATIONS_ROLES = ("admin", "superadmin")
 from app.templates import templates
 
 router     = APIRouter(prefix="/operations")
@@ -113,7 +115,7 @@ def _compute_shift_stats(trips):
 async def list_operations(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
     def qp(name, default=""):
         vals = request.query_params.getlist(name)
@@ -248,7 +250,7 @@ async def list_operations(
 async def operations_dashboard(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
     def qp(name, default=""):
         vals = request.query_params.getlist(name)
@@ -428,7 +430,7 @@ async def operation_detail(
     op_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
     op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
     if not op:
@@ -522,7 +524,7 @@ async def operation_detail(
 async def api_list_operations(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
     q = db.query(models.Operation)
     op_type = request.query_params.get("op_type", "")
@@ -555,7 +557,7 @@ async def api_list_operations(
 async def api_operation_detail(
     op_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
     op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
     if not op:

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, exists
 from datetime import datetime
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app import models
 from app.templates import templates
 
@@ -37,6 +37,9 @@ def _base_maintenance_query(db, current_user):
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Operador: redirect to primary action
+    if current_user.role == "operador":
+        return RedirectResponse(url="/fuel/new", status_code=302)
     # ── Compras ──
     bq = _base_purchase_query(db, current_user)
     counts = {s: bq.filter(models.Purchase.status == s).count()
@@ -79,7 +82,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db), current_use
 
 
 @router.get("/conciliation", response_class=HTMLResponse)
-async def conciliation(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def conciliation(request: Request, db: Session = Depends(get_db), current_user=Depends(require_role("admin", "superadmin"))):
     opts = joinedload(models.Purchase.supplier), joinedload(models.Purchase.requester), joinedload(models.Purchase.documents)
 
     remito_ex = exists().where(and_(models.Document.purchase_id == models.Purchase.id, models.Document.doc_type == "remito"))
