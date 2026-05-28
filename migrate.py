@@ -573,6 +573,7 @@ def _import_cv_history(xlsx_path: str):
     """
     import unicodedata
     from collections import defaultdict
+    from datetime import datetime
 
     try:
         import openpyxl
