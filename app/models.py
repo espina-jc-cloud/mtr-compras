@@ -290,3 +290,83 @@ class FuelLoad(Base):
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     entered_by       = relationship("User", foreign_keys=[entered_by_id])
+
+
+# ─── Operativos portuarios ─────────────────────────────────────────────────
+
+class Operation(Base):
+    __tablename__ = "operations"
+    id              = Column(Integer, primary_key=True, index=True)
+    raw_name        = Column(String, nullable=False)         # nombre original del Excel
+    ship_name       = Column(String, nullable=False, index=True)  # normalizado
+    operation_type  = Column(String, nullable=False, default="vessel")  # vessel / special
+    client          = Column(String, nullable=True)
+    product         = Column(String, nullable=True)
+    start_date      = Column(DateTime, nullable=True)
+    end_date        = Column(DateTime, nullable=True)
+    declared_trips  = Column(Integer, nullable=True)
+    actual_trips    = Column(Integer, default=0)
+    total_neto_kg   = Column(Integer, default=0)
+    total_origen_kg = Column(Integer, default=0)
+    total_diff_kg   = Column(Integer, default=0)
+    avg_duration_min = Column(Numeric(8, 2), nullable=True)
+    avg_tons_per_trip = Column(Numeric(10, 3), nullable=True)
+    avg_tons_per_hour = Column(Numeric(10, 3), nullable=True)
+    source_file     = Column(String, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    trips = relationship("OperationTrip", back_populates="operation", cascade="all, delete-orphan")
+    product_totals = relationship("OperationProductTotal", back_populates="operation", cascade="all, delete-orphan")
+
+
+class OperationTrip(Base):
+    __tablename__ = "operation_trips"
+    id            = Column(Integer, primary_key=True, index=True)
+    operation_id  = Column(Integer, ForeignKey("operations.id"), nullable=False, index=True)
+    trip_code     = Column(Integer, unique=True, nullable=False, index=True)
+    entry_date    = Column(DateTime, nullable=True)
+    entry_time    = Column(String, nullable=True)   # "HH:MM:SS"
+    exit_date     = Column(DateTime, nullable=True)
+    exit_time     = Column(String, nullable=True)   # "HH:MM:SS"
+    plate         = Column(String, nullable=True)
+    tara_kg       = Column(Integer, nullable=True)
+    bruto_kg      = Column(Integer, nullable=True)
+    neto_kg       = Column(Integer, nullable=True)
+    origen_kg     = Column(Integer, nullable=True)
+    diff_kg       = Column(Integer, nullable=True)
+    shift_number  = Column(Integer, nullable=True)  # 1/2/3/4
+    duration_min  = Column(Numeric(8, 2), nullable=True)
+    client        = Column(String, nullable=True)
+    product       = Column(String, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+
+    operation = relationship("Operation", back_populates="trips")
+
+
+class OperationProductTotal(Base):
+    """
+    Stores per-product discharge totals combining depot (from trips) and
+    Costado Vapor (from the CV Excel). One row per operation+product combination.
+    Idempotency key: (source_file, raw_ship_name, product, cv_start_date).
+    """
+    __tablename__ = "operation_product_totals"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    operation_id          = Column(Integer, ForeignKey("operations.id"), nullable=True, index=True)
+    raw_ship_name         = Column(String, nullable=False)
+    ship_name             = Column(String, nullable=False)
+    client                = Column(String, nullable=True)
+    product               = Column(String, nullable=False)
+    cv_start_date         = Column(DateTime, nullable=True)
+    cv_end_date           = Column(DateTime, nullable=True)
+    cv_excel_tons         = Column(Numeric(12, 3), nullable=False, default=0)
+    depot_tons            = Column(Numeric(12, 3), nullable=False, default=0)
+    costado_vapor_tons    = Column(Numeric(12, 3), nullable=False, default=0)
+    total_discharged_tons = Column(Numeric(12, 3), nullable=False, default=0)
+    match_status          = Column(String, nullable=False, default="matched")  # matched/unmatched/ambiguous
+    notes                 = Column(String, nullable=True)
+    source_file           = Column(String, nullable=True)
+    source_year           = Column(Integer, nullable=True)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+    operation = relationship("Operation", back_populates="product_totals")

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Operativos portuarios — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <div class="flex items-center gap-2">
+      <span class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      </span>
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">Operativos portuarios</h1>
+        <p class="text-sm text-gray-500">Cargas por barco · {{ total_trips | fmt_num }} viajes totales</p>
+      </div>
+    </div>
+  </div>
+  <a href="/operations/dashboard"
+    class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    <span class="hidden sm:inline">Dashboard</span>
+  </a>
+</div>
+
+<!-- Summary cards -->
+<div class="grid grid-cols-3 gap-2 md:gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Operativos</p>
+    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_ops }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Toneladas</p>
+    <p class="text-xl md:text-2xl font-bold text-indigo-700">{{ (total_neto / 1000) | fmt_num(1) }}</p>
+    <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 hidden sm:block">toneladas netas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 md:p-4">
+    <p class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
+    <p class="text-xl md:text-2xl font-bold text-gray-900">{{ total_trips | fmt_num }}</p>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" action="/operations" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+    <div class="col-span-2 md:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Nombre del barco</label>
+      <input type="text" name="ship" value="{{ params.ship }}" placeholder="Buscar barco…"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
+      <select name="client" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for c in all_clients %}
+        <option value="{{ c }}" {% if params.client == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
+      <select name="product" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for p in all_products %}
+        <option value="{{ p }}" {% if params.product == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
+      <input type="date" name="date_from" value="{{ params.date_from }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
+      <input type="date" name="date_to" value="{{ params.date_to }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+  </div>
+  <!-- Tipo chips + buttons -->
+  <div class="flex flex-wrap items-center gap-2 mt-3">
+    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">Filtrar</button>
+    <a href="/operations" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-xl">Limpiar</a>
+    <div class="ml-auto flex gap-1.5">
+      <a href="/operations?op_type=vessel"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'vessel' %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-500 border-gray-200 hover:border-indigo-300{% endif %}">
+        ⛵ Barcos
+      </a>
+      <a href="/operations?op_type=special"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'special' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-500 border-gray-200 hover:border-amber-300{% endif %}">
+        ★ Especiales
+      </a>
+    </div>
+  </div>
+</form>
+
+<!-- Mobile: cards -->
+<div class="md:hidden space-y-2">
+  {% for op in operations %}
+  <a href="/operations/{{ op.id }}" class="block bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 hover:shadow-md transition-all active:scale-[0.99]">
+    <div class="flex items-start justify-between gap-2">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
+            {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-600{% else %}bg-amber-50 text-amber-600{% endif %}">
+            {% if op.operation_type == 'vessel' %}BARCO{% else %}ESPECIAL{% endif %}
+          </span>
+          {% set prods = products_map.get(op.id, []) %}
+          {% if prods|length > 1 %}
+            {% for p in prods %}
+            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 truncate max-w-[80px]">{{ p }}</span>
+            {% endfor %}
+          {% elif prods|length == 1 %}
+          <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 truncate max-w-[120px]">{{ prods[0] }}</span>
+          {% endif %}
+        </div>
+        <p class="font-bold text-gray-900 text-sm leading-snug truncate">{{ op.ship_name }}</p>
+        <p class="text-[11px] text-gray-400 mt-0.5 truncate">
+          {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%Y") }}{% endif %}
+          {% if op.client %} · {{ op.client | truncate(28, True, '…') }}{% endif %}
+        </p>
+      </div>
+      <div class="text-right flex-shrink-0 pl-2">
+        <p class="text-base font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}<span class="text-xs font-normal text-gray-400"> t</span></p>
+        <p class="text-[11px] text-gray-500">{{ op.actual_trips }} viajes</p>
+        {% if op.avg_tons_per_hour %}
+        <p class="text-[11px] font-semibold text-indigo-600">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+        {% endif %}
+        {% set cv = cv_totals.get(op.id, {}) %}
+        {% if cv.get('has_cv') %}
+        <p class="text-[11px] font-semibold text-teal-600">{{ cv.get('cv_t', 0) | fmt_num(1) }} t vapor</p>
+        {% endif %}
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+    <div class="text-5xl mb-3">⚓</div>
+    <p class="text-gray-500 text-sm font-medium">No hay operativos que coincidan.</p>
+    <a href="/operations" class="inline-block mt-3 text-indigo-600 font-semibold text-sm">Ver todos →</a>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Desktop: tabla -->
+<div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-100 bg-gray-50/60">
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Operación</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Fechas</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Cliente</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Producto</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Viajes</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Toneladas</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">t/h</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">C. Vapor</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Dif. total</th>
+          <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Dur. prom.</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for op in operations %}
+        <tr class="hover:bg-indigo-50/40 cursor-pointer transition-colors" onclick="window.location='/operations/{{ op.id }}'">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0
+                {% if op.operation_type == 'vessel' %}bg-indigo-50 text-indigo-600{% else %}bg-amber-50 text-amber-600{% endif %}">
+                {% if op.operation_type == 'vessel' %}⛵{% else %}★{% endif %}
+              </span>
+              <span class="font-semibold text-gray-900">{{ op.ship_name }}</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+            {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%y") }}{% endif %}
+            {% if op.end_date and op.end_date != op.start_date %}<span class="text-gray-300 mx-1">–</span>{{ op.end_date | fmt_ar("%d/%m/%y") }}{% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-500 text-xs max-w-[130px]">
+            <span class="block truncate">{{ op.client or '—' }}</span>
+          </td>
+          <td class="px-4 py-3 text-gray-600 text-xs">
+            {% set prods = products_map.get(op.id, []) %}
+            {% if prods|length > 1 %}
+              <span class="inline-flex flex-wrap gap-1">
+                {% for p in prods %}<span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap">{{ p }}</span>{% endfor %}
+              </span>
+            {% elif prods|length == 1 %}{{ prods[0] }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-700 font-medium">{{ op.actual_trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} <span class="font-normal text-gray-400 text-xs">t</span></td>
+          <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs">
+            {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-xs">
+            {% set cv = cv_totals.get(op.id, {}) %}
+            {% if cv.get('has_cv') %}
+            <span class="font-semibold text-teal-700">{{ cv.get('cv_t', 0) | fmt_num(1) }} t</span>
+            {% else %}
+            <span class="text-gray-200">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-xs font-semibold
+            {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
+            {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
+          </td>
+          <td class="px-4 py-3 text-right text-gray-400 text-xs">
+            {% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(0) }} min{% else %}<span class="text-gray-200">—</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="px-4 py-16 text-center">
+          <div class="text-4xl mb-2">⚓</div>
+          <p class="text-gray-400">No hay operativos que coincidan con el filtro.</p>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if operations %}
+      <tfoot class="border-t-2 border-gray-100 bg-gray-50">
+        <tr>
+          <td colspan="4" class="px-4 py-3 text-xs font-semibold text-gray-500">TOTAL — {{ total_ops }} operativos</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (total_neto / 1000) | fmt_num(1) }} t</td>
+          <td colspan="4"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% endblock %}

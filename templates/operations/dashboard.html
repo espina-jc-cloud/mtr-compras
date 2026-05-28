@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Operativos — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-5">
+  <div class="flex items-center gap-2">
+    <span class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    </span>
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Dashboard Operativos</h1>
+      {% if period_start and period_end %}
+      <p class="text-xs text-gray-400 mt-0.5">
+        {{ period_start | fmt_ar("%b %Y") }} – {{ period_end | fmt_ar("%b %Y") }}
+        {% if has_filters %}<span class="ml-1 text-amber-500 font-semibold">· filtrado</span>{% endif %}
+      </p>
+      {% endif %}
+    </div>
+  </div>
+  <a href="/operations" class="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+    <span class="hidden sm:inline">Lista</span>
+  </a>
+</div>
+
+<!-- Filtros del dashboard -->
+<form method="get" action="/operations/dashboard" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
+      <select name="client" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for c in all_clients %}
+        <option value="{{ c }}" {% if params.client == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
+      <select name="product" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <option value="">Todos</option>
+        {% for p in all_products %}
+        <option value="{{ p }}" {% if params.product == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
+      <input type="date" name="date_from" value="{{ params.date_from }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
+      <input type="date" name="date_to" value="{{ params.date_to }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+    <div class="flex flex-col justify-end gap-2">
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl w-full">Filtrar</button>
+    </div>
+  </div>
+  <div class="flex flex-wrap items-center gap-2 mt-3">
+    {% if has_filters %}
+    <a href="/operations/dashboard" class="inline-flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      Limpiar filtros
+    </a>
+    {% endif %}
+    <div class="ml-auto flex gap-1.5">
+      <a href="/operations/dashboard?op_type=vessel"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'vessel' %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-500 border-gray-200 hover:border-indigo-300{% endif %}">
+        ⛵ Barcos
+      </a>
+      <a href="/operations/dashboard?op_type=special"
+        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all
+          {% if params.op_type == 'special' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-500 border-gray-200 hover:border-amber-300{% endif %}">
+        ★ Especiales
+      </a>
+    </div>
+  </div>
+</form>
+
+<!-- Hero: toneladas totales -->
+<div class="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 md:p-7 mb-5 text-white shadow-lg">
+  <p class="text-xs font-bold uppercase tracking-widest text-indigo-200 mb-1">
+    Neto total descargado{% if has_filters %} <span class="normal-case font-normal opacity-75">— filtrado</span>{% endif %}
+  </p>
+  <div class="flex items-end gap-3 mb-1">
+    <p class="text-4xl md:text-5xl font-black tracking-tight">{{ total_neto_t | fmt_num(1) }}</p>
+    <p class="text-xl md:text-2xl font-light text-indigo-200 mb-0.5">toneladas</p>
+  </div>
+  <div class="grid grid-cols-3 gap-3 mt-5 pt-4 border-t border-white/20">
+    <div>
+      <p class="text-xl md:text-2xl font-bold">{{ total_ops }}</p>
+      <p class="text-[11px] text-indigo-200 mt-0.5">operativos</p>
+    </div>
+    <div>
+      <p class="text-xl md:text-2xl font-bold">{{ total_trips | fmt_num }}</p>
+      <p class="text-[11px] text-indigo-200 mt-0.5">viajes totales</p>
+    </div>
+    <div>
+      <p class="text-xl md:text-2xl font-bold">{{ avg_per_op | fmt_num(0) }}</p>
+      <p class="text-[11px] text-indigo-200 mt-0.5">t/operativo avg</p>
+    </div>
+  </div>
+</div>
+
+<!-- Costado Vapor metrics (shown only if cv data exists) -->
+{% if total_cv_t > 0 %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="bg-teal-600 rounded-2xl p-4 text-white">
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-teal-200 mb-1">Total desestibado</p>
+    <p class="text-2xl font-black">{{ total_discharged_t | fmt_num(1) }}</p>
+    <p class="text-xs text-teal-200 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Costado Vapor</p>
+    <p class="text-2xl font-bold text-teal-700">{{ total_cv_t | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Depósito MTR</p>
+    <p class="text-2xl font-bold text-gray-900">{{ total_neto_t | fmt_num(1) }}</p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">% Costado Vapor</p>
+    <p class="text-2xl font-bold text-teal-700">{{ pct_cv | fmt_num(1) }}%</p>
+    <p class="text-xs text-gray-400 mt-0.5">del total desestibado</p>
+  </div>
+</div>
+
+<!-- Top 5 por costado vapor -->
+{% if top_by_cv %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">🚢</span>
+    <h2 class="text-sm font-semibold text-gray-800">Top 5 — costado vapor</h2>
+  </div>
+  <div class="divide-y divide-gray-50">
+    {% for op in top_by_cv %}
+    {% set max_cv = top_by_cv[0]._cv_tons %}
+    {% set pct = ((op._cv_tons / max_cv) * 100) | round(0) if max_cv > 0 else 0 %}
+    <a href="/operations/{{ op.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-teal-50/40 transition-colors">
+      <span class="text-xs font-black text-gray-300 w-4 flex-shrink-0">{{ loop.index }}</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-gray-900 truncate">{{ op.ship_name }}</p>
+        <div class="flex items-center gap-2 mt-0.5">
+          <div class="flex-1 bg-gray-100 rounded-full h-1">
+            <div class="bg-teal-400 h-1 rounded-full" style="width: {{ pct }}%"></div>
+          </div>
+          <span class="text-[10px] text-gray-400 flex-shrink-0">{{ op.start_date | fmt_ar("%d/%m/%y") if op.start_date else '' }}</span>
+        </div>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-sm font-bold text-teal-700">{{ op._cv_tons | fmt_num(1) }} t</p>
+        <p class="text-[10px] text-gray-400">{{ (op._cv_tons / op._discharged_t * 100) | fmt_num(0) }}% del total</p>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Top ops: toneladas + t/h -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
+  <!-- Top por toneladas -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+      <span class="text-base">🏆</span>
+      <h2 class="text-sm font-semibold text-gray-800">Top 5 — toneladas descargadas</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+      {% for op in top_by_tons %}
+      {% set max_neto = top_by_tons[0].total_neto_kg %}
+      {% set pct = ((op.total_neto_kg / max_neto) * 100) | round(0) if max_neto > 0 else 0 %}
+      <a href="/operations/{{ op.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50/40 transition-colors">
+        <span class="text-xs font-black text-gray-300 w-4 flex-shrink-0">{{ loop.index }}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-900 truncate">{{ op.ship_name }}</p>
+          <div class="flex items-center gap-2 mt-0.5">
+            <div class="flex-1 bg-gray-100 rounded-full h-1">
+              <div class="bg-indigo-500 h-1 rounded-full" style="width: {{ pct }}%"></div>
+            </div>
+            <span class="text-[10px] text-gray-400 flex-shrink-0">{{ op.start_date | fmt_ar("%d/%m/%y") if op.start_date else '' }}</span>
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-sm font-bold text-indigo-700">{{ (op.total_neto_kg / 1000) | fmt_num(1) }} t</p>
+          <p class="text-[10px] text-gray-400">{{ op.actual_trips }} viajes</p>
+        </div>
+      </a>
+      {% else %}
+      <p class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Top por ritmo t/h -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+      <span class="text-base">⚡</span>
+      <h2 class="text-sm font-semibold text-gray-800">Top 5 — ritmo de descarga (t/h)</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+      {% for op in top_by_th %}
+      {% set max_th = top_by_th[0].avg_tons_per_hour %}
+      {% set pct = ((op.avg_tons_per_hour / max_th) * 100) | round(0) if max_th and max_th > 0 else 0 %}
+      <a href="/operations/{{ op.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50/40 transition-colors">
+        <span class="text-xs font-black text-gray-300 w-4 flex-shrink-0">{{ loop.index }}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-900 truncate">{{ op.ship_name }}</p>
+          <div class="flex items-center gap-2 mt-0.5">
+            <div class="flex-1 bg-gray-100 rounded-full h-1">
+              <div class="bg-emerald-400 h-1 rounded-full" style="width: {{ pct }}%"></div>
+            </div>
+            <span class="text-[10px] text-gray-400 flex-shrink-0">{{ op.start_date | fmt_ar("%d/%m/%y") if op.start_date else '' }}</span>
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-sm font-bold text-emerald-600">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+          <p class="text-[10px] text-gray-400">{{ (op.total_neto_kg / 1000) | fmt_num(0) }} t</p>
+        </div>
+      </a>
+      {% else %}
+      <p class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Productividad por turno -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">🕐</span>
+    <h2 class="text-sm font-semibold text-gray-800">Productividad por turno — global</h2>
+  </div>
+  {% set max_shift_trips = shift_stats.values() | map(attribute='trips') | max %}
+  {% set total_shift_trips = shift_stats.values() | map(attribute='trips') | sum %}
+  <div class="divide-y divide-gray-50">
+    {% for sn, s in shift_stats.items() %}
+    {% set pct = ((s.trips / max_shift_trips) * 100) | round(0) if max_shift_trips > 0 else 0 %}
+    <div class="flex items-center gap-3 px-4 py-3.5
+      {% if sn == 1 %}border-l-4 border-blue-400
+      {% elif sn == 2 %}border-l-4 border-amber-400
+      {% elif sn == 3 %}border-l-4 border-emerald-400
+      {% else %}border-l-4 border-purple-400{% endif %}">
+      <div class="flex-shrink-0 w-24">
+        <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded
+          {% if sn == 1 %}bg-blue-50 text-blue-700
+          {% elif sn == 2 %}bg-amber-50 text-amber-700
+          {% elif sn == 3 %}bg-emerald-50 text-emerald-700
+          {% else %}bg-purple-50 text-purple-700{% endif %}">{{ s.label }}</span>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+            {% if sn == 1 %}<div class="bg-blue-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+            {% elif sn == 2 %}<div class="bg-amber-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+            {% elif sn == 3 %}<div class="bg-emerald-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+            {% else %}<div class="bg-purple-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+            {% endif %}
+          </div>
+          <span class="text-xs font-semibold text-gray-700 w-14 text-right flex-shrink-0">{{ s.trips | fmt_num }} viajes</span>
+        </div>
+      </div>
+      <div class="text-right flex-shrink-0 w-24">
+        <p class="text-sm font-bold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</p>
+        <p class="text-[10px] text-gray-400">{{ ((s.trips / total_shift_trips) * 100) | fmt_num(0) if total_shift_trips > 0 else 0 }}% del total</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Distribución producto + cliente -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+  <!-- Por producto -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+      <span class="text-base">📦</span>
+      <h2 class="text-sm font-semibold text-gray-800">Mix de productos</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+      {% for prod, s in prod_list %}
+      {% set pct = ((s.neto_kg / total_product_kg) * 100) | round(1) if total_product_kg > 0 else 0 %}
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-medium text-gray-800">{{ prod }}</span>
+          <span class="text-sm font-bold text-gray-900">{{ pct }}%</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div class="bg-indigo-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+          </div>
+          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Por cliente -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+      <span class="text-base">🏢</span>
+      <h2 class="text-sm font-semibold text-gray-800">Clientes</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+      {% for cli, s in client_list %}
+      {% set pct = ((s.neto_kg / total_client_kg) * 100) | round(1) if total_client_kg > 0 else 0 %}
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-medium text-gray-800 truncate max-w-[180px]">{{ cli }}</span>
+          <span class="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{{ pct }}%</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div class="bg-teal-400 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+          </div>
+          <span class="text-[10px] text-gray-400 w-20 text-right flex-shrink-0">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="px-4 py-6 text-center text-gray-300 text-xs">Sin datos</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

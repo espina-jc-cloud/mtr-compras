@@ -39,6 +39,7 @@ def run():
     is_prod = not DATABASE_URL.startswith("sqlite")
 
     Base.metadata.create_all(bind=engine)
+    # Las tablas `operations` y `operation_trips` se crean automáticamente aquí.
     print(f"✓ Tablas creadas ({DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL})")
 
     # ── Migraciones seguras de columnas nuevas ────────────────────────────────
@@ -77,6 +78,14 @@ def run():
     else:
         print(f"✓ Superadmin ya existe: {admin_email}")
 
+    # Stats de tablas operativas
+    counts = {
+        "operations":              db.query(models.Operation).count(),
+        "operation_trips":         db.query(models.OperationTrip).count(),
+        "operation_product_totals": db.query(models.OperationProductTotal).count(),
+    }
+    print(f"✓ Operativos: {counts['operations']} operations, {counts['operation_trips']} operation_trips, {counts['operation_product_totals']} product_totals")
+
     db.close()
 
     # ── AUTO-IMPORT histórico combustible ─────────────────────────────────────
@@ -85,6 +94,19 @@ def run():
     xlsx_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fuel_history.xlsx")
     if is_prod and os.path.exists(xlsx_path):
         _import_fuel_history(xlsx_path)
+
+    # ── AUTO-IMPORT histórico operativos ──────────────────────────────────────
+    # TEMPORAL: se eliminará después del primer deploy exitoso en producción.
+    # Corre SOLO si:  prod + operations_history.xlsx presente + tablas vacías.
+    ops_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "operations_history.xlsx")
+    if is_prod and os.path.exists(ops_xlsx):
+        _import_operations_history(ops_xlsx)
+
+    # ── AUTO-IMPORT costado vapor ─────────────────────────────────────────────
+    # TEMPORAL: se eliminará después del primer deploy exitoso en producción.
+    cv_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cv_history.xlsx")
+    if is_prod and os.path.exists(cv_xlsx):
+        _import_cv_history(cv_xlsx)
 
 
 def _import_fuel_history(xlsx_path: str):
@@ -255,6 +277,552 @@ def _import_fuel_history(xlsx_path: str):
     except Exception as e:
         db.rollback()
         print(f"✗ Error en import combustible: {e}")
+    finally:
+        db.close()
+
+
+def _import_operations_history(xlsx_path: str):
+    """
+    Importa el historial de operativos portuarios desde operations_history.xlsx.
+
+    TEMPORAL — se elimina después del primer deploy exitoso en producción.
+    Guard: prod + archivo presente + operations vacío + operation_trips vacío.
+
+    Estructura del Excel (0-indexed):
+      col[0]  = Nombre del Barco (header de operativo) / null en filas de viaje
+      col[1]  = Cantidad de viajes (declarado, en header)
+      col[2]  = código (int = viaje real; str = subtotal → ignorar)
+      col[3]  = Fecha E (entrada)
+      col[4]  = H Ent (hora entrada, time object)
+      col[5]  = Fecha Sal (salida)
+      col[6]  = H Sal (hora salida, time object)
+      col[7]  = Patente camión
+      col[8]  = Tara (kg)
+      col[9]  = Bruto (kg)
+      col[10] = Neto (kg)
+      col[11] = Origen (kg)
+      col[12] = Diferencias (kg)
+      col[13] = Cliente
+      col[14] = Producto
+    """
+    from datetime import datetime, timedelta
+    from collections import Counter
+
+    try:
+        import openpyxl
+    except ImportError:
+        print("✗ openpyxl no instalado — import operativos omitido")
+        return
+
+    db = SessionLocal()
+    try:
+        ops_count   = db.query(models.Operation).count()
+        trips_count = db.query(models.OperationTrip).count()
+        if ops_count > 0 or trips_count > 0:
+            print(f"✓ operations ya tiene {ops_count} operativos, {trips_count} viajes — import omitido")
+            return
+
+        # ── Normalización de nombres ──────────────────────────────────────────
+        SHIP_ALIASES = {
+            "MV ARGENMAR MISTRAL":  "ARGENMAR MISTRAL",
+            "M/V ARGENMAR MISTRAL": "ARGENMAR MISTRAL",
+        }
+        SPECIAL_NAMES = {"INGRESO SOP", "ZONA FRANCA", "DEVOLUCIÓN BUNGE"}
+        PRODUCT_FIX   = {"UREA GRANULA": "UREA GRANULADA"}
+
+        def normalize_ship(name):
+            s = name.strip()
+            return SHIP_ALIASES.get(s, s)
+
+        def fix_product(val):
+            if val is None:
+                return None
+            s = str(val).strip()
+            return PRODUCT_FIX.get(s, s) if s else None
+
+        def get_shift(t_str):
+            if not t_str:
+                return None
+            try:
+                h = int(str(t_str)[:2])
+                if h < 6:  return 1
+                if h < 12: return 2
+                if h < 18: return 3
+                return 4
+            except Exception:
+                return None
+
+        def calc_duration(entry_date, entry_time_str, exit_date, exit_time_str):
+            if not all([entry_date, entry_time_str, exit_date, exit_time_str]):
+                return None
+            try:
+                et = str(entry_time_str)[:8]  # HH:MM:SS
+                xt = str(exit_time_str)[:8]
+                entry_dt = datetime.combine(
+                    entry_date if isinstance(entry_date, type(entry_date)) else entry_date,
+                    datetime.strptime(et, "%H:%M:%S").time()
+                )
+                exit_dt = datetime.combine(
+                    exit_date if isinstance(exit_date, type(exit_date)) else exit_date,
+                    datetime.strptime(xt, "%H:%M:%S").time()
+                )
+                delta = exit_dt - entry_dt
+                if delta.total_seconds() < 0:
+                    delta += timedelta(days=1)
+                mins = round(delta.total_seconds() / 60, 2)
+                return mins if 0 <= mins <= 1440 else None
+            except Exception:
+                return None
+
+        def most_common(lst):
+            clean = [x for x in lst if x]
+            return Counter(clean).most_common(1)[0][0] if clean else None
+
+        def to_date(val):
+            if val is None:
+                return None
+            if isinstance(val, datetime):
+                return val.replace(hour=0, minute=0, second=0, microsecond=0)
+            try:
+                return datetime.strptime(str(val)[:10], "%Y-%m-%d")
+            except Exception:
+                return None
+
+        def to_int(val):
+            try:
+                return int(val) if val is not None else None
+            except Exception:
+                return None
+
+        # ── Leer Excel ────────────────────────────────────────────────────────
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+        ws = wb.active
+        raw_rows = list(ws.iter_rows(min_row=2, values_only=True))  # skip header
+        wb.close()
+
+        # ── Parse: agrupar filas por operativo ────────────────────────────────
+        operations_data = []
+        current_op      = None
+        warnings        = []
+
+        for row_idx, row in enumerate(raw_rows):
+            def col(i):
+                return row[i] if i < len(row) else None
+
+            c0, c1, c2 = col(0), col(1), col(2)
+
+            # Header de operativo: col[0] tiene nombre, col[2] es None o no numérico
+            if c0 is not None and not isinstance(c2, (int, float)):
+                raw_name = str(c0).strip()
+                if raw_name:
+                    current_op = {
+                        "raw_name":      raw_name,
+                        "ship_name":     normalize_ship(raw_name),
+                        "operation_type":"special" if raw_name in SPECIAL_NAMES else "vessel",
+                        "declared_trips": to_int(c1),
+                        "trips":         [],
+                    }
+                    operations_data.append(current_op)
+                continue
+
+            # Fila de viaje real: col[2] es entero numérico
+            if isinstance(c2, (int, float)) and c2 == int(c2):
+                if current_op is None:
+                    warnings.append(f"fila {row_idx+1}: viaje sin operativo padre — omitida")
+                    continue
+
+                entry_time_str = str(col(4))[:8] if col(4) is not None else None
+                exit_time_str  = str(col(6))[:8] if col(6) is not None else None
+                entry_date     = to_date(col(3))
+                exit_date      = to_date(col(5))
+
+                current_op["trips"].append({
+                    "trip_code":    int(c2),
+                    "entry_date":   entry_date,
+                    "entry_time":   entry_time_str,
+                    "exit_date":    exit_date,
+                    "exit_time":    exit_time_str,
+                    "plate":        str(col(7)).strip() if col(7) else None,
+                    "tara_kg":      to_int(col(8)),
+                    "bruto_kg":     to_int(col(9)),
+                    "neto_kg":      to_int(col(10)),
+                    "origen_kg":    to_int(col(11)),
+                    "diff_kg":      to_int(col(12)),
+                    "shift_number": get_shift(entry_time_str),
+                    "duration_min": calc_duration(entry_date, entry_time_str, exit_date, exit_time_str),
+                    "client":       str(col(13)).strip() if col(13) else None,
+                    "product":      fix_product(col(14)),
+                })
+                continue
+            # else: subtotal row → skip silently
+
+        # ── Insert ────────────────────────────────────────────────────────────
+        ops_inserted   = 0
+        trips_inserted = 0
+        trips_dup      = 0
+        vessel_count   = 0
+        special_count  = 0
+
+        for op_data in operations_data:
+            trips = op_data["trips"]
+            if not trips:
+                continue
+
+            neto_list   = [t["neto_kg"]   for t in trips if t["neto_kg"]   is not None]
+            origen_list = [t["origen_kg"] for t in trips if t["origen_kg"] is not None]
+            diff_list   = [t["diff_kg"]   for t in trips if t["diff_kg"]   is not None]
+            dur_list    = [t["duration_min"] for t in trips
+                           if t["duration_min"] is not None and 0 < t["duration_min"] <= 240]
+
+            total_neto    = sum(neto_list)
+            actual_trips  = len(trips)
+            avg_dur       = round(sum(dur_list)/len(dur_list), 2) if dur_list else None
+            avg_t_trip    = round(total_neto/1000/actual_trips, 3) if actual_trips > 0 else None
+
+            entry_dates = [t["entry_date"] for t in trips if t["entry_date"]]
+            start_date  = min(entry_dates) if entry_dates else None
+            end_date    = max(entry_dates) if entry_dates else None
+            op_hours    = max((end_date-start_date).total_seconds()/3600, 1.0) if (start_date and end_date) else None
+            avg_t_hour  = round(total_neto/1000/op_hours, 3) if op_hours else None
+
+            op = models.Operation(
+                raw_name          = op_data["raw_name"],
+                ship_name         = op_data["ship_name"],
+                operation_type    = op_data["operation_type"],
+                client            = most_common([t["client"]   for t in trips]),
+                product           = most_common([t["product"]  for t in trips]),
+                start_date        = start_date,
+                end_date          = end_date,
+                declared_trips    = op_data["declared_trips"],
+                actual_trips      = actual_trips,
+                total_neto_kg     = total_neto,
+                total_origen_kg   = sum(origen_list),
+                total_diff_kg     = sum(diff_list),
+                avg_duration_min  = avg_dur,
+                avg_tons_per_trip = avg_t_trip,
+                avg_tons_per_hour = avg_t_hour,
+                source_file       = "operations_history.xlsx",
+            )
+            db.add(op)
+            db.flush()
+            ops_inserted += 1
+            if op_data["operation_type"] == "vessel":
+                vessel_count  += 1
+            else:
+                special_count += 1
+
+            for t in trips:
+                # Duplicate guard (trip_code UNIQUE — failsafe)
+                existing = db.query(models.OperationTrip).filter(
+                    models.OperationTrip.trip_code == t["trip_code"]
+                ).first()
+                if existing:
+                    trips_dup += 1
+                    continue
+                db.add(models.OperationTrip(
+                    operation_id  = op.id,
+                    trip_code     = t["trip_code"],
+                    entry_date    = t["entry_date"],
+                    entry_time    = t["entry_time"],
+                    exit_date     = t["exit_date"],
+                    exit_time     = t["exit_time"],
+                    plate         = t["plate"],
+                    tara_kg       = t["tara_kg"],
+                    bruto_kg      = t["bruto_kg"],
+                    neto_kg       = t["neto_kg"],
+                    origen_kg     = t["origen_kg"],
+                    diff_kg       = t["diff_kg"],
+                    shift_number  = t["shift_number"],
+                    duration_min  = t["duration_min"],
+                    client        = t["client"],
+                    product       = t["product"],
+                ))
+                trips_inserted += 1
+
+        db.commit()
+
+        total_neto_t = sum(
+            t["neto_kg"] for op in operations_data for t in op["trips"] if t["neto_kg"]
+        ) / 1000
+
+        print(f"✓ Operativos importados: {ops_inserted} operativos · {trips_inserted} viajes")
+        print(f"  vessel={vessel_count} · special={special_count} · "
+              f"total={total_neto_t:.1f} t · duplicados={trips_dup}")
+        if warnings:
+            print(f"  ⚠ {len(warnings)} avisos:")
+            for w in warnings[:5]:
+                print(f"    {w}")
+            if len(warnings) > 5:
+                print(f"    ... y {len(warnings)-5} más")
+
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"✗ Error en import operativos: {e}")
+        traceback.print_exc()
+    finally:
+        db.close()
+
+
+def _import_cv_history(xlsx_path: str):
+    """
+    Importa el historial de Costado Vapor desde cv_history.xlsx.
+
+    TEMPORAL — se elimina después del primer deploy exitoso en producción.
+    Guard: operation_product_totals vacío.
+    """
+    import unicodedata
+    from collections import defaultdict
+
+    try:
+        import openpyxl
+    except ImportError:
+        print("✗ openpyxl no instalado — import CV omitido")
+        return
+
+    db = SessionLocal()
+    try:
+        cv_count = db.query(models.OperationProductTotal).count()
+        if cv_count > 0:
+            print(f"✓ operation_product_totals ya tiene {cv_count} registros — import CV omitido")
+            return
+
+        SOURCE_FILE = "cv_history.xlsx"
+        DATE_WINDOW = 10
+
+        PRODUCT_FIX_CV = {
+            "Súoer Fosfato Triple":   "TRIPLE (STP)",
+            "Súper Fosfato Triple":   "TRIPLE (STP)",
+            "Super Fosfato Triple":   "TRIPLE (STP)",
+            "Fosfato Monoamònico":    "MAP",
+            "Fosfato Monoamónico":    "MAP",
+            "Fosfato Diamónico":      "DAP",
+            "Urea Granulada":         "UREA GRANULADA",
+            "Cloturo de Potasio":     "CLORURO DE POTASIO",
+            "Sulfato de Amonio":      "SULFATO DE AMONIO",
+        }
+
+        DEPOT_PRODUCT_ALIASES = {
+            "MOP":   "CLORURO DE POTASIO",
+            "AMSUL": "SULFATO DE AMONIO",
+        }
+
+        SHIP_FIX = {
+            "M/V Sider Liu":        "SIDER LIU",
+            "M/V Arriabbiata":      "ARRABIATA",
+            "M/V Ruen":             "MV/RUEN",
+            "M/V Argenmar Mistral": "ARGENMAR MISTRAL",
+            "M/V Seacon Bangkok":   "SEACON BANGKOK",
+            "M/V Nava Ulysses":     "NAVA ULYSSES",
+            "M/V Alithia":          "M/V ALITHIA",
+            "M/V Genius Star IX":   "GENIUS STAR IX",
+            "M/V Amani":            "M/V AMANI",
+            "M/V Areti":            "M/V ARETI",
+            "M/V CL ZHANGJIAJIE":  "M/V CL ZHANGJIAJIE",
+            "M/V Endless Horizon":  "M/V ENDLESS HORIZON",
+            "M/V Yasa Moon\xa0":   "YASA MOON",
+            "M/V Beatrice":         "M/V BEATRICE",
+            "M/V Bonny Island":     "M/V BONNY ISLAND",
+            "M/V Sofía":            "M/V SOFIA",
+            "M/V Vega":             "M/V VEGA",
+            "M/V Ultralaz":         "M/V ULTRALAZ",
+            "M/V Tenca Arrow":      "M/V TENCA ARROW",
+            "M/V Adasun":           "ADASUN",
+            "M/V IC Progress":      "M/V IC PROGRESS",
+            "M/V Oborishte":        "OBORISHTE",
+            "M/V ATHANASIA":        "ATHANASIA",
+            "M/V NIKITIS":          "NIKITIS",
+        }
+
+        def norm_key(v):
+            if not v:
+                return ""
+            s = unicodedata.normalize("NFD", str(v).strip())
+            s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+            s = s.upper()
+            for pre in ("M/V ", "MV/", "MV "):
+                if s.startswith(pre):
+                    s = s[len(pre):]
+            return s.strip()
+
+        def fix_product_cv(raw):
+            if raw is None:
+                return "(sin producto)"
+            s = str(raw).strip()
+            return PRODUCT_FIX_CV.get(s, s.upper() if s else "(sin producto)")
+
+        def to_dt(val):
+            if val is None:
+                return None
+            if isinstance(val, datetime):
+                return val.replace(hour=0, minute=0, second=0, microsecond=0)
+            try:
+                return datetime.strptime(str(val)[:10], "%Y-%m-%d")
+            except Exception:
+                return None
+
+        # ── Parse Excel ───────────────────────────────────────────────────────
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+
+        data_rows = rows[7:37]  # 0-indexed 7 to 36 inclusive
+
+        records = []
+        last_ship = None
+        last_start = None
+        last_end = None
+
+        for i, row in enumerate(data_rows):
+            def col(j, r=row):
+                return r[j] if j < len(r) else None
+
+            raw_ship   = col(1)
+            raw_start  = col(2)
+            raw_end    = col(3)
+            raw_client = col(5)
+            raw_product = col(6)
+            raw_tons   = col(7)
+
+            if raw_ship and str(raw_ship).strip():
+                last_ship  = str(raw_ship).strip()
+                last_start = raw_start
+                last_end   = raw_end
+            else:
+                raw_ship  = last_ship
+                raw_start = last_start
+                raw_end   = last_end
+
+            if not raw_ship:
+                continue
+            if raw_tons is None:
+                continue
+            try:
+                tons = float(raw_tons)
+            except (TypeError, ValueError):
+                continue
+            if tons <= 0:
+                continue
+
+            start_dt = to_dt(raw_start)
+            end_dt   = to_dt(raw_end)
+            ship_norm = SHIP_FIX.get(raw_ship, raw_ship)
+
+            if "AMANI" in raw_ship.upper() or "AMANI" in ship_norm.upper():
+                if start_dt and start_dt.year == 2026:
+                    start_dt = start_dt.replace(year=2025)
+                if end_dt and end_dt.year == 2026:
+                    end_dt = end_dt.replace(year=2025)
+
+            if "NIKITIS" in raw_ship.upper() or "NIKITIS" in ship_norm.upper():
+                if start_dt and end_dt and end_dt < start_dt:
+                    start_dt, end_dt = end_dt, start_dt
+
+            product_norm = fix_product_cv(raw_product)
+            client_str   = str(raw_client).strip() if raw_client else None
+
+            records.append({
+                "raw_ship_name": raw_ship,
+                "ship_name":     ship_norm,
+                "match_key":     norm_key(ship_norm),
+                "client":        client_str,
+                "product":       product_norm,
+                "cv_start_date": start_dt,
+                "cv_end_date":   end_dt,
+                "cv_excel_tons": tons,
+            })
+
+        # ── Load ops + depot tons ─────────────────────────────────────────────
+        all_ops   = db.query(models.Operation).all()
+        all_trips = db.query(models.OperationTrip).all()
+
+        depot_by_op_prod = defaultdict(lambda: defaultdict(float))
+        for t in all_trips:
+            if t.neto_kg:
+                pn = DEPOT_PRODUCT_ALIASES.get(t.product, t.product) if t.product else "(sin producto)"
+                depot_by_op_prod[t.operation_id][pn] += t.neto_kg / 1000
+
+        # ── Match + insert ────────────────────────────────────────────────────
+        matched = unmatched = inserted = 0
+        total_vapor = 0.0
+
+        for rec in records:
+            mk = rec["match_key"]
+            start_dt = rec["cv_start_date"]
+            prod = rec["product"]
+
+            candidates = [op for op in all_ops if norm_key(op.ship_name) == mk]
+            op = None
+            status = "unmatched"
+            notes = None
+
+            if candidates:
+                if start_dt:
+                    scored = []
+                    for c in candidates:
+                        ref = c.start_date or c.end_date
+                        dist = abs((start_dt - ref).days) if ref else DATE_WINDOW
+                        if dist <= DATE_WINDOW:
+                            has_prod = 0 if prod in depot_by_op_prod.get(c.id, {}) else 1
+                            scored.append((has_prod, dist, c))
+                    if not scored:
+                        scored = [(1, 999, c) for c in candidates]
+                else:
+                    scored = [(1, 0, c) for c in candidates]
+
+                scored.sort(key=lambda x: (x[0], x[1]))
+                best_score, best_dist, best_op = scored[0]
+                ties = [x for x in scored if x[0] == best_score and x[1] == best_dist]
+                op = best_op
+                if len(ties) > 1:
+                    status = "ambiguous"
+                    notes = f"Ambiguous: {len(ties)} ops"
+                else:
+                    status = "matched"
+                matched += 1
+            else:
+                unmatched += 1
+                notes = f"No op for '{rec['ship_name']}'"
+
+            op_id   = op.id if op else None
+            depot_t = depot_by_op_prod.get(op_id, {}).get(prod, 0.0) if op_id else 0.0
+            cv_t    = rec["cv_excel_tons"]
+            vapor_t = max(cv_t - depot_t, 0.0)
+            total_t = cv_t if cv_t >= depot_t else depot_t
+            total_vapor += vapor_t
+
+            db.add(models.OperationProductTotal(
+                operation_id          = op_id,
+                raw_ship_name         = rec["raw_ship_name"],
+                ship_name             = rec["ship_name"],
+                client                = rec["client"],
+                product               = prod,
+                cv_start_date         = rec["cv_start_date"],
+                cv_end_date           = rec["cv_end_date"],
+                cv_excel_tons         = cv_t,
+                depot_tons            = depot_t,
+                costado_vapor_tons    = vapor_t,
+                total_discharged_tons = total_t,
+                match_status          = status,
+                notes                 = notes,
+                source_file           = SOURCE_FILE,
+                source_year           = rec["cv_start_date"].year if rec["cv_start_date"] else None,
+            ))
+            inserted += 1
+
+        db.commit()
+        print(
+            f"✓ CV importado: {inserted} registros · "
+            f"matched={matched} · unmatched={unmatched} · "
+            f"vapor={total_vapor:.0f} t"
+        )
+
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"✗ Error en import CV: {e}")
+        traceback.print_exc()
     finally:
         db.close()
 

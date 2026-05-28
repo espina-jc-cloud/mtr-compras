@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}{{ op.ship_name }} — Operativo MTR{% endblock %}
+{% block content %}
+
+<!-- Back + header -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 flex-shrink-0">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  </a>
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h1 class="text-lg font-bold text-gray-900">{{ op.ship_name }}</h1>
+      <span class="text-[10px] font-bold px-2 py-0.5 rounded
+        {% if op.operation_type == 'vessel' %}bg-indigo-100 text-indigo-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+        {% if op.operation_type == 'vessel' %}BARCO{% else %}ESPECIAL{% endif %}
+      </span>
+    </div>
+    <p class="text-xs text-gray-400 mt-0.5 truncate">
+      {% if op.start_date %}{{ op.start_date | fmt_ar("%d/%m/%Y") }}{% endif %}
+      {% if op.end_date and op.end_date != op.start_date %} – {{ op.end_date | fmt_ar("%d/%m/%Y") }}{% endif %}
+      {% if op.client %} · {{ op.client }}{% endif %}
+      {% if op.product %} · {{ op.product }}{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Métricas principales (1 fila, 4 cards) -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+  <div class="bg-indigo-600 rounded-2xl p-4 text-white">
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-200 mb-1">Neto total</p>
+    <p class="text-2xl font-black">{{ (op.total_neto_kg / 1000) | fmt_num(1) }}</p>
+    <p class="text-xs text-indigo-200 mt-0.5">toneladas</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Viajes</p>
+    <p class="text-2xl font-bold text-gray-900">{{ op.actual_trips | fmt_num }}</p>
+    {% if op.declared_trips and op.declared_trips != op.actual_trips %}
+    <p class="text-[10px] text-amber-500 mt-0.5">decl. {{ op.declared_trips }}</p>
+    {% endif %}
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Ritmo</p>
+    <p class="text-2xl font-bold {% if op.avg_tons_per_hour %}text-emerald-600{% else %}text-gray-300{% endif %}">
+      {% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }}{% else %}—{% endif %}
+    </p>
+    <p class="text-xs text-gray-400 mt-0.5">t/hora</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Diferencia</p>
+    <p class="text-2xl font-bold {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
+      {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }}
+    </p>
+    <p class="text-xs text-gray-400 mt-0.5">toneladas</p>
+  </div>
+</div>
+
+<!-- Info secundaria — fila compacta -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 mb-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5 text-sm">
+  <div>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">t/viaje avg</p>
+    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_tons_per_trip %}{{ op.avg_tons_per_trip | fmt_num(1) }} t{% else %}—{% endif %}</p>
+  </div>
+  <div>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Dur. prom.</p>
+    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_duration_min %}{{ op.avg_duration_min | fmt_num(0) }} min{% else %}—{% endif %}</p>
+  </div>
+  <div>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Cliente</p>
+    <p class="font-semibold text-gray-800 mt-0.5 truncate">{{ op.client or '—' }}</p>
+  </div>
+  <div>
+    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Producto</p>
+    {% if has_cv and discharge_list|length > 1 %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ discharge_list | map(attribute=0) | list | join(' + ') }}</p>
+    {% elif product_breakdown|length > 1 %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ product_breakdown | map(attribute=0) | list | join(' + ') }}</p>
+    {% else %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ op.product or '—' }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Desestiba total del operativo -->
+{% if has_cv %}
+<div class="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">🚢</span>
+    <h2 class="text-sm font-semibold text-gray-700">Desestiba total del operativo</h2>
+    <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">
+      {{ pct_cv_op | fmt_num(1) }}% costado vapor
+    </span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50 bg-gray-50/40">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Producto</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Depósito MTR</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Costado Vapor</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Total</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">% CV</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for prod, v in discharge_list %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-800">{{ prod }}</td>
+          <td class="px-4 py-3 text-right text-gray-700">{{ v.depot | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-semibold {% if v.cv > 0 %}text-teal-700{% else %}text-gray-300{% endif %}">
+            {% if v.cv > 0 %}{{ v.cv | fmt_num(1) }} t{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ v.total | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right">
+            {% if v.pct_cv > 0 %}
+            <span class="text-xs font-bold text-teal-700">{{ v.pct_cv | fmt_num(1) }}%</span>
+            {% else %}
+            <span class="text-gray-300 text-xs">0%</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="border-t-2 border-gray-100 bg-gray-50">
+        <tr>
+          <td class="px-4 py-3 text-xs font-bold text-gray-600 uppercase">Total</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_discharge_depot | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-teal-700">{{ total_discharge_cv | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ total_discharged | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right font-bold text-teal-700">{{ pct_cv_op | fmt_num(1) }}%</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% elif product_breakdown|length > 1 %}
+<!-- fallback: show depot-only breakdown when no CV data -->
+<div class="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50 flex items-center gap-2">
+    <span class="text-base">📦</span>
+    <h2 class="text-sm font-semibold text-gray-700">Mix de productos</h2>
+    <span class="ml-auto text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{{ product_breakdown|length }} productos</span>
+  </div>
+  <div class="divide-y divide-gray-50">
+    {% for prod, s in product_breakdown %}
+    <div class="px-4 py-3">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-sm font-semibold text-gray-800">{{ prod }}</span>
+        <div class="flex items-center gap-3 text-right">
+          <span class="text-xs text-gray-500">{{ s.trips }} viajes</span>
+          <span class="text-sm font-bold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</span>
+          <span class="text-xs font-semibold {% if s.diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
+            {% if s.diff_kg > 0 %}+{% endif %}{{ (s.diff_kg / 1000) | fmt_num(2) }} t
+          </span>
+          <span class="text-xs font-bold text-indigo-700 w-10 text-right">{{ s.pct }}%</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+          <div class="bg-indigo-400 h-1.5 rounded-full" style="width: {{ s.pct }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Distribución por turno -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+  <div class="px-4 py-3.5 border-b border-gray-50">
+    <h2 class="text-sm font-semibold text-gray-700">⏱ Distribución por turno</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left border-b border-gray-50 bg-gray-50/40">
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase">Turno</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Diferencia</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right hidden md:table-cell">t/h est.</th>
+          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right hidden md:table-cell">Dur. prom.</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for sn, s in shifts.items() %}
+        <tr class="
+          {% if sn == 1 %}border-l-4 border-blue-400{% elif sn == 2 %}border-l-4 border-amber-400{% elif sn == 3 %}border-l-4 border-emerald-400{% else %}border-l-4 border-purple-400{% endif %}">
+          <td class="px-4 py-3">
+            <span class="text-xs font-semibold
+              {% if sn == 1 %}text-blue-700{% elif sn == 2 %}text-amber-700{% elif sn == 3 %}text-emerald-700{% else %}text-purple-700{% endif %}">
+              {{ s.label }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-right font-medium text-gray-800">{{ s.trips | fmt_num }}</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">{{ (s.neto_kg / 1000) | fmt_num(1) }} t</td>
+          <td class="px-4 py-3 text-right text-xs font-semibold
+            {% if s.diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
+            {% if s.diff_kg > 0 %}+{% endif %}{{ (s.diff_kg / 1000) | fmt_num(2) }} t
+          </td>
+          <td class="px-4 py-3 text-right text-indigo-700 font-medium hidden md:table-cell">
+            {% if s.t_per_h %}{{ s.t_per_h | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-400 text-xs hidden md:table-cell">
+            {% if s.avg_duration_min %}{{ s.avg_duration_min | fmt_num(0) }} min{% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Viajes -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div class="px-4 py-3.5 border-b border-gray-50">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-gray-700">📋 Viajes — <span class="font-normal text-gray-400">{{ trips|length }} registros</span></h2>
+      {% if trips|length > 100 %}
+      <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">Scroll horizontal disponible</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-left border-b border-gray-50 bg-gray-50/40">
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase hidden md:table-cell">Cód.</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase hidden md:table-cell">Fecha</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase">H. ent.</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase">H. sal.</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase">Patente</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase text-right">Neto (kg)</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase text-right hidden md:table-cell">Origen</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase text-right">Dif.</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase text-right hidden md:table-cell">Dur.</th>
+          <th class="px-3 py-2.5 font-semibold text-gray-400 uppercase text-center">T</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for t in trips %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="px-3 py-2 font-mono text-gray-400 hidden md:table-cell">{{ t.trip_code }}</td>
+          <td class="px-3 py-2 text-gray-500 whitespace-nowrap hidden md:table-cell">
+            {% if t.entry_date %}{{ t.entry_date | fmt_ar("%d/%m") }}{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ (t.entry_time or '—')[:5] }}</td>
+          <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ (t.exit_time or '—')[:5] }}</td>
+          <td class="px-3 py-2 font-semibold text-gray-800">{{ t.plate or '—' }}</td>
+          <td class="px-3 py-2 text-right font-bold text-gray-900">{{ t.neto_kg | fmt_num if t.neto_kg else '—' }}</td>
+          <td class="px-3 py-2 text-right text-gray-500 hidden md:table-cell">{{ t.origen_kg | fmt_num if t.origen_kg else '—' }}</td>
+          <td class="px-3 py-2 text-right font-semibold
+            {% if t.diff_kg is not none and t.diff_kg >= 0 %}text-emerald-600{% elif t.diff_kg is not none %}text-orange-500{% endif %}">
+            {% if t.diff_kg is not none %}{% if t.diff_kg > 0 %}+{% endif %}{{ t.diff_kg | fmt_num }}{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right text-gray-400 hidden md:table-cell">
+            {% if t.duration_min %}{{ t.duration_min | fmt_num(0) }} min{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2 text-center">
+            {% if t.shift_number %}
+            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-center font-bold text-[10px]
+              {% if t.shift_number == 1 %}bg-blue-100 text-blue-700
+              {% elif t.shift_number == 2 %}bg-amber-100 text-amber-700
+              {% elif t.shift_number == 3 %}bg-emerald-100 text-emerald-700
+              {% else %}bg-purple-100 text-purple-700{% endif %}">
+              {{ t.shift_number }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="px-4 py-12 text-center text-gray-400">Sin viajes registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
