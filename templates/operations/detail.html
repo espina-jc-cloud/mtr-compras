@@ -165,6 +165,16 @@
 </div>
 {% endif %}
 
+{% if cargo_notes %}
+<!-- Notas / advertencias de importación -->
+<div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 mb-4">
+  <p class="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">⚠ Advertencias de datos</p>
+  {% for prod, note in cargo_notes %}
+  <p class="text-xs text-amber-800"><span class="font-semibold">{{ prod }}:</span> {{ note }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Distribución por turno -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
   <div class="px-4 py-3.5 border-b border-gray-50">

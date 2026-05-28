@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Numeric
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -317,6 +317,7 @@ class Operation(Base):
 
     trips = relationship("OperationTrip", back_populates="operation", cascade="all, delete-orphan")
     product_totals = relationship("OperationProductTotal", back_populates="operation", cascade="all, delete-orphan")
+    cargo_summaries = relationship("OperationCargoSummary", back_populates="operation")
 
 
 class OperationTrip(Base):
@@ -370,3 +371,47 @@ class OperationProductTotal(Base):
     created_at            = Column(DateTime, default=datetime.utcnow)
 
     operation = relationship("Operation", back_populates="product_totals")
+
+
+class OperationCargoSummary(Base):
+    """
+    Cargo summary from 'Operativos barcos' Excel — source of truth for discharge totals.
+    CV is explicit (not inferred). Replaces OperationProductTotal in the long run.
+    Kept separate during transition; OperationProductTotal preserved for backward compat.
+
+    Invariant:  depot_kg + (cv_kg or 0) ≈ total_ship_kg  (±5 000 kg tolerance)
+    Idempotency: (source_file, ship_name, client, product, start_date)
+    """
+    __tablename__ = "operation_cargo_summaries"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    operation_id  = Column(Integer, ForeignKey("operations.id"), nullable=True, index=True)
+
+    # Identity — from Excel
+    raw_ship_name = Column(String, nullable=False)
+    ship_name     = Column(String, nullable=False, index=True)   # normalized (no M/V prefix)
+    client        = Column(String, nullable=True)
+    product       = Column(String, nullable=False)
+    start_date    = Column(DateTime, nullable=True)
+    end_date      = Column(DateTime, nullable=True)
+    trip_count    = Column(Integer, nullable=True)
+
+    # Tonnage stored in kg for consistency with the operations module
+    depot_kg      = Column(Numeric(14, 0), nullable=False, default=0)  # neto column
+    cv_kg         = Column(Numeric(14, 0), nullable=True)               # CV column; NULL = no CV
+    total_ship_kg = Column(Numeric(14, 0), nullable=False, default=0)   # Total del Barco
+
+    # Metadata
+    match_status  = Column(String, nullable=False, default="unmatched")  # matched / unmatched
+    source_file   = Column(String, nullable=False)
+    notes         = Column(String, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+
+    operation = relationship("Operation", back_populates="cargo_summaries")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_file", "ship_name", "client", "product", "start_date",
+            name="uq_cargo_summary",
+        ),
+    )

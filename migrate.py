@@ -80,11 +80,14 @@ def run():
 
     # Stats de tablas operativas
     counts = {
-        "operations":              db.query(models.Operation).count(),
-        "operation_trips":         db.query(models.OperationTrip).count(),
+        "operations":               db.query(models.Operation).count(),
+        "operation_trips":          db.query(models.OperationTrip).count(),
         "operation_product_totals": db.query(models.OperationProductTotal).count(),
+        "operation_cargo_summaries": db.query(models.OperationCargoSummary).count(),
     }
-    print(f"✓ Operativos: {counts['operations']} operations, {counts['operation_trips']} operation_trips, {counts['operation_product_totals']} product_totals")
+    print(f"✓ Operativos: {counts['operations']} operations, {counts['operation_trips']} trips")
+    print(f"  {counts['operation_product_totals']} product_totals (legacy) · "
+          f"{counts['operation_cargo_summaries']} cargo_summaries (new)")
 
     db.close()
 

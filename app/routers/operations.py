@@ -200,21 +200,37 @@ async def list_operations(
             tmp2[oid].append(cli)
         clients_map = {oid: sorted(clis) for oid, clis in tmp2.items()}
 
-    # CV data per operation (batch query)
+    # CV data per operation — new model first, fallback to legacy OperationProductTotal
     cv_totals = {}
     if op_ids:
-        cv_rows = (
-            db.query(models.OperationProductTotal)
-            .filter(models.OperationProductTotal.operation_id.in_(op_ids))
+        cs_rows = (
+            db.query(models.OperationCargoSummary)
+            .filter(models.OperationCargoSummary.operation_id.in_(op_ids))
             .all()
         )
-        for row in cv_rows:
-            oid = row.operation_id
-            if oid not in cv_totals:
-                cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
-            cv_totals[oid]["cv_t"] += float(row.costado_vapor_tons or 0)
-            cv_totals[oid]["discharged_t"] += float(row.total_discharged_tons or 0)
-            cv_totals[oid]["has_cv"] = True
+        if cs_rows:
+            for cs in cs_rows:
+                oid = cs.operation_id
+                if oid not in cv_totals:
+                    cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
+                cv_totals[oid]["cv_t"]        += float(cs.cv_kg or 0) / 1000
+                cv_totals[oid]["discharged_t"] += float(cs.total_ship_kg or 0) / 1000
+                if cs.cv_kg and float(cs.cv_kg) > 0:
+                    cv_totals[oid]["has_cv"] = True
+        else:
+            # legacy fallback
+            cv_rows = (
+                db.query(models.OperationProductTotal)
+                .filter(models.OperationProductTotal.operation_id.in_(op_ids))
+                .all()
+            )
+            for row in cv_rows:
+                oid = row.operation_id
+                if oid not in cv_totals:
+                    cv_totals[oid] = {"cv_t": 0.0, "discharged_t": 0.0, "has_cv": False}
+                cv_totals[oid]["cv_t"]        += float(row.costado_vapor_tons or 0)
+                cv_totals[oid]["discharged_t"] += float(row.total_discharged_tons or 0)
+                cv_totals[oid]["has_cv"] = True
 
     # Unique filter options sourced from trips (catches multi-product ops)
     all_products = sorted(set(
@@ -348,24 +364,37 @@ async def operations_dashboard(
     total_product_kg = sum(v["neto_kg"] for v in prod_stats.values())
     total_client_kg  = sum(v["neto_kg"] for v in client_stats.values())
 
-    # CV totals for filtered operations
-    cv_rows_all = []
+    # CV totals for filtered operations — new model first, fallback to legacy
+    from collections import defaultdict as _dd
+    _cv_norm = []   # list of {operation_id, cv_t, product}
     if op_ids:
-        cv_rows_all = db.query(models.OperationProductTotal).filter(
-            models.OperationProductTotal.operation_id.in_(op_ids)
+        _cs_all = db.query(models.OperationCargoSummary).filter(
+            models.OperationCargoSummary.operation_id.in_(op_ids)
         ).all()
+        if _cs_all:
+            _cv_norm = [
+                {"operation_id": r.operation_id, "cv_t": float(r.cv_kg or 0) / 1000, "product": r.product}
+                for r in _cs_all
+            ]
+        else:
+            _legacy = db.query(models.OperationProductTotal).filter(
+                models.OperationProductTotal.operation_id.in_(op_ids)
+            ).all()
+            _cv_norm = [
+                {"operation_id": r.operation_id, "cv_t": float(r.costado_vapor_tons or 0), "product": r.product}
+                for r in _legacy
+            ]
 
-    total_cv_t = sum(float(r.costado_vapor_tons or 0) for r in cv_rows_all)
+    total_cv_t = sum(d["cv_t"] for d in _cv_norm)
     total_neto_t_value = total_neto / 1000 if total_neto else 0
     total_discharged_t = total_neto_t_value + total_cv_t
     pct_cv = total_cv_t / total_discharged_t * 100 if total_discharged_t > 0 else 0
 
     # Top 5 by costado vapor
-    from collections import defaultdict as _dd
     cv_by_op = _dd(float)
-    for r in cv_rows_all:
-        if r.operation_id:
-            cv_by_op[r.operation_id] += float(r.costado_vapor_tons or 0)
+    for d in _cv_norm:
+        if d["operation_id"]:
+            cv_by_op[d["operation_id"]] += d["cv_t"]
     top_by_cv = sorted(
         [o for o in all_ops if cv_by_op.get(o.id, 0) > 0],
         key=lambda o: cv_by_op[o.id],
@@ -377,8 +406,8 @@ async def operations_dashboard(
 
     # Product breakdown including CV
     prod_cv = _dd(float)
-    for r in cv_rows_all:
-        prod_cv[r.product] += float(r.costado_vapor_tons or 0)
+    for d in _cv_norm:
+        prod_cv[d["product"]] += d["cv_t"]
 
     # Filter options for dropdowns (always full list)
     all_products = sorted(set(
@@ -457,50 +486,80 @@ async def operation_detail(
         v["pct"] = round(v["neto_kg"] / total_neto_bk * 100, 1) if total_neto_bk else 0
     product_breakdown = sorted(prod_bk.items(), key=lambda x: x[1]["neto_kg"], reverse=True)
 
-    # CV breakdown for this operation
-    cv_rows = (
-        db.query(models.OperationProductTotal)
-        .filter(models.OperationProductTotal.operation_id == op_id)
-        .order_by(models.OperationProductTotal.costado_vapor_tons.desc())
-        .all()
-    )
-    has_cv = len(cv_rows) > 0
-
+    # CV breakdown — new model first, fallback to legacy OperationProductTotal
     _DEPOT_ALIASES = {"MOP": "CLORURO DE POTASIO", "AMSUL": "SULFATO DE AMONIO"}
 
-    if has_cv:
-        depot_by_prod = {}
-        for t in trips:
-            pnorm = _DEPOT_ALIASES.get(t.product, t.product) if t.product else "(sin producto)"
-            depot_by_prod[pnorm] = depot_by_prod.get(pnorm, 0.0) + (t.neto_kg or 0) / 1000
+    cargo_summaries = (
+        db.query(models.OperationCargoSummary)
+        .filter(models.OperationCargoSummary.operation_id == op_id)
+        .order_by(models.OperationCargoSummary.total_ship_kg.desc())
+        .all()
+    )
 
+    if cargo_summaries:
+        has_cv = any(cs.cv_kg and float(cs.cv_kg) > 0 for cs in cargo_summaries)
         discharge_bk = {}
-        for row in cv_rows:
-            p = row.product
+        for cs in cargo_summaries:
+            p = cs.product
             discharge_bk[p] = {
-                "depot":  float(row.depot_tons or 0),
-                "cv":     float(row.costado_vapor_tons or 0),
-                "total":  float(row.total_discharged_tons or 0),
-                "status": row.match_status,
+                "depot":  float(cs.depot_kg or 0) / 1000,
+                "cv":     float(cs.cv_kg or 0) / 1000,
+                "total":  float(cs.total_ship_kg or 0) / 1000,
+                "status": cs.match_status,
             }
-        for p, dt in depot_by_prod.items():
-            if p not in discharge_bk:
-                discharge_bk[p] = {"depot": dt, "cv": 0.0, "total": dt, "status": "depot_only"}
-
         for v in discharge_bk.values():
             v["pct_cv"] = v["cv"] / v["total"] * 100 if v["total"] > 0 else 0
-
         discharge_list = sorted(discharge_bk.items(), key=lambda x: -x[1]["total"])
         total_discharge_depot = sum(v["depot"] for v in discharge_bk.values())
         total_discharge_cv    = sum(v["cv"]    for v in discharge_bk.values())
         total_discharged      = total_discharge_depot + total_discharge_cv
         pct_cv_op = total_discharge_cv / total_discharged * 100 if total_discharged > 0 else 0
     else:
-        discharge_list = []
-        total_discharge_depot = (op.total_neto_kg or 0) / 1000
-        total_discharge_cv = 0.0
-        total_discharged = total_discharge_depot
-        pct_cv_op = 0.0
+        # Legacy fallback: OperationProductTotal
+        cv_rows = (
+            db.query(models.OperationProductTotal)
+            .filter(models.OperationProductTotal.operation_id == op_id)
+            .order_by(models.OperationProductTotal.costado_vapor_tons.desc())
+            .all()
+        )
+        has_cv = len(cv_rows) > 0
+
+        if has_cv:
+            depot_by_prod = {}
+            for t in trips:
+                pnorm = _DEPOT_ALIASES.get(t.product, t.product) if t.product else "(sin producto)"
+                depot_by_prod[pnorm] = depot_by_prod.get(pnorm, 0.0) + (t.neto_kg or 0) / 1000
+
+            discharge_bk = {}
+            for row in cv_rows:
+                p = row.product
+                discharge_bk[p] = {
+                    "depot":  float(row.depot_tons or 0),
+                    "cv":     float(row.costado_vapor_tons or 0),
+                    "total":  float(row.total_discharged_tons or 0),
+                    "status": row.match_status,
+                }
+            for p, dt in depot_by_prod.items():
+                if p not in discharge_bk:
+                    discharge_bk[p] = {"depot": dt, "cv": 0.0, "total": dt, "status": "depot_only"}
+
+            for v in discharge_bk.values():
+                v["pct_cv"] = v["cv"] / v["total"] * 100 if v["total"] > 0 else 0
+
+            discharge_list = sorted(discharge_bk.items(), key=lambda x: -x[1]["total"])
+            total_discharge_depot = sum(v["depot"] for v in discharge_bk.values())
+            total_discharge_cv    = sum(v["cv"]    for v in discharge_bk.values())
+            total_discharged      = total_discharge_depot + total_discharge_cv
+            pct_cv_op = total_discharge_cv / total_discharged * 100 if total_discharged > 0 else 0
+        else:
+            discharge_list = []
+            total_discharge_depot = (op.total_neto_kg or 0) / 1000
+            total_discharge_cv = 0.0
+            total_discharged = total_discharge_depot
+            pct_cv_op = 0.0
+
+    # Collect notes/warnings from cargo summaries (e.g. STAR HELSINKI anomaly)
+    cargo_notes = [(cs.product, cs.notes) for cs in cargo_summaries if cs.notes]
 
     return templates.TemplateResponse(request, "operations/detail.html", {
         "user":                  current_user,
@@ -508,13 +567,14 @@ async def operation_detail(
         "trips":                 trips,
         "shifts":                shifts,
         "product_breakdown":     product_breakdown,
-        "cv_rows":               cv_rows,
         "has_cv":                has_cv,
         "discharge_list":        discharge_list,
         "total_discharge_depot": total_discharge_depot,
         "total_discharge_cv":    total_discharge_cv,
         "total_discharged":      total_discharged,
         "pct_cv_op":             pct_cv_op,
+        "cargo_summaries":       cargo_summaries,
+        "cargo_notes":           cargo_notes,
     })
 
 
