@@ -165,11 +165,21 @@
 </div>
 {% endif %}
 
-{% if cargo_notes %}
-<!-- Notas / advertencias de importación -->
+{% if cargo_notes_info %}
+<!-- Badge informativo: 100% Costado Vapor -->
+<div class="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 mb-4 flex items-center gap-2">
+  <span class="text-base">🚢</span>
+  <div>
+    <p class="text-xs font-bold text-teal-700 uppercase tracking-wider">100% Costado Vapor</p>
+    <p class="text-xs text-teal-700 mt-0.5">Toda la carga fue descargada directamente al costado del barco. Depósito MTR = 0 t.</p>
+  </div>
+</div>
+{% endif %}
+{% if cargo_notes_warnings %}
+<!-- Advertencias de anomalías de datos -->
 <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 mb-4">
   <p class="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">⚠ Advertencias de datos</p>
-  {% for prod, note in cargo_notes %}
+  {% for prod, note in cargo_notes_warnings %}
   <p class="text-xs text-amber-800"><span class="font-semibold">{{ prod }}:</span> {{ note }}</p>
   {% endfor %}
 </div>

@@ -558,8 +558,15 @@ async def operation_detail(
             total_discharged = total_discharge_depot
             pct_cv_op = 0.0
 
-    # Collect notes/warnings from cargo summaries (e.g. STAR HELSINKI anomaly)
-    cargo_notes = [(cs.product, cs.notes) for cs in cargo_summaries if cs.notes]
+    # Split cargo notes: informational (100% CV) vs anomaly warnings
+    cargo_notes_info = [
+        (cs.product, cs.notes) for cs in cargo_summaries
+        if cs.notes and cs.notes.startswith("100% Costado Vapor")
+    ]
+    cargo_notes_warnings = [
+        (cs.product, cs.notes) for cs in cargo_summaries
+        if cs.notes and not cs.notes.startswith("100% Costado Vapor")
+    ]
 
     return templates.TemplateResponse(request, "operations/detail.html", {
         "user":                  current_user,
@@ -574,7 +581,8 @@ async def operation_detail(
         "total_discharged":      total_discharged,
         "pct_cv_op":             pct_cv_op,
         "cargo_summaries":       cargo_summaries,
-        "cargo_notes":           cargo_notes,
+        "cargo_notes_info":      cargo_notes_info,
+        "cargo_notes_warnings":  cargo_notes_warnings,
     })
 
 

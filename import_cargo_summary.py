@@ -132,12 +132,17 @@ def parse_excel(xlsx_path: str) -> list[dict]:
 
         ship_normalized = norm_ship(raw_ship_str)
 
-        # Anomaly: check total_ship ≈ depot + cv
+        # ── CV classification ────────────────────────────────────────────────
         notes_parts = []
         if cv_kg is not None and cv_kg > 0:
-            expected = depot_kg + cv_kg
-            delta = abs(total_kg - expected)
-            if delta > ANOMALY_TOLERANCE_KG:
+            # Case A: total ≈ cv  →  100% Costado Vapor (depot figure is unreliable / irrelevant)
+            if abs(total_kg - cv_kg) <= ANOMALY_TOLERANCE_KG:
+                depot_kg = 0
+                notes_parts.append("100% Costado Vapor")
+            # Case B: total ≉ depot + cv  →  genuine anomaly, flag for review
+            elif abs(total_kg - (depot_kg + cv_kg)) > ANOMALY_TOLERANCE_KG:
+                expected = depot_kg + cv_kg
+                delta    = abs(total_kg - expected)
                 notes_parts.append(
                     f"ANOMALÍA: total_ship_kg ({total_kg:,}) no coincide con "
                     f"depósito + CV ({expected:,}), delta={delta:,} kg. Revisar Excel."
