@@ -144,136 +144,119 @@ async def list_operations(
             fq = fq.filter(models.Operation.start_date <= datetime.strptime(q_date_to + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
         except ValueError:
             pass
-    # Filter by client/product via trips (supports multi-product ops)
-    if q_client:
-        fq = fq.filter(
-            exists().where(
-                (models.OperationTrip.operation_id == models.Operation.id) &
-                (models.OperationTrip.client == q_client)
-            )
-        )
-    if q_product:
-        fq = fq.filter(
-            exists().where(
-                (models.OperationTrip.operation_id == models.Operation.id) &
-                (models.OperationTrip.product == q_product)
-            )
-        )
-
     operations = fq.order_by(models.Operation.start_date.desc()).all()
+    op_ids    = [op.id for op in operations]
+    ops_by_id = {op.id: op for op in operations}
 
-    # Totals
-    total_ops    = len(operations)
-    total_trips  = sum(op.actual_trips  or 0 for op in operations)
-    total_neto   = sum(op.total_neto_kg or 0 for op in operations)
+    # ── list_rows: one row per OperationCargoSummary (multiproduct = multiple rows) ──
+    list_rows: list[dict] = []
+    op_ids_with_cs: set   = set()
 
-    # Build products_map and clients_map (one query each, avoids N+1)
-    op_ids = [op.id for op in operations]
-    products_map: dict[int, list[str]] = {}
-    clients_map:  dict[int, list[str]] = {}
     if op_ids:
-        prod_rows = (
-            db.query(models.OperationTrip.operation_id, models.OperationTrip.product)
-            .filter(
-                models.OperationTrip.operation_id.in_(op_ids),
-                models.OperationTrip.product.isnot(None),
-            )
-            .distinct()
-            .all()
-        )
-        tmp: dict = defaultdict(list)
-        for oid, prod in prod_rows:
-            tmp[oid].append(prod)
-        products_map = {oid: sorted(prods) for oid, prods in tmp.items()}
-
-        cli_rows = (
-            db.query(models.OperationTrip.operation_id, models.OperationTrip.client)
-            .filter(
-                models.OperationTrip.operation_id.in_(op_ids),
-                models.OperationTrip.client.isnot(None),
-            )
-            .distinct()
-            .all()
-        )
-        tmp2: dict = defaultdict(list)
-        for oid, cli in cli_rows:
-            tmp2[oid].append(cli)
-        clients_map = {oid: sorted(clis) for oid, clis in tmp2.items()}
-
-    # ── Discharge data per operation (cargo_summaries → legacy → trip fallback) ──
-    cargo_data: dict = {}   # op_id → {total_t, depot_t, cv_t, pct_cv, has_cv, has_summary}
-    if op_ids:
-        _cs_rows = (
+        cs_q = (
             db.query(models.OperationCargoSummary)
             .filter(models.OperationCargoSummary.operation_id.in_(op_ids))
-            .all()
         )
-        if _cs_rows:
-            _cs_by_op: dict = defaultdict(list)
-            for cs in _cs_rows:
-                _cs_by_op[cs.operation_id].append(cs)
-            for oid, rows in _cs_by_op.items():
-                total_t = sum(float(r.total_ship_kg or 0) for r in rows) / 1000
-                depot_t = sum(float(r.depot_kg      or 0) for r in rows) / 1000
-                cv_t    = sum(float(r.cv_kg          or 0) for r in rows) / 1000
-                cargo_data[oid] = {
-                    "total_t":    total_t,
-                    "depot_t":    depot_t,
-                    "cv_t":       cv_t,
-                    "pct_cv":     cv_t / total_t * 100 if total_t > 0 else 0.0,
-                    "has_cv":     cv_t > 0,
-                    "has_summary": True,
-                }
-        else:
-            _cv_rows_legacy = (
+        if q_client:
+            cs_q = cs_q.filter(models.OperationCargoSummary.client == q_client)
+        if q_product:
+            cs_q = cs_q.filter(models.OperationCargoSummary.product == q_product)
+        cs_rows = cs_q.order_by(
+            models.OperationCargoSummary.operation_id,
+            models.OperationCargoSummary.total_ship_kg.desc(),
+        ).all()
+
+        for cs in cs_rows:
+            op = ops_by_id.get(cs.operation_id)
+            if not op:
+                continue
+            op_ids_with_cs.add(cs.operation_id)
+            total_t = float(cs.total_ship_kg or 0) / 1000
+            depot_t = float(cs.depot_kg or 0) / 1000
+            cv_t    = float(cs.cv_kg or 0) / 1000
+            list_rows.append({
+                "op":          op,
+                "product":     cs.product,
+                "client":      cs.client,
+                "total_t":     total_t,
+                "depot_t":     depot_t,
+                "cv_t":        cv_t,
+                "pct_cv":      cv_t / total_t * 100 if total_t > 0 else 0.0,
+                "has_cv":      cv_t > 0,
+                "trip_count":  cs.trip_count,
+                "has_summary": True,
+            })
+
+    # ── Fallback for ops without cargo_summaries (skipped if client/product filter) ──
+    if not q_client and not q_product:
+        ops_without_cs = [op for op in operations if op.id not in op_ids_with_cs]
+        if ops_without_cs:
+            _leg_ids = [op.id for op in ops_without_cs]
+            _leg_rows = (
                 db.query(models.OperationProductTotal)
-                .filter(models.OperationProductTotal.operation_id.in_(op_ids))
+                .filter(models.OperationProductTotal.operation_id.in_(_leg_ids))
                 .all()
             )
-            _cv_by_op: dict = defaultdict(list)
-            for row in _cv_rows_legacy:
-                _cv_by_op[row.operation_id].append(row)
-            for oid, rows in _cv_by_op.items():
-                total_t = sum(float(r.total_discharged_tons or 0) for r in rows)
-                depot_t = sum(float(r.depot_tons            or 0) for r in rows)
-                cv_t    = sum(float(r.costado_vapor_tons    or 0) for r in rows)
-                cargo_data[oid] = {
-                    "total_t":    total_t,
-                    "depot_t":    depot_t,
-                    "cv_t":       cv_t,
-                    "pct_cv":     cv_t / total_t * 100 if total_t > 0 else 0.0,
-                    "has_cv":     cv_t > 0,
-                    "has_summary": True,
-                }
+            _leg_by_op: dict = defaultdict(list)
+            for r in _leg_rows:
+                _leg_by_op[r.operation_id].append(r)
 
-    # Trip-based fallback for ops without any discharge summary
-    for op in operations:
-        if op.id not in cargo_data:
-            depot_t = (op.total_neto_kg or 0) / 1000
-            cargo_data[op.id] = {
-                "total_t":    depot_t,
-                "depot_t":    depot_t,
-                "cv_t":       0.0,
-                "pct_cv":     0.0,
-                "has_cv":     False,
-                "has_summary": False,
-            }
+            for op in ops_without_cs:
+                if op.id in _leg_by_op:
+                    for r in _leg_by_op[op.id]:
+                        total_t = float(r.total_discharged_tons or 0)
+                        depot_t = float(r.depot_tons or 0)
+                        cv_t    = float(r.costado_vapor_tons or 0)
+                        list_rows.append({
+                            "op":          op,
+                            "product":     r.product or "(sin producto)",
+                            "client":      None,
+                            "total_t":     total_t,
+                            "depot_t":     depot_t,
+                            "cv_t":        cv_t,
+                            "pct_cv":      cv_t / total_t * 100 if total_t > 0 else 0.0,
+                            "has_cv":      cv_t > 0,
+                            "trip_count":  op.actual_trips,
+                            "has_summary": True,
+                        })
+                else:
+                    depot_t = (op.total_neto_kg or 0) / 1000
+                    list_rows.append({
+                        "op":          op,
+                        "product":     op.product or "(sin producto)",
+                        "client":      op.client,
+                        "total_t":     depot_t,
+                        "depot_t":     depot_t,
+                        "cv_t":        0.0,
+                        "pct_cv":      0.0,
+                        "has_cv":      False,
+                        "trip_count":  op.actual_trips,
+                        "has_summary": False,
+                    })
 
-    # Grand totals from cargo_data
-    grand_total_t = sum(d["total_t"] for d in cargo_data.values())
-    grand_depot_t = sum(d["depot_t"] for d in cargo_data.values())
-    grand_cv_t    = sum(d["cv_t"]    for d in cargo_data.values())
+    # Sort: op.start_date desc, then total_t desc within same op
+    list_rows.sort(
+        key=lambda r: (r["op"].start_date or datetime.min, r["total_t"]),
+        reverse=True,
+    )
+
+    # Grand totals
+    grand_total_t = sum(r["total_t"] for r in list_rows)
+    grand_depot_t = sum(r["depot_t"] for r in list_rows)
+    grand_cv_t    = sum(r["cv_t"]    for r in list_rows)
     grand_pct_cv  = grand_cv_t / grand_total_t * 100 if grand_total_t > 0 else 0.0
+    total_trips   = sum(r["trip_count"] or 0 for r in list_rows)
+    total_ops     = len({r["op"].id for r in list_rows})
 
-    # Unique filter options sourced from trips (catches multi-product ops)
-    all_products = sorted(set(
-        r[0] for r in db.query(models.OperationTrip.product)
-        .filter(models.OperationTrip.product.isnot(None)).distinct().all()
-    ))
-    all_clients = sorted(set(
-        r[0] for r in db.query(models.OperationTrip.client)
-        .filter(models.OperationTrip.client.isnot(None)).distinct().all()
-    ))
+    # Filter dropdown options from cargo_summaries (not trips)
+    all_products = sorted({
+        r[0] for r in db.query(models.OperationCargoSummary.product)
+        .filter(models.OperationCargoSummary.product.isnot(None)).distinct().all()
+    })
+    all_clients = sorted({
+        r[0] for r in db.query(models.OperationCargoSummary.client)
+        .filter(models.OperationCargoSummary.client.isnot(None)).distinct().all()
+    })
 
     params = {
         "ship": q_ship, "client": q_client, "product": q_product,
@@ -282,20 +265,16 @@ async def list_operations(
 
     return templates.TemplateResponse(request, "operations/list.html", {
         "user":          current_user,
-        "operations":    operations,
+        "list_rows":     list_rows,
         "params":        params,
         "total_ops":     total_ops,
         "total_trips":   total_trips,
         "all_clients":   all_clients,
         "all_products":  all_products,
-        "products_map":  products_map,
-        "clients_map":   clients_map,
-        "cargo_data":    cargo_data,
         "grand_total_t": grand_total_t,
         "grand_depot_t": grand_depot_t,
         "grand_cv_t":    grand_cv_t,
         "grand_pct_cv":  grand_pct_cv,
-        "total_neto":    total_neto,   # keep as secondary / legacy
     })
 
 
@@ -328,21 +307,6 @@ async def operations_dashboard(
             fq = fq.filter(models.Operation.start_date <= datetime.strptime(q_date_to + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
         except ValueError:
             pass
-    if q_client:
-        fq = fq.filter(
-            exists().where(
-                (models.OperationTrip.operation_id == models.Operation.id) &
-                (models.OperationTrip.client == q_client)
-            )
-        )
-    if q_product:
-        fq = fq.filter(
-            exists().where(
-                (models.OperationTrip.operation_id == models.Operation.id) &
-                (models.OperationTrip.product == q_product)
-            )
-        )
-
     all_ops = fq.order_by(models.Operation.start_date).all()
 
     # Trips only from filtered operations
@@ -426,6 +390,16 @@ async def operations_dashboard(
                 "client":  op.client,
             })
 
+    # Apply client/product filter at cargo-summary level (not trip level)
+    if q_client:
+        _cs_norm = [d for d in _cs_norm if d["client"] == q_client]
+    if q_product:
+        _cs_norm = [d for d in _cs_norm if d["product"] == q_product]
+    # Restrict trip-based stats to operations present in the filtered cs_norm
+    if (q_client or q_product) and all_trips:
+        _filt_op_ids = {d["operation_id"] for d in _cs_norm}
+        all_trips = [t for t in all_trips if t.operation_id in _filt_op_ids]
+
     # Per-op aggregates
     _op_cs: dict = _dd(lambda: {"total_t": 0.0, "depot_t": 0.0, "cv_t": 0.0})
     for d in _cs_norm:
@@ -476,15 +450,15 @@ async def operations_dashboard(
     total_product_t = sum(v["total_t"] for v in _cs_prod_stats.values())
     total_client_t  = sum(v["total_t"] for v in _cs_client_stats.values())
 
-    # Filter options for dropdowns (always full list)
-    all_products = sorted(set(
-        r[0] for r in db.query(models.OperationTrip.product)
-        .filter(models.OperationTrip.product.isnot(None)).distinct().all()
-    ))
-    all_clients = sorted(set(
-        r[0] for r in db.query(models.OperationTrip.client)
-        .filter(models.OperationTrip.client.isnot(None)).distinct().all()
-    ))
+    # Filter options for dropdowns (from cargo_summaries, not trips)
+    all_products = sorted({
+        r[0] for r in db.query(models.OperationCargoSummary.product)
+        .filter(models.OperationCargoSummary.product.isnot(None)).distinct().all()
+    })
+    all_clients = sorted({
+        r[0] for r in db.query(models.OperationCargoSummary.client)
+        .filter(models.OperationCargoSummary.client.isnot(None)).distinct().all()
+    })
 
     params = {
         "client": q_client, "product": q_product, "op_type": q_op_type,
