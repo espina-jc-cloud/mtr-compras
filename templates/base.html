@@ -65,16 +65,16 @@
         <!-- Inicio -->
         <a href="/dashboard" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Inicio</a>
 
-        <!-- Grupo Compras -->
-        {% if user.role not in ("tecnico",) %}
+        <!-- Grupo Compras (oculto a tecnico y operador) -->
+        {% if user.role not in ("tecnico", "operador") %}
         <span class="nav-sep"></span>
         <a href="/purchases" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Compras</a>
         <a href="/quotes" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Cotizaciones</a>
         <a href="/suppliers" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Proveedores</a>
         {% endif %}
 
-        <!-- Grupo Mantenimiento + Combustible -->
-        {% if user.role not in ("tecnico",) %}
+        <!-- Grupo Mantenimiento + Equipos (oculto a operador) -->
+        {% if user.role not in ("operador",) %}
         <span class="nav-sep"></span>
         <a href="/maintenance" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Mantenimiento</a>
         <a href="/equipment" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Equipos</a>

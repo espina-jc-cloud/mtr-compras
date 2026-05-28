@@ -35,7 +35,14 @@ def require_role(*roles):
 
 
 def require_compras_access(current_user=Depends(get_current_user)):
-    """Bloquea el rol 'tecnico' de ver módulos de compras/cotizaciones/proveedores."""
-    if current_user.role == "tecnico":
-        raise HTTPException(status_code=403, detail="Los técnicos solo tienen acceso al módulo de mantenimiento.")
+    """Bloquea tecnico y operador de ver módulos de compras/cotizaciones/proveedores."""
+    if current_user.role in ("tecnico", "operador"):
+        raise HTTPException(status_code=403, detail="Sin acceso al módulo de compras.")
+    return current_user
+
+
+def require_no_operador(current_user=Depends(get_current_user)):
+    """Bloquea operador de módulos que no son combustible: mantenimiento, equipos."""
+    if current_user.role == "operador":
+        raise HTTPException(status_code=403, detail="Sin acceso a este módulo.")
     return current_user

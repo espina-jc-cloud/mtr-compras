@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user, require_role, require_no_operador
 from app import models
 from app.templates import templates
 
@@ -13,7 +13,7 @@ try:
 except Exception:
     CLOUDINARY_AVAILABLE = False
 
-router = APIRouter(prefix="/maintenance")
+router = APIRouter(prefix="/maintenance", dependencies=[Depends(require_no_operador)])
 
 PLANTS = ["MTR1", "MTR2"]
 AREAS = [

@@ -4,11 +4,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_compras_access
+from app.deps import get_current_user, require_role, require_compras_access, require_no_operador
 from app import models
 from app.templates import templates
 
-router = APIRouter(prefix="/suppliers")
+router = APIRouter(prefix="/suppliers", dependencies=[Depends(require_no_operador)])
 
 STATUSES = ["pendiente", "aprobada", "recibida", "facturada", "pagada", "rechazada", "cancelada"]
 

@@ -3,11 +3,11 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user, require_role, require_no_operador
 from app import models
 from app.templates import templates
 
-router = APIRouter(prefix="/equipment")
+router = APIRouter(prefix="/equipment", dependencies=[Depends(require_no_operador)])
 
 PLANTS = ["MTR1", "MTR2"]
 CATEGORIES = ["fijo", "flota", "infraestructura"]

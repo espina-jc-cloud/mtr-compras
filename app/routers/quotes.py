@@ -5,12 +5,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_compras_access
+from app.deps import get_current_user, require_role, require_compras_access, require_no_operador
 from app import models
 from app.templates import templates
 from app.cloudinary_upload import upload_file
 
-router = APIRouter(prefix="/quotes")
+router = APIRouter(prefix="/quotes", dependencies=[Depends(require_no_operador)])
 
 AREAS = ["Mantenimiento", "Producción", "Logística", "Administración", "Seguridad", "Limpieza", "Otros"]
 PLANTS = ["MTR1", "MTR2"]
