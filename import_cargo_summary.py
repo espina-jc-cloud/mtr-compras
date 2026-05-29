@@ -209,6 +209,7 @@ def match_operation(rec: dict, all_ops) -> tuple:
 def run(xlsx_path: str, source_file: str, commit: bool):
     from app.database import SessionLocal
     from app import models
+    from sqlalchemy import func
 
     print(f"Excel:       {xlsx_path}")
     print(f"Source file: {source_file}")
@@ -232,12 +233,16 @@ def run(xlsx_path: str, source_file: str, commit: bool):
             op_id, match_status = match_operation(rec, all_ops)
 
             # Check for trip_count discrepancy vs per-product DB trip count
+            # Uses normalize_product so "TRIPLE" matches "TRIPLE (STP)" in trips.
             notes = rec["notes"] or ""
             if op_id and rec["trip_count"]:
-                db_product_trips = db.query(models.OperationTrip).filter(
-                    models.OperationTrip.operation_id == op_id,
-                    models.OperationTrip.product == rec["product"],
-                ).count()
+                from app.product_normalize import normalize_product as _np
+                _rec_norm = _np(rec["product"])
+                # Load all per-product counts for this op and sum those that normalize to the same canonical
+                _trip_rows = db.query(models.OperationTrip.product, func.count(models.OperationTrip.id)).filter(
+                    models.OperationTrip.operation_id == op_id
+                ).group_by(models.OperationTrip.product).all()
+                db_product_trips = sum(cnt for prod, cnt in _trip_rows if _np(prod) == _rec_norm)
                 if db_product_trips > 0:
                     diff = abs(rec["trip_count"] - db_product_trips)
                     if diff > 0:

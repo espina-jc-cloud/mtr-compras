@@ -16,6 +16,7 @@ from app import models
 
 _OPERATIONS_ROLES = ("admin", "superadmin")
 from app.templates import templates
+from app.product_normalize import normalize_product
 
 router     = APIRouter(prefix="/operations")
 api_router = APIRouter(prefix="/api/operations")
@@ -213,12 +214,14 @@ async def list_operations(
         )
         if q_client:
             cs_q = cs_q.filter(models.OperationCargoSummary.client == q_client)
-        if q_product:
-            cs_q = cs_q.filter(models.OperationCargoSummary.product == q_product)
         cs_rows = cs_q.order_by(
             models.OperationCargoSummary.operation_id,
             models.OperationCargoSummary.total_ship_kg.desc(),
         ).all()
+        # Product filter: normalize both sides so "TRIPLE" matches "TRIPLE (STP)" etc.
+        if q_product:
+            _q_prod_norm = normalize_product(q_product)
+            cs_rows = [cs for cs in cs_rows if normalize_product(cs.product) == _q_prod_norm]
 
         for cs in cs_rows:
             op = ops_by_id.get(cs.operation_id)
@@ -477,7 +480,8 @@ async def operations_dashboard(
     if q_client:
         _cs_norm = [d for d in _cs_norm if d["client"] == q_client]
     if q_product:
-        _cs_norm = [d for d in _cs_norm if d["product"] == q_product]
+        _q_prod_norm_dash = normalize_product(q_product)
+        _cs_norm = [d for d in _cs_norm if normalize_product(d["product"]) == _q_prod_norm_dash]
     # Restrict trip-based stats to operations present in the filtered cs_norm
     if (q_client or q_product) and all_trips:
         _filt_op_ids = {d["operation_id"] for d in _cs_norm}
@@ -614,9 +618,11 @@ async def operation_detail(
         .filter(models.OperationTrip.operation_id == op_id)
         .order_by(models.OperationTrip.entry_date)
     )
-    if filter_product:
-        trips_q = trips_q.filter(models.OperationTrip.product == filter_product)
     trips = trips_q.all()
+    # Filter by product using normalization (so "TRIPLE" matches "TRIPLE (STP)" etc.)
+    if filter_product:
+        _fp_norm = normalize_product(filter_product)
+        trips = [t for t in trips if normalize_product(t.product) == _fp_norm]
 
     # Pre-compute rhythm (may be overridden to None if has_cv, done later in context)
     _rhythm = _calc_rhythm_from_trips(trips)
@@ -643,9 +649,11 @@ async def operation_detail(
         .filter(models.OperationCargoSummary.operation_id == op_id)
         .order_by(models.OperationCargoSummary.total_ship_kg.desc())
     )
-    if filter_product:
-        cs_q = cs_q.filter(models.OperationCargoSummary.product == filter_product)
     cargo_summaries = cs_q.all()
+    # Filter cargo_summaries with normalization (same logic as trips filter above)
+    if filter_product:
+        cargo_summaries = [cs for cs in cargo_summaries
+                           if normalize_product(cs.product) == _fp_norm]
 
     if cargo_summaries:
         has_cv = any(cs.cv_kg and float(cs.cv_kg) > 0 for cs in cargo_summaries)
@@ -719,6 +727,18 @@ async def operation_detail(
         if cs.notes and not cs.notes.startswith("100% Costado Vapor")
     ]
 
+    # Display helpers for filtered views
+    # When a product filter is active, use the CS product name for display
+    # (e.g. "TRIPLE" not op.product which may say "MAP")
+    if filter_product and cargo_summaries:
+        display_product = cargo_summaries[0].product  # canonical CS name
+    elif filter_product:
+        display_product = filter_product
+    else:
+        display_product = None  # template falls back to op.product / breakdown
+
+    actual_trips_display = len(trips)  # always reflect the (possibly filtered) trip list
+
     # Rhythm: only for depot-only ops (no CV)
     rhythm_t_h        = _rhythm.get("t_per_h")   if not has_cv else None
     rhythm_duration_h = _rhythm.get("duration_h") if not has_cv else None
@@ -741,6 +761,8 @@ async def operation_detail(
         "cargo_notes_info":      cargo_notes_info,
         "cargo_notes_warnings":  cargo_notes_warnings,
         "filter_product":        filter_product,
+        "display_product":       display_product,
+        "actual_trips_display":  actual_trips_display,
         "rhythm_t_h":            rhythm_t_h,
         "rhythm_duration_h":     rhythm_duration_h,
         "rhythm_first_dt":       rhythm_first_dt,
