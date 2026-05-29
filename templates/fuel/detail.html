@@ -11,7 +11,7 @@
     </a>
     <div class="flex-1">
       <h1 class="text-lg font-semibold text-gray-900">Carga #{{ load.id }}</h1>
-      <p class="text-xs text-gray-500">{{ load.fuel_date | fmt_ar("%d/%m/%Y") }} · Cargado el {{ load.created_at | fmt_ar("%d/%m/%y %H:%M") }}</p>
+      <p class="text-xs text-gray-500">{{ load.fuel_date | fmt_date("%d/%m/%Y") }} · Cargado el {{ load.created_at | fmt_ar("%d/%m/%y %H:%M") }}</p>
     </div>
     {% if can_edit %}
     <a href="/fuel/{{ load.id }}/edit"

@@ -10,6 +10,16 @@ def _fmt_ar(dt, fmt="%d/%m/%Y %H:%M"):
         return ""
     return (dt.replace(tzinfo=timezone.utc) + _BAS_OFFSET).strftime(fmt)
 
+def _fmt_date(dt, fmt="%d/%m/%Y"):
+    """Render a date/datetime as a pure local date (no timezone shift).
+    Use this for date-only fields (fuel_date, work_date, purchase_date) to
+    avoid the UTC-3 off-by-one that fmt_ar produces on midnight timestamps."""
+    if dt is None:
+        return ""
+    if hasattr(dt, "date"):
+        return dt.date().strftime(fmt)
+    return dt.strftime(fmt)
+
 # Crear el Environment con el filtro pre-registrado antes de compilar cualquier template
 _env = Environment(
     loader=FileSystemLoader("templates"),
@@ -27,7 +37,8 @@ def _fmt_num(value, decimals=0):
     except (TypeError, ValueError):
         return str(value)
 
-_env.filters["fmt_ar"] = _fmt_ar
-_env.filters["fmt_num"] = _fmt_num
+_env.filters["fmt_ar"]   = _fmt_ar
+_env.filters["fmt_num"]  = _fmt_num
+_env.filters["fmt_date"] = _fmt_date
 
 templates = Jinja2Templates(env=_env)

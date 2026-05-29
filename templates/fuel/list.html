@@ -124,7 +124,7 @@
           </span>
         </div>
         <p class="font-bold text-gray-900 text-base">{{ r.vehicle_plate }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">{{ r.responsible_text }} · {{ r.fuel_date | fmt_ar("%d/%m/%y") }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">{{ r.responsible_text }} · {{ r.fuel_date | fmt_date("%d/%m/%y") }}</p>
         {% if r.order_number %}
         <p class="text-xs text-gray-400 mt-0.5">Orden #{{ r.order_number }}</p>
         {% endif %}
@@ -174,7 +174,7 @@
       <tbody class="divide-y divide-gray-50">
         {% for r in loads %}
         <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/fuel/{{ r.id }}'">
-          <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ r.fuel_date | fmt_ar("%d/%m/%y") }}</td>
+          <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ r.fuel_date | fmt_date("%d/%m/%y") }}</td>
           <td class="px-4 py-3 font-bold text-gray-900">{{ r.vehicle_plate }}</td>
           <td class="px-4 py-3">
             <span class="text-xs font-bold px-2 py-0.5 rounded-full

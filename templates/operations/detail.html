@@ -60,7 +60,13 @@
   </div>
   <div>
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Ritmo (t/h)</p>
-    <p class="font-semibold text-gray-800 mt-0.5">{% if op.avg_tons_per_hour %}{{ op.avg_tons_per_hour | fmt_num(1) }} t/h{% else %}—{% endif %}</p>
+    {% if has_cv %}
+    <p class="font-semibold text-gray-400 mt-0.5 text-xs" title="Ritmo no disponible: el operativo incluye Costado Vapor y no se registran viajes individuales de CV.">Sin ritmo — incluye CV</p>
+    {% elif op.avg_tons_per_hour %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+    {% else %}
+    <p class="font-semibold text-gray-800 mt-0.5">—</p>
+    {% endif %}
   </div>
   <div>
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Diferencia neta</p>
@@ -198,7 +204,7 @@
           <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Viajes</th>
           <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Toneladas</th>
           <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right">Diferencia</th>
-          <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right hidden md:table-cell">t/h est.</th>
+          {% if not has_cv %}<th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right hidden md:table-cell">t/h est.</th>{% endif %}
           <th class="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase text-right hidden md:table-cell">Dur. prom.</th>
         </tr>
       </thead>
@@ -218,9 +224,11 @@
             {% if s.diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %}">
             {% if s.diff_kg > 0 %}+{% endif %}{{ (s.diff_kg / 1000) | fmt_num(2) }} t
           </td>
+          {% if not has_cv %}
           <td class="px-4 py-3 text-right text-indigo-700 font-medium hidden md:table-cell">
             {% if s.t_per_h %}{{ s.t_per_h | fmt_num(1) }}{% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>
+          {% endif %}
           <td class="px-4 py-3 text-right text-gray-400 text-xs hidden md:table-cell">
             {% if s.avg_duration_min %}{{ s.avg_duration_min | fmt_num(0) }} min{% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>

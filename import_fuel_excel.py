@@ -28,6 +28,10 @@ models.Base.metadata.create_all(bind=engine)
 FUEL_TYPE_MAP = {
     "gas oil premium": "gasoil_premium",
     "gasoil premium":  "gasoil_premium",
+    "gasoil comun":    "gasoil_comun",
+    "gasoil común":    "gasoil_comun",
+    "gas oil comun":   "gasoil_comun",
+    "gas oil común":   "gasoil_comun",
     "gasoil":          "gasoil_premium",
     "gas oil":         "gasoil_premium",
     "nafta premium":   "nafta_premium",

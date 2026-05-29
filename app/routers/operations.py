@@ -322,12 +322,7 @@ async def operations_dashboard(
     total_neto   = sum(op.total_neto_kg or 0 for op in all_ops)
     total_trips  = sum(op.actual_trips  or 0 for op in all_ops)
 
-    # Top 5 by avg t/h
-    top_by_th = sorted(
-        [o for o in all_ops if o.avg_tons_per_hour],
-        key=lambda o: _float(o.avg_tons_per_hour),
-        reverse=True
-    )[:5]
+    # top_by_th is built later (after _op_cs) to exclude ops with CV
 
     # Shift distribution
     shift_stats = {k: {"label": SHIFT_LABELS[k], "trips": 0, "neto_kg": 0} for k in (1, 2, 3, 4)}
@@ -406,6 +401,13 @@ async def operations_dashboard(
         _op_cs[d["operation_id"]]["total_t"] += d["total_t"]
         _op_cs[d["operation_id"]]["depot_t"] += d["depot_t"]
         _op_cs[d["operation_id"]]["cv_t"]    += d["cv_t"]
+
+    # Top 5 by avg t/h — exclude ops that have any CV (rate is misleading)
+    top_by_th = sorted(
+        [o for o in all_ops if o.avg_tons_per_hour and _op_cs[o.id]["cv_t"] == 0],
+        key=lambda o: _float(o.avg_tons_per_hour),
+        reverse=True
+    )[:5]
 
     # Grand totals
     total_discharged_t = sum(v["total_t"] for v in _op_cs.values())

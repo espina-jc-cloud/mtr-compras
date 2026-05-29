@@ -26,6 +26,7 @@ except Exception:
 router = APIRouter(prefix="/fuel")
 
 FUEL_TYPES = {
+    "gasoil_comun":   "Gasoil Común",
     "gasoil_premium": "Gasoil Premium",
     "nafta":          "Nafta",
     "nafta_premium":  "Nafta Premium",
