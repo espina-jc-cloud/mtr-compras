@@ -231,14 +231,17 @@ def run(xlsx_path: str, source_file: str, commit: bool):
         for rec in records:
             op_id, match_status = match_operation(rec, all_ops)
 
-            # Check for trip_count discrepancy vs matched Operation
+            # Check for trip_count discrepancy vs per-product DB trip count
             notes = rec["notes"] or ""
-            if op_id:
-                op = next((o for o in all_ops if o.id == op_id), None)
-                if op and rec["trip_count"] and op.actual_trips:
-                    diff = abs(rec["trip_count"] - op.actual_trips)
+            if op_id and rec["trip_count"]:
+                db_product_trips = db.query(models.OperationTrip).filter(
+                    models.OperationTrip.operation_id == op_id,
+                    models.OperationTrip.product == rec["product"],
+                ).count()
+                if db_product_trips > 0:
+                    diff = abs(rec["trip_count"] - db_product_trips)
                     if diff > 0:
-                        note = f"trip_count discrepancy: Excel={rec['trip_count']} DB={op.actual_trips}"
+                        note = f"trip_count discrepancy: Excel={rec['trip_count']} DB={db_product_trips}"
                         notes = (notes + "; " + note).strip("; ")
                         warnings.append(f"  ⚠  {rec['ship_name']} {rec['product']}: {note}")
 

@@ -3,6 +3,7 @@ Módulo Operativos portuarios — MTR Gestión
 """
 from datetime import datetime
 from collections import defaultdict
+from urllib.parse import quote as _url_quote
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -239,6 +240,17 @@ async def list_operations(
         key=lambda r: (r["op"].start_date or datetime.min, r["total_t"]),
         reverse=True,
     )
+
+    # Mark multiproduct rows and build detail URLs
+    _op_row_counts: dict = defaultdict(int)
+    for r in list_rows:
+        _op_row_counts[r["op"].id] += 1
+    for r in list_rows:
+        r["is_multiproduct"] = _op_row_counts[r["op"].id] > 1
+        if r["is_multiproduct"]:
+            r["detail_url"] = f"/operations/{r['op'].id}?product={_url_quote(r['product'] or '')}"
+        else:
+            r["detail_url"] = f"/operations/{r['op'].id}"
 
     # Grand totals
     grand_total_t = sum(r["total_t"] for r in list_rows)
@@ -505,16 +517,20 @@ async def operation_detail(
     db: Session = Depends(get_db),
     current_user=Depends(require_role(*_OPERATIONS_ROLES)),
 ):
+    filter_product: str = request.query_params.get("product", "").strip()
+
     op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
     if not op:
         raise HTTPException(status_code=404)
 
-    trips = (
+    trips_q = (
         db.query(models.OperationTrip)
         .filter(models.OperationTrip.operation_id == op_id)
         .order_by(models.OperationTrip.entry_date)
-        .all()
     )
+    if filter_product:
+        trips_q = trips_q.filter(models.OperationTrip.product == filter_product)
+    trips = trips_q.all()
 
     shifts = _compute_shift_stats(trips)
 
@@ -533,12 +549,14 @@ async def operation_detail(
     # CV breakdown — new model first, fallback to legacy OperationProductTotal
     _DEPOT_ALIASES = {"MOP": "CLORURO DE POTASIO", "AMSUL": "SULFATO DE AMONIO"}
 
-    cargo_summaries = (
+    cs_q = (
         db.query(models.OperationCargoSummary)
         .filter(models.OperationCargoSummary.operation_id == op_id)
         .order_by(models.OperationCargoSummary.total_ship_kg.desc())
-        .all()
     )
+    if filter_product:
+        cs_q = cs_q.filter(models.OperationCargoSummary.product == filter_product)
+    cargo_summaries = cs_q.all()
 
     if cargo_summaries:
         has_cv = any(cs.cv_kg and float(cs.cv_kg) > 0 for cs in cargo_summaries)
@@ -627,6 +645,7 @@ async def operation_detail(
         "cargo_summaries":       cargo_summaries,
         "cargo_notes_info":      cargo_notes_info,
         "cargo_notes_warnings":  cargo_notes_warnings,
+        "filter_product":        filter_product,
     })
 
 
