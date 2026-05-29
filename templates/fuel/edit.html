@@ -63,11 +63,11 @@
     <!-- Tipo combustible -->
     <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
       <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tipo de combustible</p>
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 gap-2">
         {% for key, label in fuel_types.items() %}
         <label class="fuel-btn cursor-pointer rounded-xl border-2 py-3 px-1 text-center font-semibold text-xs transition-all
           {% if load.fuel_type == key %}
-            {{ 'border-amber-500 bg-amber-500 text-white' if key == 'gasoil_premium' else 'border-emerald-500 bg-emerald-500 text-white' if key == 'nafta' else 'border-purple-500 bg-purple-500 text-white' }}
+            {{ 'border-blue-500 bg-blue-500 text-white' if key == 'gasoil_comun' else 'border-amber-500 bg-amber-500 text-white' if key == 'gasoil_premium' else 'border-emerald-500 bg-emerald-500 text-white' if key == 'nafta' else 'border-purple-500 bg-purple-500 text-white' }}
           {% else %}
             border-gray-200 text-gray-600
           {% endif %}"
@@ -228,6 +228,7 @@ function updatePlantButtons() {
 }
 // Fuel type toggle
 const fuelColors = {
+  gasoil_comun:   ['border-blue-500','bg-blue-500','text-white'],
   gasoil_premium: ['border-amber-500','bg-amber-500','text-white'],
   nafta:          ['border-emerald-500','bg-emerald-500','text-white'],
   nafta_premium:  ['border-purple-500','bg-purple-500','text-white'],

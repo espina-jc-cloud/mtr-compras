@@ -117,7 +117,8 @@
           </span>
           <!-- Tipo combustible badge -->
           <span class="text-xs font-medium px-2 py-0.5 rounded-full
-            {% if r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
+            {% if r.fuel_type == 'gasoil_comun' %}bg-blue-50 text-blue-700
+            {% elif r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
             {% elif r.fuel_type == 'nafta' %}bg-emerald-50 text-emerald-700
             {% else %}bg-purple-50 text-purple-700{% endif %}">
             {{ fuel_types[r.fuel_type] if r.fuel_type in fuel_types else r.fuel_type }}
@@ -187,7 +188,8 @@
           </td>
           <td class="px-4 py-3">
             <span class="text-xs font-medium px-2 py-0.5 rounded-full
-              {% if r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
+              {% if r.fuel_type == 'gasoil_comun' %}bg-blue-50 text-blue-700
+              {% elif r.fuel_type == 'gasoil_premium' %}bg-amber-50 text-amber-700
               {% elif r.fuel_type == 'nafta' %}bg-emerald-50 text-emerald-700
               {% else %}bg-purple-50 text-purple-700{% endif %}">
               {{ fuel_types[r.fuel_type] if r.fuel_type in fuel_types else r.fuel_type }}

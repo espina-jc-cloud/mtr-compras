@@ -44,7 +44,8 @@
       </span>
       {% endif %}
       <span class="font-medium px-3 py-1 rounded-full text-sm
-        {% if load.fuel_type == 'gasoil_premium' %}bg-amber-100 text-amber-700
+        {% if load.fuel_type == 'gasoil_comun' %}bg-blue-100 text-blue-700
+        {% elif load.fuel_type == 'gasoil_premium' %}bg-amber-100 text-amber-700
         {% elif load.fuel_type == 'nafta' %}bg-emerald-100 text-emerald-700
         {% else %}bg-purple-100 text-purple-700{% endif %}">
         {{ fuel_types[load.fuel_type] if load.fuel_type in fuel_types else load.fuel_type }}
