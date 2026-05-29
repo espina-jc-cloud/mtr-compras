@@ -1,7 +1,7 @@
 """
 Módulo Operativos portuarios — MTR Gestión
 """
-from datetime import datetime
+from datetime import datetime, date as _date, time as _time, timedelta
 from collections import defaultdict
 from urllib.parse import quote as _url_quote
 
@@ -19,6 +19,59 @@ from app.templates import templates
 
 router     = APIRouter(prefix="/operations")
 api_router = APIRouter(prefix="/api/operations")
+
+def _build_datetime(d, t_str: str | None) -> datetime | None:
+    """Combine a date/datetime column value with a 'HH:MM:SS' time string."""
+    if d is None:
+        return None
+    if hasattr(d, "date"):
+        d = d.date()
+    elif isinstance(d, datetime):
+        d = d.date()
+    try:
+        if t_str:
+            parts = t_str.split(":")
+            h = int(parts[0])
+            m = int(parts[1]) if len(parts) > 1 else 0
+            s = int(float(parts[2])) if len(parts) > 2 else 0
+            return datetime.combine(d, _time(h, m, s))
+        return datetime.combine(d, _time(0, 0, 0))
+    except Exception:
+        return datetime.combine(d, _time(0, 0, 0))
+
+
+def _calc_rhythm_from_trips(trips) -> dict:
+    """
+    Compute real depot discharge rhythm from trip entry/exit times.
+    Combines entry_date (date part) + entry_time ('HH:MM:SS' string) for precision.
+    Returns dict: first_dt, last_dt, duration_h, total_depot_t, t_per_h (all None if insufficient).
+    """
+    result: dict = {"first_dt": None, "last_dt": None,
+                    "duration_h": None, "total_depot_t": None, "t_per_h": None}
+    entry_dts = []
+    exit_dts  = []
+    total_kg  = 0
+    for t in trips:
+        ed = _build_datetime(getattr(t, "entry_date", None), getattr(t, "entry_time", None))
+        if ed:
+            entry_dts.append(ed)
+        xd = _build_datetime(getattr(t, "exit_date", None), getattr(t, "exit_time", None))
+        if xd:
+            exit_dts.append(xd)
+        total_kg += getattr(t, "neto_kg", None) or 0
+    if not entry_dts or not exit_dts or total_kg <= 0:
+        return result
+    first_dt   = min(entry_dts)
+    last_dt    = max(exit_dts)
+    duration_h = (last_dt - first_dt).total_seconds() / 3600
+    result["first_dt"]      = first_dt
+    result["last_dt"]       = last_dt
+    result["duration_h"]    = round(duration_h, 2)
+    result["total_depot_t"] = round(total_kg / 1000, 3)
+    if duration_h > 0:
+        result["t_per_h"] = round(total_kg / 1000 / duration_h, 3)
+    return result
+
 
 SHIFT_LABELS = {
     1: "Turno 1 (00-06)",
@@ -252,6 +305,29 @@ async def list_operations(
         else:
             r["detail_url"] = f"/operations/{r['op'].id}"
 
+    # Compute correct rhythm from actual trip timestamps (not stored avg_tons_per_hour)
+    _op_rhythm_list: dict = {}
+    if op_ids:
+        _trip_thin = (
+            db.query(
+                models.OperationTrip.operation_id,
+                models.OperationTrip.entry_date,
+                models.OperationTrip.entry_time,
+                models.OperationTrip.exit_date,
+                models.OperationTrip.exit_time,
+                models.OperationTrip.neto_kg,
+            )
+            .filter(models.OperationTrip.operation_id.in_(op_ids))
+            .all()
+        )
+        _tbo: dict = defaultdict(list)
+        for row in _trip_thin:
+            _tbo[row.operation_id].append(row)
+        for oid, rows in _tbo.items():
+            _op_rhythm_list[oid] = _calc_rhythm_from_trips(rows).get("t_per_h")
+    for r in list_rows:
+        r["rhythm_t_h"] = None if r["has_cv"] else _op_rhythm_list.get(r["op"].id)
+
     # Grand totals
     grand_total_t = sum(r["total_t"] for r in list_rows)
     grand_depot_t = sum(r["depot_t"] for r in list_rows)
@@ -414,12 +490,22 @@ async def operations_dashboard(
         _op_cs[d["operation_id"]]["depot_t"] += d["depot_t"]
         _op_cs[d["operation_id"]]["cv_t"]    += d["cv_t"]
 
-    # Top 5 by avg t/h — exclude ops that have any CV (rate is misleading)
+    # Compute correct rhythm per op from actual trip timestamps
+    _trips_by_op_d: dict = defaultdict(list)
+    for t in all_trips:
+        _trips_by_op_d[t.operation_id].append(t)
+    _op_rhythm_dash: dict = {}
+    for oid, tlist in _trips_by_op_d.items():
+        _op_rhythm_dash[oid] = _calc_rhythm_from_trips(tlist).get("t_per_h")
+
+    # Top 5 by t/h — exclude ops that have any CV (rate is misleading / partial)
     top_by_th = sorted(
-        [o for o in all_ops if o.avg_tons_per_hour and _op_cs[o.id]["cv_t"] == 0],
-        key=lambda o: _float(o.avg_tons_per_hour),
+        [o for o in all_ops if _op_rhythm_dash.get(o.id) and _op_cs[o.id]["cv_t"] == 0],
+        key=lambda o: _op_rhythm_dash.get(o.id, 0),
         reverse=True
     )[:5]
+    for o in top_by_th:
+        o._rhythm_t_h = _op_rhythm_dash.get(o.id, 0)
 
     # Grand totals
     total_discharged_t = sum(v["total_t"] for v in _op_cs.values())
@@ -532,6 +618,9 @@ async def operation_detail(
         trips_q = trips_q.filter(models.OperationTrip.product == filter_product)
     trips = trips_q.all()
 
+    # Pre-compute rhythm (may be overridden to None if has_cv, done later in context)
+    _rhythm = _calc_rhythm_from_trips(trips)
+
     shifts = _compute_shift_stats(trips)
 
     # Product breakdown (only shown when > 1 product)
@@ -630,6 +719,12 @@ async def operation_detail(
         if cs.notes and not cs.notes.startswith("100% Costado Vapor")
     ]
 
+    # Rhythm: only for depot-only ops (no CV)
+    rhythm_t_h        = _rhythm.get("t_per_h")   if not has_cv else None
+    rhythm_duration_h = _rhythm.get("duration_h") if not has_cv else None
+    rhythm_first_dt   = _rhythm.get("first_dt")   if not has_cv else None
+    rhythm_last_dt    = _rhythm.get("last_dt")    if not has_cv else None
+
     return templates.TemplateResponse(request, "operations/detail.html", {
         "user":                  current_user,
         "op":                    op,
@@ -646,6 +741,10 @@ async def operation_detail(
         "cargo_notes_info":      cargo_notes_info,
         "cargo_notes_warnings":  cargo_notes_warnings,
         "filter_product":        filter_product,
+        "rhythm_t_h":            rhythm_t_h,
+        "rhythm_duration_h":     rhythm_duration_h,
+        "rhythm_first_dt":       rhythm_first_dt,
+        "rhythm_last_dt":        rhythm_last_dt,
     })
 
 

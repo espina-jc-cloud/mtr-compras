@@ -120,8 +120,8 @@
         <p class="text-[11px] text-gray-500">{{ row.trip_count | fmt_num }} viajes</p>
         {% if row.has_cv %}
         <p class="text-[11px] font-semibold text-teal-600">{{ row.cv_t | fmt_num(1) }} t CV</p>
-        {% elif row.op.avg_tons_per_hour %}
-        <p class="text-[11px] font-semibold text-indigo-600">{{ row.op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+        {% elif row.rhythm_t_h %}
+        <p class="text-[11px] font-semibold text-indigo-600">{{ row.rhythm_t_h | fmt_num(1) }} t/h</p>
         {% endif %}
       </div>
     </div>
@@ -191,7 +191,7 @@
           </td>
           <td class="px-4 py-3 text-right font-semibold text-indigo-700 text-xs hidden lg:table-cell">
             {% if row.has_cv %}<span class="text-gray-300" title="Sin ritmo — incluye CV">—</span>
-            {% elif row.op.avg_tons_per_hour %}{{ row.op.avg_tons_per_hour | fmt_num(1) }}
+            {% elif row.rhythm_t_h %}{{ row.rhythm_t_h | fmt_num(1) }}
             {% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>
         </tr>

@@ -73,8 +73,9 @@
     <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Ritmo (t/h)</p>
     {% if has_cv %}
     <p class="font-semibold text-gray-400 mt-0.5 text-xs" title="Ritmo no disponible: el operativo incluye Costado Vapor y no se registran viajes individuales de CV.">Sin ritmo — incluye CV</p>
-    {% elif op.avg_tons_per_hour %}
-    <p class="font-semibold text-gray-800 mt-0.5">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+    {% elif rhythm_t_h %}
+    <p class="font-semibold text-gray-800 mt-0.5">{{ rhythm_t_h | fmt_num(1) }} t/h</p>
+    {% if rhythm_duration_h %}<p class="text-[10px] text-gray-400 mt-0.5">{{ rhythm_duration_h | fmt_num(1) }} h operación</p>{% endif %}
     {% else %}
     <p class="font-semibold text-gray-800 mt-0.5">—</p>
     {% endif %}

@@ -203,8 +203,8 @@
     </div>
     <div class="divide-y divide-gray-50">
       {% for op in top_by_th %}
-      {% set max_th = top_by_th[0].avg_tons_per_hour %}
-      {% set pct = ((op.avg_tons_per_hour / max_th) * 100) | round(0) if max_th and max_th > 0 else 0 %}
+      {% set max_th = top_by_th[0]._rhythm_t_h %}
+      {% set pct = ((op._rhythm_t_h / max_th) * 100) | round(0) if max_th and max_th > 0 else 0 %}
       <a href="/operations/{{ op.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50/40 transition-colors">
         <span class="text-xs font-black text-gray-300 w-4 flex-shrink-0">{{ loop.index }}</span>
         <div class="flex-1 min-w-0">
@@ -217,7 +217,7 @@
           </div>
         </div>
         <div class="text-right flex-shrink-0">
-          <p class="text-sm font-bold text-emerald-600">{{ op.avg_tons_per_hour | fmt_num(1) }} t/h</p>
+          <p class="text-sm font-bold text-emerald-600">{{ op._rhythm_t_h | fmt_num(1) }} t/h</p>
           <p class="text-[10px] text-gray-400">{{ (op.total_neto_kg / 1000) | fmt_num(0) }} t</p>
         </div>
       </a>
