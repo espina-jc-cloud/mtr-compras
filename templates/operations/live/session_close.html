@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Cerrar operativo — {{ session.ship_name }} — MTR{% endblock %}
+{% block content %}
+
+<!-- Header con back -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div>
+    <h1 class="text-lg font-bold text-gray-900">Cerrar operativo</h1>
+    <p class="text-xs text-gray-400">{{ session.ship_name }}</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 1: Validación — turnos abiertos
+     ══════════════════════════════════════════════════════ -->
+{% if not can_close %}
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+  <div class="flex gap-3">
+    <span class="text-amber-500 text-lg flex-shrink-0">⚠️</span>
+    <div>
+      <p class="text-sm font-semibold text-amber-800">
+        No se puede cerrar: {{ open_count }} turno{% if open_count != 1 %}s{% endif %} aún abierto{% if open_count != 1 %}s{% endif %}
+      </p>
+      <p class="text-xs text-amber-700 mt-1">
+        Todos los turnos deben estar en estado <strong>Cerrado</strong> antes de cerrar el operativo.
+        Volvé al dashboard, cerrá los turnos pendientes y luego regresá acá.
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 2: Resumen de turnos
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Turnos del operativo
+  </h2>
+  {% if session.shifts %}
+  <div class="space-y-2">
+    {% for shift in session.shifts %}
+    <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+      <div class="flex items-center gap-2.5">
+        {% if shift.status == 'closed' %}
+        <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+        {% else %}
+        <span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+        {% endif %}
+        <div>
+          <p class="text-sm font-medium text-gray-800">
+            Parte #{{ shift.shift_number }}
+            {% if shift.shift_date %}<span class="font-normal text-gray-400">· {{ shift.shift_date }}</span>{% endif %}
+          </p>
+          {% if shift.shift_start %}
+          <p class="text-xs text-gray-400">
+            {{ shift.shift_start }}{% if shift.shift_end %} – {{ shift.shift_end }}{% else %} (sin fin){% endif %}
+            {% if shift.turno_tipo and shift.turno_tipo != 'habil' %}
+            · <span class="{% if shift.turno_tipo == 'inhabil' %}text-amber-600{% else %}text-purple-600{% endif %}">
+              {% if shift.turno_tipo == 'inhabil' %}Inhábil{% else %}Extraordinario{% endif %}
+            </span>
+            {% endif %}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      {% if shift.status == 'closed' %}
+      <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+        Cerrado
+      </span>
+      {% else %}
+      <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+        Abierto
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-sm text-gray-400 text-center py-3">Sin turnos registrados.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 3: Resumen de toneladas por producto
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Toneladas MTR al cierre
+  </h2>
+  {% if product_summaries %}
+  <div class="space-y-3">
+    {% for ps in product_summaries %}
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="text-sm font-semibold text-gray-800">{{ ps.product }}</p>
+        {% if ps.client %}<p class="text-xs text-gray-400">{{ ps.client }}</p>{% endif %}
+      </div>
+      <div class="text-right">
+        <p class="text-sm font-bold text-gray-900">{{ fmt_kg(ps.kg_total_mtr) }} kg</p>
+        {% if ps.kg_contracted %}
+        <p class="text-xs text-gray-400">
+          / {{ fmt_kg(ps.kg_contracted) }} kg contratados
+          ({{ "%.1f"|format(ps.progreso_pct or 0) }}%)
+        </p>
+        {% endif %}
+        {% if ps.kg_coop is not none %}
+        <p class="text-xs text-gray-400">Coop: {{ fmt_kg(ps.kg_coop) }} kg</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <!-- Total general -->
+    <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+      <p class="text-sm font-bold text-gray-700">Total general</p>
+      <p class="text-sm font-bold text-gray-900">{{ fmt_kg(grand_total.kg_total_mtr) }} kg</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-sm text-gray-400 text-center py-2">Sin toneladas registradas.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 4: Confirmación de cierre
+     ══════════════════════════════════════════════════════ -->
+{% if can_close %}
+<div class="bg-white rounded-2xl border border-emerald-100 shadow-sm p-4 mb-5">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Confirmar cierre
+  </h2>
+  <p class="text-sm text-gray-600 mb-4">
+    Al cerrar el operativo, el sistema quedará listo para la carga de la
+    <strong>factura cooperativa</strong> y la <strong>conciliación final</strong>.
+    Esta acción <strong>no borra</strong> ningún dato existente.
+  </p>
+  <form method="post" action="/operations/live/{{ session.id }}/close">
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">
+        Observaciones de cierre
+        <span class="text-gray-400 font-normal">(opcional)</span>
+      </label>
+      <textarea name="closing_notes" rows="2"
+        placeholder="Ej: Descarga finalizada sin novedad. Pendiente ajuste de tonelaje..."
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+               focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-gray-50"></textarea>
+    </div>
+    <button type="submit"
+      class="w-full text-sm text-white bg-emerald-600 hover:bg-emerald-700
+             font-semibold px-4 py-3 rounded-xl transition-colors shadow-sm">
+      🔒 Confirmar cierre del operativo
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<!-- Cancelar -->
+<div class="text-center mb-8">
+  <a href="/operations/live/{{ session.id }}"
+    class="text-sm text-gray-400 hover:text-gray-600">
+    ← Volver al dashboard sin cerrar
+  </a>
+</div>
+
+{% endblock %}

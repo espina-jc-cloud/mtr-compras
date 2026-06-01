@@ -49,6 +49,10 @@ def run():
         _add_column(conn, "purchases",  "deleted_reason", "TEXT")
         _add_column(conn, "documents",  "remito_date",    "VARCHAR")
         _add_column(conn, "fuel_loads", "plant",          "VARCHAR")
+        # Fase 2: Operativos en Tiempo Real — Cierre + Factura + Conciliación
+        _add_column(conn, "operation_live_sessions", "closed_at",     "TIMESTAMP")
+        _add_column(conn, "operation_live_sessions", "reconciled_at", "TIMESTAMP")
+        _add_column(conn, "operation_live_shifts",   "turno_tipo",    "VARCHAR DEFAULT 'habil'")
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

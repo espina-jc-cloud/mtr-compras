@@ -429,4 +429,11 @@ from app.models_live import (  # noqa: E402, F401
     OperationLiveDelay,
     OperationLiveEquipment,
     OperationLiveStaff,
+    # Fase 2: Factura cooperativa + Conciliación
+    OperationLiveInvoice,
+    OperationLiveInvoiceTonnageLine,
+    OperationLiveInvoiceLaborLine,
+    OperationLiveInvoiceCargoLine,
+    OperationLiveInvoiceTotals,
+    OperationLiveReconciliation,
 )

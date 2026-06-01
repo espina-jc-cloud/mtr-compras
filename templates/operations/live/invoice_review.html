@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Revisión MTR — {{ session.ship_name }} — MTR{% endblock %}
+{% block content %}
+
+<!-- Header con back -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}/invoice/{{ invoice.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div>
+    <h1 class="text-lg font-bold text-gray-900">Revisión MTR de factura</h1>
+    <p class="text-xs text-gray-400">{{ session.ship_name }}
+      {% if invoice.invoice_number %} · {{ invoice.invoice_number }}{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Instrucciones -->
+<div class="bg-sky-50 border border-sky-200 rounded-2xl p-3 mb-5 flex gap-2.5 items-start">
+  <span class="text-sky-500 flex-shrink-0">📋</span>
+  <div class="text-xs text-sky-800">
+    <p class="font-semibold mb-0.5">Revisión obligatoria línea por línea</p>
+    <p>Los campos <strong>revisado</strong> vienen precargados con el valor recibido. Modificalos si hay diferencia. Si aceptás el valor recibido, el campo revisado puede quedar igual. Completá el campo <em>Nota</em> si corregís algo.</p>
+    <p class="mt-1">Líneas con <strong>SIN PRODUCTO</strong> deben asignarse manualmente antes de conciliar.</p>
+  </div>
+</div>
+
+<form method="post" action="/operations/live/{{ session.id }}/invoice/{{ invoice.id }}/review" id="review-form">
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 1: Líneas de tonelaje
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Tonelaje — revisión línea por línea
+    <span class="font-normal text-gray-300 ml-1">({{ invoice.tonnage_lines | length }} línea{% if invoice.tonnage_lines | length != 1 %}s{% endif %})</span>
+  </h2>
+
+  {% if invoice.tonnage_lines %}
+  <div class="space-y-4">
+    {% for line in invoice.tonnage_lines %}
+    {% set i = loop.index0 %}
+    {% set is_unreviewed = (line.tns_habiles_revisado is none and line.tns_inhabiles_revisado is none and line.tns_extraordinarias_revisado is none) %}
+    <div class="rounded-xl border {% if is_unreviewed %}border-amber-200 bg-amber-50{% else %}border-gray-100 bg-gray-50{% endif %} p-3">
+      <!-- Identificación de línea -->
+      <div class="flex items-center gap-2 mb-2.5 flex-wrap">
+        <span class="text-xs font-bold text-gray-700">
+          {{ line.shift_date or '?' }} · {{ line.turno_range or '?' }}
+        </span>
+        <span class="text-xs px-2 py-0.5 rounded-full {% if line.guinche_tipo == 'fiscal' %}bg-purple-100 text-purple-700{% else %}bg-sky-100 text-sky-700{% endif %} font-medium">
+          {{ line.guinche_tipo | capitalize }}{% if line.guinche_descripcion %} · {{ line.guinche_descripcion }}{% endif %}
+        </span>
+        {% if line.product %}
+        <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{{ line.product }}</span>
+        {% else %}
+        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">⚠ SIN PRODUCTO</span>
+        {% endif %}
+        {% if is_unreviewed %}
+        <span class="ml-auto text-xs text-amber-600 font-medium">pendiente revisión</span>
+        {% else %}
+        <span class="ml-auto text-xs text-emerald-600 font-medium">✓ revisado</span>
+        {% endif %}
+      </div>
+
+      <!-- Tabla recibido / revisado -->
+      <div class="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 text-xs mb-2">
+        <!-- Headers -->
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Tns Hábiles</div>
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Tns Inhábiles</div>
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Tns Extraord.</div>
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Manos</div>
+
+        <!-- Recibido (read-only) -->
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ "%.2f"|format(line.tns_habiles_recibido | float) if line.tns_habiles_recibido is not none else '—' }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ "%.2f"|format(line.tns_inhabiles_recibido | float) if line.tns_inhabiles_recibido is not none else '—' }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ "%.2f"|format(line.tns_extraordinarias_recibido | float) if line.tns_extraordinarias_recibido is not none else '—' }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ line.manos_recibido if line.manos_recibido is not none else '—' }}
+          </div>
+        </div>
+
+        <!-- Revisado (editable) -->
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" step="0.01" name="ton_{{ i }}_habiles_rev"
+            value="{{ "%.2f"|format(line.tns_habiles_revisado | float) if line.tns_habiles_revisado is not none else ("%.2f"|format(line.tns_habiles_recibido | float) if line.tns_habiles_recibido is not none else '') }}"
+            class="ton-rev-input w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+            data-recibido="{{ "%.2f"|format(line.tns_habiles_recibido | float) if line.tns_habiles_recibido is not none else '' }}"
+            data-nota-target="ton_{{ i }}_diferencia_nota">
+        </div>
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" step="0.01" name="ton_{{ i }}_inhabiles_rev"
+            value="{{ "%.2f"|format(line.tns_inhabiles_revisado | float) if line.tns_inhabiles_revisado is not none else ("%.2f"|format(line.tns_inhabiles_recibido | float) if line.tns_inhabiles_recibido is not none else '') }}"
+            class="ton-rev-input w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+            data-recibido="{{ "%.2f"|format(line.tns_inhabiles_recibido | float) if line.tns_inhabiles_recibido is not none else '' }}"
+            data-nota-target="ton_{{ i }}_diferencia_nota">
+        </div>
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" step="0.01" name="ton_{{ i }}_extraordinarias_rev"
+            value="{{ "%.2f"|format(line.tns_extraordinarias_revisado | float) if line.tns_extraordinarias_revisado is not none else ("%.2f"|format(line.tns_extraordinarias_recibido | float) if line.tns_extraordinarias_recibido is not none else '') }}"
+            class="ton-rev-input w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+            data-recibido="{{ "%.2f"|format(line.tns_extraordinarias_recibido | float) if line.tns_extraordinarias_recibido is not none else '' }}"
+            data-nota-target="ton_{{ i }}_diferencia_nota">
+        </div>
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" name="ton_{{ i }}_manos_rev"
+            value="{{ line.manos_revisado if line.manos_revisado is not none else (line.manos_recibido if line.manos_recibido is not none else '') }}"
+            class="w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300">
+        </div>
+      </div>
+
+      <!-- Nota de diferencia -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">
+          Nota <span class="text-gray-400 font-normal" id="ton_{{ i }}_nota_hint">(opcional si no hay diferencia)</span>
+        </label>
+        <input type="text" name="ton_{{ i }}_diferencia_nota" id="ton_{{ i }}_diferencia_nota"
+          value="{{ line.diferencia_nota or '' }}"
+          placeholder="¿Por qué difiere el dato revisado?"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300">
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-sm text-gray-400 text-center py-3">Sin líneas de tonelaje en esta factura.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 2: Líneas de jornales
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Jornales — revisión línea por línea
+    <span class="font-normal text-gray-300 ml-1">({{ invoice.labor_lines | length }} línea{% if invoice.labor_lines | length != 1 %}s{% endif %})</span>
+  </h2>
+
+  {% if invoice.labor_lines %}
+  <div class="space-y-3">
+    {% for line in invoice.labor_lines %}
+    {% set i = loop.index0 %}
+    {% set is_unreviewed = (line.cantidad_revisado is none and line.precio_unitario_revisado is none) %}
+    <div class="rounded-xl border {% if is_unreviewed %}border-amber-200 bg-amber-50{% else %}border-gray-100 bg-gray-50{% endif %} p-3">
+      <!-- Identificación -->
+      <div class="flex items-center gap-2 mb-2.5 flex-wrap">
+        <span class="text-xs font-bold text-gray-700">
+          {{ line.shift_date or '?' }} · {{ line.turno_range or '?' }}
+        </span>
+        <span class="text-xs px-2 py-0.5 rounded-full
+          {% if line.turno_tipo == 'inhabil' %}bg-amber-100 text-amber-700
+          {% elif line.turno_tipo == 'extraordinario' %}bg-purple-100 text-purple-700
+          {% else %}bg-gray-100 text-gray-600{% endif %}">
+          {% if line.turno_tipo == 'inhabil' %}Inhábil{% elif line.turno_tipo == 'extraordinario' %}Extraordinario{% else %}Hábil{% endif %}
+        </span>
+        <span class="text-xs font-medium text-gray-700">
+          {{ line.funcion | capitalize }}{% if line.funcion_texto %} · {{ line.funcion_texto }}{% endif %}
+        </span>
+        {% if is_unreviewed %}
+        <span class="ml-auto text-xs text-amber-600 font-medium">pendiente revisión</span>
+        {% else %}
+        <span class="ml-auto text-xs text-emerald-600 font-medium">✓ revisado</span>
+        {% endif %}
+      </div>
+
+      <!-- Tabla cantidad / precio -->
+      <div class="grid grid-cols-2 gap-2 text-xs mb-2">
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Cantidad</div>
+        <div class="text-gray-400 font-medium text-center pb-0.5 border-b border-gray-200">Precio unitario</div>
+
+        <!-- Recibido -->
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ line.cantidad_recibido if line.cantidad_recibido is not none else '—' }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-0.5 text-center">Recibido</label>
+          <div class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-center font-mono text-gray-600">
+            {{ "%.2f"|format(line.precio_unitario_recibido | float) if line.precio_unitario_recibido is not none else '—' }}
+          </div>
+        </div>
+
+        <!-- Revisado -->
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" name="lab_{{ i }}_cantidad_rev"
+            value="{{ line.cantidad_revisado if line.cantidad_revisado is not none else (line.cantidad_recibido if line.cantidad_recibido is not none else '') }}"
+            class="lab-rev-input w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+            data-recibido="{{ line.cantidad_recibido if line.cantidad_recibido is not none else '' }}"
+            data-nota-target="lab_{{ i }}_diferencia_nota">
+        </div>
+        <div>
+          <label class="block text-sky-600 font-semibold mb-0.5 text-center">Revisado</label>
+          <input type="number" step="0.01" name="lab_{{ i }}_precio_rev"
+            value="{{ "%.2f"|format(line.precio_unitario_revisado | float) if line.precio_unitario_revisado is not none else ("%.2f"|format(line.precio_unitario_recibido | float) if line.precio_unitario_recibido is not none else '') }}"
+            class="lab-rev-input w-full border border-sky-200 rounded-lg px-2 py-1.5 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+            data-recibido="{{ "%.2f"|format(line.precio_unitario_recibido | float) if line.precio_unitario_recibido is not none else '' }}"
+            data-nota-target="lab_{{ i }}_diferencia_nota">
+        </div>
+      </div>
+
+      <!-- Nota -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Nota</label>
+        <input type="text" name="lab_{{ i }}_diferencia_nota" id="lab_{{ i }}_diferencia_nota"
+          value="{{ line.diferencia_nota or '' }}"
+          placeholder="¿Por qué difiere el dato revisado?"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300">
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-sm text-gray-400 text-center py-3">Sin líneas de jornales en esta factura.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 3: Revisor y acciones
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Revisor</h2>
+  <div class="mb-3">
+    <label class="block text-xs font-medium text-gray-500 mb-1">
+      Nombre del revisor <span class="text-red-400">*</span>
+      <span class="text-gray-400 font-normal">(obligatorio para confirmar revisión)</span>
+    </label>
+    <input type="text" name="reviewer_name" id="reviewer_name"
+      placeholder="Ej: García, Juan"
+      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+  </div>
+  <p class="text-xs text-gray-400 mb-1" id="unreviewed-hint"></p>
+</div>
+
+<!-- Botones -->
+<div class="space-y-2 mb-8">
+  <button type="submit" name="review_action" value="approve" id="btn-approve"
+    class="w-full text-sm text-white bg-sky-600 hover:bg-sky-700 font-semibold px-4 py-3 rounded-xl transition-colors shadow-sm">
+    ✅ Confirmar revisión completa
+  </button>
+  <button type="submit" name="review_action" value="save"
+    class="w-full text-sm text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 font-medium px-4 py-2.5 rounded-xl transition-colors">
+    💾 Guardar borrador de revisión
+  </button>
+  <div class="text-center pt-1">
+    <a href="/operations/live/{{ session.id }}/invoice/{{ invoice.id }}"
+      class="text-sm text-gray-400 hover:text-gray-600">
+      ← Volver sin guardar
+    </a>
+  </div>
+</div>
+
+</form>
+
+<!-- ── JS: resaltar diferencias ──────────────────────────────────────────── -->
+<script>
+(function () {
+  function markDiff(input) {
+    const recibido = input.dataset.recibido;
+    const revisado = input.value;
+    const notaId   = input.dataset.notaTarget;
+    const notaEl   = notaId ? document.getElementById(notaId) : null;
+
+    const hasDiff = recibido !== '' && revisado !== '' &&
+                    parseFloat(recibido) !== parseFloat(revisado);
+
+    if (hasDiff) {
+      input.classList.add('border-amber-400', 'bg-amber-50');
+      input.classList.remove('border-sky-200');
+      if (notaEl) {
+        notaEl.classList.add('border-amber-300');
+        notaEl.placeholder = '⚠ Obligatorio: explicar diferencia';
+      }
+    } else {
+      input.classList.remove('border-amber-400', 'bg-amber-50');
+      input.classList.add('border-sky-200');
+      if (notaEl) {
+        notaEl.classList.remove('border-amber-300');
+        notaEl.placeholder = '¿Por qué difiere el dato revisado?';
+      }
+    }
+  }
+
+  document.querySelectorAll('.ton-rev-input, .lab-rev-input').forEach(function(inp) {
+    markDiff(inp);
+    inp.addEventListener('input', function() { markDiff(inp); });
+  });
+
+  // Contador de pendientes
+  function countPending() {
+    const total = document.querySelectorAll('.ton-rev-input, .lab-rev-input').length;
+    return 0; // simplificado: la validación ocurre server-side
+  }
+})();
+</script>
+
+{% endblock %}

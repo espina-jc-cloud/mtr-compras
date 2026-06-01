@@ -13,7 +13,10 @@ quiera solo turnos cerrados debe filtrar la lista de bodega_rows antes de pasar.
 """
 
 from __future__ import annotations
+from decimal import Decimal
 from typing import Any
+
+from app.product_normalize import normalize_product
 
 
 # ── Etiquetas de UI ───────────────────────────────────────────────────────────
@@ -480,6 +483,68 @@ def staff_summary(staff_rows: list[Any]) -> list[dict]:
             "empresa":     getattr(s, "empresa", "coop") or "coop",
         })
     return result
+
+
+# ── Fase 2: Funciones para cierre y conciliación ─────────────────────────────
+
+def tns_by_product_from_session(bodega_rows: list[Any]) -> dict[str, Decimal]:
+    """
+    Suma toneladas MTR por producto normalizado para un conjunto de filas de bodega_data.
+
+    Diseño:
+    - Acepta cualquier lista de objetos con atributos product / kg_deposito_mtr /
+      kg_directo_mtr / kg_cv_mtr. Funciona con ORM rows o SimpleNamespace (testeable).
+    - Usa normalize_product() para evitar duplicados por variantes de nombre
+      (ej. "TRIPLE" y "TRIPLE (STP)" se cuentan como el mismo producto).
+    - Acumula en kg (enteros, exactos), convierte a tn solo al final.
+    - Retorna Decimal con 2 decimales para uso en conciliación (sin pérdida de precisión).
+    - Incluye todos los turnos pasados (abiertos y cerrados) — misma semántica live.
+    - Si product es None/vacío y normalize no produce nada → clave "SIN_PRODUCTO".
+
+    Returns:
+        {"MAIZ": Decimal("8432.10"), "SOJA": Decimal("3201.55"), ...}
+    """
+    accumulator: dict[str, int] = {}
+    for row in bodega_rows:
+        raw_prod = getattr(row, "product", None) or ""
+        prod = normalize_product(raw_prod)
+        if not prod:
+            prod = raw_prod.upper().strip() or "SIN_PRODUCTO"
+
+        dep  = int(getattr(row, "kg_deposito_mtr", 0) or 0)
+        dir_ = int(getattr(row, "kg_directo_mtr",  0) or 0)
+        cv   = int(getattr(row, "kg_cv_mtr",        0) or 0)
+        kg_total = dep + dir_ + cv
+
+        accumulator[prod] = accumulator.get(prod, 0) + kg_total
+
+    # Convert kg → tn con 2 decimales (Decimal para precisión en conciliación)
+    return {
+        prod: (Decimal(str(kg_sum)) / Decimal("1000")).quantize(Decimal("0.01"))
+        for prod, kg_sum in accumulator.items()
+    }
+
+
+def all_shifts_closed(session: Any) -> bool:
+    """
+    True si TODOS los turnos de la sesión tienen status='closed'.
+    False si no hay turnos o si alguno no está cerrado.
+
+    Se usa como precondición para habilitar el cierre formal del operativo.
+    Un operativo sin turnos no se puede cerrar (no hay nada que conciliar).
+
+    Acepta cualquier objeto con atributo shifts iterable.
+    """
+    shifts = getattr(session, "shifts", None) or []
+    if not shifts:
+        return False
+    return all(getattr(s, "status", None) == "closed" for s in shifts)
+
+
+def open_shifts_count(session: Any) -> int:
+    """Cantidad de turnos que NO están en status='closed'. Útil para mensajes de UI."""
+    shifts = getattr(session, "shifts", None) or []
+    return sum(1 for s in shifts if getattr(s, "status", None) != "closed")
 
 
 def delta_badge(delta: int | None) -> dict:

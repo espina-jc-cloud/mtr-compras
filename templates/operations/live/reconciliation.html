@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Conciliación — {{ session.ship_name }} — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div class="flex-1">
+    <h1 class="text-lg font-bold text-gray-900">Conciliación final</h1>
+    <p class="text-xs text-gray-400">{{ session.ship_name }}</p>
+  </div>
+  {% if session.status == 'reconciled' %}
+  <span class="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">Conciliado</span>
+  {% endif %}
+</div>
+
+<!-- Aviso si no hay factura -->
+{% if not invoice %}
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+  <div class="flex gap-3">
+    <span class="text-amber-500 flex-shrink-0">⚠️</span>
+    <div>
+      <p class="text-sm font-semibold text-amber-800">No hay factura revisada</p>
+      <p class="text-xs text-amber-700 mt-1">
+        Para conciliar se necesita una factura en estado <strong>revisado</strong> o <strong>aprobado</strong>.
+        Completá la revisión MTR primero.
+      </p>
+    </div>
+  </div>
+</div>
+
+{% else %}
+
+<!-- Fuente de datos -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 mb-4 flex items-center gap-3">
+  <span class="text-emerald-400">✓</span>
+  <div class="text-xs">
+    <span class="font-semibold text-gray-700">Fuente:</span>
+    <span class="text-gray-600">Factura
+      {% if invoice.invoice_number %}"{{ invoice.invoice_number }}"{% endif %}
+      · estado:
+      {% if invoice.status == 'reviewed' %}
+      <span class="text-sky-600 font-semibold">Revisado</span>
+      {% elif invoice.status == 'approved_for_payment' %}
+      <span class="text-emerald-600 font-semibold">Aprobado para pago</span>
+      {% endif %}
+    </span>
+  </div>
+  <span class="ml-auto text-xs text-red-500 font-semibold">⚠ Dato revisado MTR. Jamás se usa recibido bruto.</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TABLA DE CONCILIACIÓN POR PRODUCTO
+     ══════════════════════════════════════════════════════ -->
+<form method="post" action="/operations/live/{{ session.id }}/reconciliation">
+
+{% if recon_rows %}
+
+{% for row in recon_rows %}
+{% set prod = row.product %}
+{% set ex = existing_recon.get(prod) %}
+{% set is_sin_prod = (prod == 'SIN_PRODUCTO') %}
+
+<div class="bg-white rounded-2xl border {% if is_sin_prod %}border-red-100{% elif row.status_sugerido == 'ok' %}border-emerald-100{% elif row.status_sugerido == 'diferencia' %}border-red-100{% elif row.status_sugerido == 'diferencia_menor' %}border-amber-100{% else %}border-gray-100{% endif %} shadow-sm p-4 mb-4">
+
+  <!-- Header producto -->
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <h3 class="text-sm font-bold text-gray-800">
+      {% if is_sin_prod %}
+        <span class="text-red-600">⚠ SIN PRODUCTO</span>
+      {% else %}
+        {{ prod }}
+      {% endif %}
+    </h3>
+    <!-- Semáforo sugerido -->
+    {% if is_sin_prod %}
+    <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">Excluido — asignación manual requerida</span>
+    {% elif row.status_sugerido == 'ok' %}
+    <span class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">🟢 Coincide</span>
+    {% elif row.status_sugerido == 'diferencia_menor' %}
+    <span class="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">🟡 Diferencia menor</span>
+    {% elif row.status_sugerido == 'diferencia' %}
+    <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">🔴 Diferencia</span>
+    {% elif row.status_sugerido == 'pendiente' %}
+    <span class="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">⏳ Pendiente revisión</span>
+    {% else %}
+    <span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-full">Sin datos coop</span>
+    {% endif %}
+    {% if row.has_unreviewed_lines %}
+    <span class="text-xs text-amber-600">⚠ {{ row.unreviewed_count }} línea(s) sin revisar</span>
+    {% endif %}
+  </div>
+
+  <!-- Números de conciliación -->
+  <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">MTR (dato propio)</span>
+      <span class="font-mono font-bold text-gray-800">{{ "%.2f"|format(row.tns_mtr | float) }} tn</span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">Coop total revisado</span>
+      <span class="font-mono font-bold {% if is_sin_prod %}text-red-600{% else %}text-gray-800{% endif %}">
+        {% if row.tns_coop_total_revisado is not none %}{{ "%.2f"|format(row.tns_coop_total_revisado | float) }} tn{% else %}—{% endif %}
+      </span>
+    </div>
+    {% if row.tns_coop_abordo_revisado is not none %}
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">Coop abordo</span>
+      <span class="font-mono text-sky-700">{{ "%.2f"|format(row.tns_coop_abordo_revisado | float) }} tn</span>
+    </div>
+    {% endif %}
+    {% if row.tns_coop_fiscal_revisado is not none %}
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">Coop fiscal</span>
+      <span class="font-mono text-purple-700">{{ "%.2f"|format(row.tns_coop_fiscal_revisado | float) }} tn</span>
+    </div>
+    {% endif %}
+    {% if row.diferencia_abordo is not none %}
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">Δ abordo (MTR - Coop)</span>
+      <span class="font-mono font-semibold {% if row.diferencia_abordo | float | abs <= 0.5 %}text-emerald-600{% elif row.diferencia_abordo | float | abs <= 2 %}text-amber-600{% else %}text-red-600{% endif %}">
+        {{ "%.2f"|format(row.diferencia_abordo | float) }} tn
+      </span>
+    </div>
+    {% endif %}
+    {% if row.diferencia_fiscal is not none %}
+    <div class="flex justify-between items-center">
+      <span class="text-gray-400">Δ fiscal (MTR - Coop)</span>
+      <span class="font-mono font-semibold {% if row.diferencia_fiscal | float | abs <= 0.5 %}text-emerald-600{% elif row.diferencia_fiscal | float | abs <= 2 %}text-amber-600{% else %}text-red-600{% endif %}">
+        {{ "%.2f"|format(row.diferencia_fiscal | float) }} tn
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Dictamen MTR -->
+  {% if not is_sin_prod and session.status != 'reconciled' %}
+  <div class="border-t border-gray-100 pt-3 space-y-2">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Dictamen MTR</p>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Estado</label>
+        <select name="recon_{{ prod }}_status"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+          <option value="">— sin dictamen —</option>
+          <option value="aprobado" {% if ex and ex.status == 'aprobado' %}selected{% elif not ex and row.status_sugerido == 'ok' %}selected{% endif %}>✓ Aprobado</option>
+          <option value="observado" {% if ex and ex.status == 'observado' %}selected{% elif not ex and row.status_sugerido in ('diferencia', 'diferencia_menor') %}selected{% endif %}>⚠ Observado</option>
+          <option value="ajustado" {% if ex and ex.status == 'ajustado' %}selected{% endif %}>📐 Ajustado</option>
+          <option value="pendiente" {% if ex and ex.status == 'pendiente' %}selected{% elif not ex and row.status_sugerido == 'pendiente' %}selected{% endif %}>⏳ Pendiente</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Ajuste final (tn)</label>
+        <input type="number" step="0.01" name="recon_{{ prod }}_ajuste_final"
+          value="{{ "%.2f"|format(ex.ajuste_final | float) if ex and ex.ajuste_final is not none else '' }}"
+          placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Observación</label>
+      <input type="text" name="recon_{{ prod }}_observacion"
+        value="{{ ex.observacion or '' if ex else '' }}"
+        placeholder="Nota del dictamen..."
+        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+    </div>
+  </div>
+
+  {% elif ex and session.status != 'reconciled' %}
+  <!-- SIN_PRODUCTO: mostrar solo dictamen ya guardado -->
+  <div class="border-t border-gray-100 pt-2 text-xs text-gray-400">
+    Líneas sin producto asignado — excluidas de la conciliación automática.
+    Asignar producto en la factura antes de conciliar.
+  </div>
+
+  {% elif session.status == 'reconciled' and ex %}
+  <!-- Solo lectura si ya reconciliado -->
+  <div class="border-t border-gray-100 pt-2 grid grid-cols-2 gap-1.5 text-xs">
+    <div><span class="text-gray-400">Estado:</span> <strong>{{ ex.status }}</strong></div>
+    {% if ex.ajuste_final is not none %}<div><span class="text-gray-400">Ajuste:</span> {{ "%.2f"|format(ex.ajuste_final | float) }} tn</div>{% endif %}
+    {% if ex.observacion %}<div class="col-span-2 text-gray-500 italic">{{ ex.observacion }}</div>{% endif %}
+    {% if ex.dictamen_by %}<div class="col-span-2 text-gray-400">Dictamen: {{ ex.dictamen_by }} · {{ ex.dictamen_at | fmt_ar if ex.dictamen_at else '' }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+<!-- Responsable del dictamen -->
+{% if session.status != 'reconciled' %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Responsable</h2>
+  <input type="text" name="dictamen_by"
+    placeholder="Nombre del responsable del dictamen"
+    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+</div>
+
+<!-- Botones -->
+<div class="space-y-2 mb-8">
+  <button type="submit" name="save_action" value="save"
+    class="w-full text-sm text-white bg-sky-600 hover:bg-sky-700 font-semibold px-4 py-3 rounded-xl transition-colors shadow-sm">
+    💾 Guardar dictamen
+  </button>
+  {% if can_close_recon %}
+  <button type="submit" name="save_action" value="close_reconciliation"
+    class="w-full text-sm text-white bg-emerald-600 hover:bg-emerald-700 font-semibold px-4 py-3 rounded-xl transition-colors shadow-sm">
+    ⚖️ Cerrar conciliación y marcar operativo como conciliado
+  </button>
+  {% endif %}
+  <div class="text-center pt-1">
+    <a href="/operations/live/{{ session.id }}"
+      class="text-sm text-gray-400 hover:text-gray-600">← Volver al dashboard</a>
+  </div>
+</div>
+{% else %}
+<!-- Operativo ya conciliado — solo lectura -->
+<div class="text-center mb-8">
+  <p class="text-sm text-emerald-600 font-semibold mb-2">✓ Conciliación cerrada</p>
+  <a href="/operations/live/{{ session.id }}"
+    class="text-sm text-gray-400 hover:text-gray-600">← Volver al dashboard</a>
+</div>
+{% endif %}
+
+{% else %}
+<p class="text-sm text-gray-400 text-center py-6">Sin datos de productos para conciliar.</p>
+<div class="text-center mb-8">
+  <a href="/operations/live/{{ session.id }}" class="text-sm text-gray-400 hover:text-gray-600">← Volver al dashboard</a>
+</div>
+{% endif %}
+
+</form>
+{% endif %}
+
+{% endblock %}

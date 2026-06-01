@@ -25,6 +25,16 @@
           <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
           Pausado
         </span>
+        {% elif session.status == 'closed' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Cerrado
+        </span>
+        {% elif session.status == 'reconciled' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+          Conciliado
+        </span>
         {% else %}
         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
           <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
@@ -448,7 +458,141 @@
 </div>
 {% endif %}
 
-<!-- Cierre del operativo (si está activo) -->
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE F: Cierre del operativo (Fase 2)
+     Visible para: active (muestra botón o warning), closed, reconciled
+     ══════════════════════════════════════════════════════ -->
+{% if session.status == 'active' %}
+<div class="bg-white rounded-2xl border {% if all_shifts_closed_flag %}border-emerald-100{% else %}border-gray-100{% endif %} shadow-sm p-4 mb-5">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Cierre del operativo</h2>
+  {% if all_shifts_closed_flag %}
+  <p class="text-sm text-gray-600 mb-3">
+    Todos los turnos están cerrados. El operativo está listo para el cierre formal.
+  </p>
+  <a href="/operations/live/{{ session.id }}/close"
+    class="flex items-center justify-center gap-2 w-full text-sm text-white
+           bg-emerald-600 hover:bg-emerald-700 font-semibold px-4 py-2.5
+           rounded-xl transition-colors shadow-sm">
+    🔒 Cerrar operativo
+  </a>
+  {% elif session.shifts | length == 0 %}
+  <p class="text-sm text-gray-400">
+    No hay turnos registrados. Creá al menos un turno antes de cerrar el operativo.
+  </p>
+  {% else %}
+  <div class="flex gap-2.5">
+    <span class="text-amber-500 flex-shrink-0 mt-0.5">⚠️</span>
+    <p class="text-sm text-amber-700">
+      <strong>{{ open_shifts_count }} turno{% if open_shifts_count != 1 %}s{% endif %} aún abierto{% if open_shifts_count != 1 %}s{% endif %}.</strong>
+      Cerrá todos los turnos para habilitar el cierre formal del operativo.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{% elif session.status == 'closed' %}
+<div class="bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-4 mb-5">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">✅ Operativo cerrado</h2>
+      <p class="text-xs text-emerald-700">
+        Cerrado el {{ session.closed_at | fmt_date }}
+        {% if session.closed_by %} · {{ session.closed_by }}{% endif %}
+      </p>
+      {% if session.closing_notes %}
+      <p class="text-xs text-gray-500 mt-1 italic">{{ session.closing_notes }}</p>
+      {% endif %}
+    </div>
+    <span class="flex-shrink-0 text-emerald-400 text-xl">🔒</span>
+  </div>
+  <!-- CTA: factura cooperativa — varía según estado -->
+  <div class="mt-3 pt-3 border-t border-emerald-100 space-y-1.5">
+    {% if not active_invoice %}
+    <!-- Sin factura aún -->
+    <a href="/operations/live/{{ session.id }}/invoice/new"
+      class="flex items-center justify-center gap-2 w-full text-sm text-emerald-700
+             border border-emerald-200 bg-white hover:bg-emerald-50 font-semibold
+             px-4 py-2.5 rounded-xl transition-colors">
+      📄 Cargar factura cooperativa
+    </a>
+
+    {% elif active_invoice.status == 'draft' %}
+    <!-- draft: revisar es el próximo paso -->
+    <a href="/operations/live/{{ session.id }}/invoice/{{ active_invoice.id }}/review"
+      class="flex items-center justify-center gap-2 w-full text-sm text-white
+             bg-sky-600 hover:bg-sky-700 font-semibold px-4 py-2.5 rounded-xl transition-colors">
+      📋 Revisar factura
+    </a>
+    <a href="/operations/live/{{ session.id }}/invoice/{{ active_invoice.id }}"
+      class="flex items-center justify-center gap-2 w-full text-sm text-sky-700
+             border border-sky-200 bg-white hover:bg-sky-50 font-medium px-4 py-2 rounded-xl transition-colors">
+      Ver borrador
+    </a>
+
+    {% elif active_invoice.status == 'disputed' %}
+    <!-- disputed: re-revisar -->
+    <div class="flex items-center gap-1.5 text-xs text-red-600 font-medium mb-1">
+      <span>⚠</span> <span>Factura disputada</span>
+    </div>
+    <a href="/operations/live/{{ session.id }}/invoice/{{ active_invoice.id }}/review"
+      class="flex items-center justify-center gap-2 w-full text-sm text-white
+             bg-sky-600 hover:bg-sky-700 font-semibold px-4 py-2.5 rounded-xl transition-colors">
+      📋 Revisar y corregir
+    </a>
+
+    {% elif active_invoice.status == 'reviewed' %}
+    <!-- reviewed: aprobar o conciliar -->
+    <div class="flex items-center gap-1.5 text-xs text-sky-600 font-medium mb-1">
+      <span>✓</span> <span>Revisado por {{ active_invoice.reviewed_by or 'MTR' }}</span>
+    </div>
+    <a href="/operations/live/{{ session.id }}/reconciliation"
+      class="flex items-center justify-center gap-2 w-full text-sm text-white
+             bg-blue-600 hover:bg-blue-700 font-semibold px-4 py-2.5 rounded-xl transition-colors">
+      ⚖️ Ver conciliación
+    </a>
+    <a href="/operations/live/{{ session.id }}/invoice/{{ active_invoice.id }}"
+      class="flex items-center justify-center gap-2 w-full text-sm text-blue-700
+             border border-blue-200 bg-white hover:bg-blue-50 font-medium px-4 py-2 rounded-xl transition-colors">
+      Ver factura revisada
+    </a>
+
+    {% elif active_invoice.status == 'approved_for_payment' %}
+    <!-- approved: solo conciliación -->
+    <div class="flex items-center gap-1.5 text-xs text-emerald-600 font-medium mb-1">
+      <span>✅</span> <span>Aprobado para pago — {{ active_invoice.validated_by or '' }}</span>
+    </div>
+    <a href="/operations/live/{{ session.id }}/reconciliation"
+      class="flex items-center justify-center gap-2 w-full text-sm text-white
+             bg-blue-600 hover:bg-blue-700 font-semibold px-4 py-2.5 rounded-xl transition-colors">
+      ⚖️ Conciliación final
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% elif session.status == 'reconciled' %}
+<div class="bg-blue-50 rounded-2xl border border-blue-100 shadow-sm p-4 mb-5">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">⚖️ Conciliado</h2>
+      <p class="text-xs text-blue-700">
+        Conciliado el {{ session.reconciled_at | fmt_date }}
+      </p>
+    </div>
+    <span class="flex-shrink-0 text-blue-400 text-xl">✅</span>
+  </div>
+  <div class="mt-3 pt-3 border-t border-blue-100">
+    <a href="/operations/live/{{ session.id }}/reconciliation"
+      class="flex items-center justify-center gap-2 w-full text-sm text-blue-700
+             border border-blue-200 bg-white hover:bg-blue-50 font-semibold
+             px-4 py-2.5 rounded-xl transition-colors">
+      Ver conciliación →
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Cierre del operativo (si está activo) — opciones avanzadas (legacy) -->
 {% if session.status == 'active' or session.status == 'paused' %}
 <details class="bg-white rounded-2xl border border-gray-100 shadow-sm mb-8">
   <summary class="px-4 py-3 text-sm font-medium text-gray-500 cursor-pointer hover:bg-gray-50 rounded-2xl">

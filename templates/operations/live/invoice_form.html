@@ -1,0 +1,571 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if invoice %}Editar factura{% else %}Cargar factura{% endif %} — {{ session.ship_name }} — MTR
+{% endblock %}
+{% block content %}
+
+<!-- Header con back -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div>
+    <h1 class="text-lg font-bold text-gray-900">
+      {% if invoice %}Editar factura cooperativa{% else %}Cargar factura cooperativa{% endif %}
+    </h1>
+    <p class="text-xs text-gray-400">{{ session.ship_name }}</p>
+  </div>
+</div>
+
+<!-- Aviso: datos en borrador -->
+<div class="bg-sky-50 border border-sky-200 rounded-2xl p-3 mb-5 flex gap-2.5 items-start">
+  <span class="text-sky-400 flex-shrink-0 mt-0.5">ℹ️</span>
+  <p class="text-xs text-sky-800">
+    Estos son los <strong>datos recibidos</strong> del parte cooperativo (CPSN).
+    Aún no son datos oficiales — el siguiente paso es la <strong>revisión MTR</strong>.
+  </p>
+</div>
+
+<!-- FORM principal -->
+<form
+  method="post"
+  action="{% if invoice %}/operations/live/{{ session.id }}/invoice/{{ invoice.id }}/edit{% else %}/operations/live/{{ session.id }}/invoice/new{% endif %}"
+  id="invoice-form"
+>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 1: Cabecera
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Cabecera</h2>
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Nº Factura / Parte</label>
+      <input type="text" name="invoice_number"
+        value="{{ invoice.invoice_number or '' if invoice else '' }}"
+        placeholder="Ej: 0001-00012345"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Fecha del documento</label>
+      <input type="date" name="invoice_date"
+        value="{{ invoice.invoice_date.isoformat() if invoice and invoice.invoice_date else '' }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+  </div>
+  <div class="mt-3">
+    <label class="block text-xs font-medium text-gray-500 mb-1">
+      Observaciones del parte <span class="text-gray-400 font-normal">(opcional)</span>
+    </label>
+    <textarea name="origen_nota" rows="2"
+      placeholder="Ej: Parte recibido vía email. Firmado por Martínez."
+      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">{{ invoice.origen_nota or '' if invoice else '' }}</textarea>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 2: Alícuotas
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Alícuotas</h2>
+  <div class="grid grid-cols-2 gap-3">
+    {% set t = invoice.totals if invoice and invoice.totals else none %}
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">SUPA (%)</label>
+      <input type="number" step="0.01" name="supa_pct"
+        value="{{ t.supa_pct | float if t else 9.5 }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Contrib. Coop (%)</label>
+      <input type="number" step="0.01" name="contrib_coop_pct"
+        value="{{ t.contrib_coop_pct | float if t else 85.0 }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">IVA (%)</label>
+      <input type="number" step="0.01" name="iva_pct"
+        value="{{ t.iva_pct | float if t else 21.0 }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">
+        IIBB (%) <span class="text-gray-400 font-normal">opcional</span>
+      </label>
+      <input type="number" step="0.01" name="iibb_pct"
+        value="{{ t.iibb_pct | float if t and t.iibb_pct else '' }}"
+        placeholder="—"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 3: Líneas de tonelaje
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Parte de tonelaje (guinches)</h2>
+    <button type="button" id="add-ton-row"
+      class="text-xs font-medium text-sky-600 hover:text-sky-800 flex items-center gap-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Agregar línea
+    </button>
+  </div>
+
+  <!-- Encabezados de columnas (desktop) -->
+  <div class="hidden md:grid grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 px-1">
+    <span class="text-xs text-gray-400">Fecha</span>
+    <span class="text-xs text-gray-400">Turno</span>
+    <span class="text-xs text-gray-400">Guinche</span>
+    <span class="text-xs text-gray-400">Descripción</span>
+    <span class="text-xs text-gray-400">Tns Háb</span>
+    <span class="text-xs text-gray-400">Tns Inh</span>
+    <span class="text-xs text-gray-400">Tns Ext</span>
+    <span class="text-xs text-gray-400">Manos</span>
+    <span class="text-xs text-gray-400">Tar Háb</span>
+    <span class="text-xs text-gray-400">Tar Inh</span>
+    <span class="text-xs text-gray-400">Tar Ext</span>
+    <span></span>
+  </div>
+
+  <div id="ton-rows">
+    {% if invoice and invoice.tonnage_lines %}
+      {% for line in invoice.tonnage_lines %}
+      <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="{{ loop.index0 }}">
+        {% set i = loop.index0 %}
+        <input type="date" name="ton_{{ i }}_shift_date"
+          value="{{ line.shift_date.isoformat() if line.shift_date else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="text" name="ton_{{ i }}_turno_range"
+          value="{{ line.turno_range or '' }}" placeholder="07-19"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <select name="ton_{{ i }}_guinche_tipo"
+          class="ton-guinche w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+          <option value="abordo" {% if line.guinche_tipo == 'abordo' %}selected{% endif %}>Abordo</option>
+          <option value="fiscal" {% if line.guinche_tipo == 'fiscal' %}selected{% endif %}>Fiscal</option>
+        </select>
+        <input type="text" name="ton_{{ i }}_guinche_descripcion"
+          value="{{ line.guinche_descripcion or '' }}" placeholder="opcional"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tns_habiles"
+          value="{{ line.tns_habiles_recibido | float if line.tns_habiles_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tns_inhabiles"
+          value="{{ line.tns_inhabiles_recibido | float if line.tns_inhabiles_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tns_extraordinarias"
+          value="{{ line.tns_extraordinarias_recibido | float if line.tns_extraordinarias_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" name="ton_{{ i }}_manos"
+          value="{{ line.manos_recibido if line.manos_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tarifa_habiles"
+          value="{{ line.tarifa_habiles | float if line.tarifa_habiles is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tarifa_inhabiles"
+          value="{{ line.tarifa_inhabiles | float if line.tarifa_inhabiles is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="ton_{{ i }}_tarifa_extraordinarias"
+          value="{{ line.tarifa_extraordinarias | float if line.tarifa_extraordinarias is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <button type="button" class="remove-ton text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      {% endfor %}
+    {% else %}
+    <!-- fila vacía por defecto -->
+    <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="0">
+      <input type="date" name="ton_0_shift_date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="text" name="ton_0_turno_range" placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <select name="ton_0_guinche_tipo" class="ton-guinche w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <option value="abordo">Abordo</option>
+        <option value="fiscal">Fiscal</option>
+      </select>
+      <input type="text" name="ton_0_guinche_descripcion" placeholder="opcional" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tns_habiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tns_inhabiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tns_extraordinarias" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" name="ton_0_manos" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tarifa_habiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tarifa_inhabiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="ton_0_tarifa_extraordinarias" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <button type="button" class="remove-ton text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+  <p class="text-xs text-gray-400 mt-2">
+    Producto por línea: dejá vacío si el parte no lo especifica (se inferirá si hay un solo producto en el operativo).
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 4: Líneas de jornales
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Jornales (mano de obra)</h2>
+    <button type="button" id="add-lab-row"
+      class="text-xs font-medium text-sky-600 hover:text-sky-800 flex items-center gap-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Agregar línea
+    </button>
+  </div>
+
+  <div class="hidden md:grid grid-cols-[110px_80px_90px_90px_120px_70px_90px_24px] gap-1 mb-1 px-1">
+    <span class="text-xs text-gray-400">Fecha</span>
+    <span class="text-xs text-gray-400">Turno</span>
+    <span class="text-xs text-gray-400">Tipo</span>
+    <span class="text-xs text-gray-400">Función</span>
+    <span class="text-xs text-gray-400">Descripción</span>
+    <span class="text-xs text-gray-400">Cant.</span>
+    <span class="text-xs text-gray-400">Precio unit.</span>
+    <span></span>
+  </div>
+
+  <div id="lab-rows">
+    {% if invoice and invoice.labor_lines %}
+      {% for line in invoice.labor_lines %}
+      <div class="lab-row flex flex-wrap md:grid md:grid-cols-[110px_80px_90px_90px_120px_70px_90px_24px] gap-1 mb-1 items-center">
+        {% set i = loop.index0 %}
+        <input type="date" name="lab_{{ i }}_shift_date"
+          value="{{ line.shift_date.isoformat() if line.shift_date else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="text" name="lab_{{ i }}_turno_range"
+          value="{{ line.turno_range or '' }}" placeholder="07-19"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <select name="lab_{{ i }}_turno_tipo"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+          <option value="habil" {% if line.turno_tipo == 'habil' %}selected{% endif %}>Hábil</option>
+          <option value="inhabil" {% if line.turno_tipo == 'inhabil' %}selected{% endif %}>Inhábil</option>
+          <option value="extraordinario" {% if line.turno_tipo == 'extraordinario' %}selected{% endif %}>Extraordinario</option>
+        </select>
+        <select name="lab_{{ i }}_funcion"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+          <option value="guinchero" {% if line.funcion == 'guinchero' %}selected{% endif %}>Guinchero</option>
+          <option value="maquinista" {% if line.funcion == 'maquinista' %}selected{% endif %}>Maquinista</option>
+          <option value="palero" {% if line.funcion == 'palero' %}selected{% endif %}>Palero</option>
+          <option value="limpieza" {% if line.funcion == 'limpieza' %}selected{% endif %}>Limpieza</option>
+          <option value="apuntador" {% if line.funcion == 'apuntador' %}selected{% endif %}>Apuntador</option>
+          <option value="otro" {% if line.funcion == 'otro' %}selected{% endif %}>Otro</option>
+        </select>
+        <input type="text" name="lab_{{ i }}_funcion_texto"
+          value="{{ line.funcion_texto or '' }}" placeholder="Detalle si 'Otro'"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" name="lab_{{ i }}_cantidad"
+          value="{{ line.cantidad_recibido if line.cantidad_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="lab_{{ i }}_precio_unitario"
+          value="{{ line.precio_unitario_recibido | float if line.precio_unitario_recibido is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <button type="button" class="remove-lab text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="lab-row flex flex-wrap md:grid md:grid-cols-[110px_80px_90px_90px_120px_70px_90px_24px] gap-1 mb-1 items-center">
+      <input type="date" name="lab_0_shift_date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="text" name="lab_0_turno_range" placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <select name="lab_0_turno_tipo" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <option value="habil">Hábil</option>
+        <option value="inhabil">Inhábil</option>
+        <option value="extraordinario">Extraordinario</option>
+      </select>
+      <select name="lab_0_funcion" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <option value="guinchero">Guinchero</option>
+        <option value="maquinista">Maquinista</option>
+        <option value="palero">Palero</option>
+        <option value="limpieza">Limpieza</option>
+        <option value="apuntador">Apuntador</option>
+        <option value="otro">Otro</option>
+      </select>
+      <input type="text" name="lab_0_funcion_texto" placeholder="Detalle si 'Otro'" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" name="lab_0_cantidad" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="number" step="0.01" name="lab_0_precio_unitario" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <button type="button" class="remove-lab text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 5: Ítems especiales (cargo)
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Ítems especiales</h2>
+    <button type="button" id="add-cargo-row"
+      class="text-xs font-medium text-sky-600 hover:text-sky-800 flex items-center gap-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Agregar ítem
+    </button>
+  </div>
+
+  <div class="hidden md:grid grid-cols-[90px_1fr_70px_60px_90px_90px_24px] gap-1 mb-1 px-1">
+    <span class="text-xs text-gray-400">Tipo</span>
+    <span class="text-xs text-gray-400">Descripción</span>
+    <span class="text-xs text-gray-400">Cantidad</span>
+    <span class="text-xs text-gray-400">Unidad</span>
+    <span class="text-xs text-gray-400">Precio unit.</span>
+    <span class="text-xs text-gray-400">Subtotal</span>
+    <span></span>
+  </div>
+
+  <div id="cargo-rows">
+    {% if invoice and invoice.cargo_lines %}
+      {% for line in invoice.cargo_lines %}
+      <div class="cargo-row flex flex-wrap md:grid md:grid-cols-[90px_1fr_70px_60px_90px_90px_24px] gap-1 mb-1 items-center">
+        {% set i = loop.index0 %}
+        <select name="cargo_{{ i }}_tipo" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+          <option value="pala_orden" {% if line.tipo == 'pala_orden' %}selected{% endif %}>Pala orden</option>
+          <option value="pala_horas" {% if line.tipo == 'pala_horas' %}selected{% endif %}>Pala horas</option>
+          <option value="adm_resumen" {% if line.tipo == 'adm_resumen' %}selected{% endif %}>ADM resumen</option>
+          <option value="otro" {% if line.tipo == 'otro' %}selected{% endif %}>Otro</option>
+        </select>
+        <input type="text" name="cargo_{{ i }}_descripcion"
+          value="{{ line.descripcion or '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.001" name="cargo_{{ i }}_cantidad"
+          value="{{ line.cantidad | float if line.cantidad is not none else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="text" name="cargo_{{ i }}_unidad"
+          value="{{ line.unidad or '' }}" placeholder="uds"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="cargo_{{ i }}_precio_unitario"
+          value="{{ line.precio_unitario | float if line.precio_unitario is not none else '' }}"
+          class="cargo-price w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="number" step="0.01" name="cargo_{{ i }}_subtotal"
+          value="{{ line.subtotal | float if line.subtotal is not none else '' }}"
+          class="cargo-sub w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <button type="button" class="remove-cargo text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      {% endfor %}
+    {% else %}
+    <!-- sin ítems por defecto — se agrega con botón -->
+    {% endif %}
+  </div>
+  <p class="text-xs text-gray-400 mt-1" id="cargo-empty-hint" {% if invoice and invoice.cargo_lines %}style="display:none"{% endif %}>
+    Sin ítems especiales. Hacé clic en "Agregar ítem" para cargar pala a la orden, horas de pala, ADM, etc.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE 6: Total declarado
+     ══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Total del documento</h2>
+  <div class="flex items-center gap-3">
+    <div class="flex-1">
+      <label class="block text-xs font-medium text-gray-500 mb-1">
+        Total factura declarado <span class="text-gray-400 font-normal">(del PDF, en $)</span>
+      </label>
+      <input type="number" step="0.01" name="total_factura_declarado"
+        {% set t = invoice.totals if invoice and invoice.totals else none %}
+        value="{{ t.total_factura_declarado | float if t and t.total_factura_declarado is not none else '' }}"
+        placeholder="Ej: 1250000.00"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-300">
+    </div>
+    <p class="text-xs text-gray-400 max-w-[140px]">
+      El sistema calculará el total propio para compararlo con este valor.
+    </p>
+  </div>
+</div>
+
+<!-- Botón guardar -->
+<button type="submit"
+  class="w-full text-sm text-white bg-sky-600 hover:bg-sky-700 font-semibold px-4 py-3 rounded-xl transition-colors shadow-sm mb-3">
+  💾 Guardar borrador de factura
+</button>
+
+</form>
+
+<!-- Cancelar -->
+<div class="text-center mb-8">
+  <a href="/operations/live/{{ session.id }}"
+    class="text-sm text-gray-400 hover:text-gray-600">
+    ← Volver al dashboard sin guardar
+  </a>
+</div>
+
+<!-- ── JavaScript: filas dinámicas ─────────────────────────────────────────── -->
+<script>
+(function () {
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function rowCount(container) {
+    return container.querySelectorAll('[data-type]').length || container.children.length;
+  }
+
+  function reindex(container, prefix, fields) {
+    const rows = container.querySelectorAll('.dyn-row');
+    rows.forEach(function(row, idx) {
+      fields.forEach(function(f) {
+        const el = row.querySelector('[data-field="' + f + '"]');
+        if (el) el.name = prefix + '_' + idx + '_' + f;
+      });
+    });
+  }
+
+  function bindRemove(btn, container, prefix, fields) {
+    btn.addEventListener('click', function () {
+      btn.closest('.dyn-row').remove();
+      reindex(container, prefix, fields);
+      // cargo: show hint if empty
+      if (prefix === 'cargo') {
+        document.getElementById('cargo-empty-hint').style.display =
+          container.querySelectorAll('.dyn-row').length === 0 ? '' : 'none';
+      }
+    });
+  }
+
+  // ── TONELAJE ───────────────────────────────────────────────────────────────
+  const tonContainer = document.getElementById('ton-rows');
+  const tonFields = ['shift_date','turno_range','guinche_tipo','guinche_descripcion',
+    'tns_habiles','tns_inhabiles','tns_extraordinarias','manos',
+    'tarifa_habiles','tarifa_inhabiles','tarifa_extraordinarias'];
+
+  // Convertir filas existentes a dyn-row
+  tonContainer.querySelectorAll('.ton-row').forEach(function(row) {
+    row.classList.add('dyn-row');
+    const btn = row.querySelector('.remove-ton');
+    if (btn) bindRemove(btn, tonContainer, 'ton', tonFields);
+  });
+
+  document.getElementById('add-ton-row').addEventListener('click', function () {
+    const idx = tonContainer.querySelectorAll('.dyn-row').length;
+    const row = document.createElement('div');
+    row.className = 'dyn-row ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center';
+    row.innerHTML = `
+      <input type="date"   name="ton_${idx}_shift_date"          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="shift_date">
+      <input type="text"   name="ton_${idx}_turno_range"         placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="turno_range">
+      <select              name="ton_${idx}_guinche_tipo"        class="ton-guinche w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="guinche_tipo"><option value="abordo">Abordo</option><option value="fiscal">Fiscal</option></select>
+      <input type="text"   name="ton_${idx}_guinche_descripcion" placeholder="opcional" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="guinche_descripcion">
+      <input type="number" step="0.01" name="ton_${idx}_tns_habiles"          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_habiles">
+      <input type="number" step="0.01" name="ton_${idx}_tns_inhabiles"        class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_inhabiles">
+      <input type="number" step="0.01" name="ton_${idx}_tns_extraordinarias"  class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_extraordinarias">
+      <input type="number"             name="ton_${idx}_manos"                class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="manos">
+      <input type="number" step="0.01" name="ton_${idx}_tarifa_habiles"       class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tarifa_habiles">
+      <input type="number" step="0.01" name="ton_${idx}_tarifa_inhabiles"     class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tarifa_inhabiles">
+      <input type="number" step="0.01" name="ton_${idx}_tarifa_extraordinarias" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tarifa_extraordinarias">
+      <button type="button" class="remove-ton text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>`;
+    tonContainer.appendChild(row);
+    bindRemove(row.querySelector('.remove-ton'), tonContainer, 'ton', tonFields);
+  });
+
+  // ── JORNALES ───────────────────────────────────────────────────────────────
+  const labContainer = document.getElementById('lab-rows');
+  const labFields = ['shift_date','turno_range','turno_tipo','funcion','funcion_texto','cantidad','precio_unitario'];
+
+  labContainer.querySelectorAll('.lab-row').forEach(function(row) {
+    row.classList.add('dyn-row');
+    const btn = row.querySelector('.remove-lab');
+    if (btn) bindRemove(btn, labContainer, 'lab', labFields);
+  });
+
+  document.getElementById('add-lab-row').addEventListener('click', function () {
+    const idx = labContainer.querySelectorAll('.dyn-row').length;
+    const row = document.createElement('div');
+    row.className = 'dyn-row lab-row flex flex-wrap md:grid md:grid-cols-[110px_80px_90px_90px_120px_70px_90px_24px] gap-1 mb-1 items-center';
+    row.innerHTML = `
+      <input type="date"   name="lab_${idx}_shift_date"      class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="shift_date">
+      <input type="text"   name="lab_${idx}_turno_range"     placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="turno_range">
+      <select              name="lab_${idx}_turno_tipo"      class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="turno_tipo"><option value="habil">Hábil</option><option value="inhabil">Inhábil</option><option value="extraordinario">Extraordinario</option></select>
+      <select              name="lab_${idx}_funcion"         class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="funcion"><option value="guinchero">Guinchero</option><option value="maquinista">Maquinista</option><option value="palero">Palero</option><option value="limpieza">Limpieza</option><option value="apuntador">Apuntador</option><option value="otro">Otro</option></select>
+      <input type="text"   name="lab_${idx}_funcion_texto"   placeholder="Detalle si 'Otro'" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="funcion_texto">
+      <input type="number"             name="lab_${idx}_cantidad"         class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="cantidad">
+      <input type="number" step="0.01" name="lab_${idx}_precio_unitario"  class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="precio_unitario">
+      <button type="button" class="remove-lab text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>`;
+    labContainer.appendChild(row);
+    bindRemove(row.querySelector('.remove-lab'), labContainer, 'lab', labFields);
+  });
+
+  // ── CARGO ──────────────────────────────────────────────────────────────────
+  const cargoContainer = document.getElementById('cargo-rows');
+  const cargoFields = ['tipo','descripcion','cantidad','unidad','precio_unitario','subtotal'];
+  const cargoHint = document.getElementById('cargo-empty-hint');
+
+  cargoContainer.querySelectorAll('.cargo-row').forEach(function(row) {
+    row.classList.add('dyn-row');
+    const btn = row.querySelector('.remove-cargo');
+    if (btn) bindRemove(btn, cargoContainer, 'cargo', cargoFields);
+  });
+
+  document.getElementById('add-cargo-row').addEventListener('click', function () {
+    const idx = cargoContainer.querySelectorAll('.dyn-row').length;
+    const row = document.createElement('div');
+    row.className = 'dyn-row cargo-row flex flex-wrap md:grid md:grid-cols-[90px_1fr_70px_60px_90px_90px_24px] gap-1 mb-1 items-center';
+    row.innerHTML = `
+      <select name="cargo_${idx}_tipo" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tipo"><option value="pala_orden">Pala orden</option><option value="pala_horas">Pala horas</option><option value="adm_resumen">ADM resumen</option><option value="otro" selected>Otro</option></select>
+      <input type="text"   name="cargo_${idx}_descripcion"     class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="descripcion">
+      <input type="number" step="0.001" name="cargo_${idx}_cantidad"         class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="cantidad">
+      <input type="text"   name="cargo_${idx}_unidad"          placeholder="uds" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="unidad">
+      <input type="number" step="0.01" name="cargo_${idx}_precio_unitario"  class="cargo-price w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="precio_unitario">
+      <input type="number" step="0.01" name="cargo_${idx}_subtotal"         class="cargo-sub w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="subtotal">
+      <button type="button" class="remove-cargo text-gray-300 hover:text-red-400 flex items-center justify-center w-6 h-6">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>`;
+    cargoContainer.appendChild(row);
+    cargoHint.style.display = 'none';
+    // auto-calc subtotal on price change
+    const priceEl = row.querySelector('.cargo-price');
+    const subEl   = row.querySelector('.cargo-sub');
+    const cantEl  = row.querySelector('[data-field="cantidad"]');
+    function recalc() {
+      const c = parseFloat(cantEl.value) || 0;
+      const p = parseFloat(priceEl.value) || 0;
+      if (c && p) subEl.value = (c * p).toFixed(2);
+    }
+    priceEl.addEventListener('input', recalc);
+    cantEl.addEventListener('input', recalc);
+    bindRemove(row.querySelector('.remove-cargo'), cargoContainer, 'cargo', cargoFields);
+  });
+
+  // ── Calcular subtotales existentes en cargo ────────────────────────────────
+  cargoContainer.querySelectorAll('.cargo-row').forEach(function(row) {
+    const priceEl = row.querySelector('.cargo-price');
+    const subEl   = row.querySelector('.cargo-sub');
+    const cantEl  = row.querySelector('[name$="_cantidad"]');
+    if (!priceEl || !subEl || !cantEl) return;
+    function recalc() {
+      const c = parseFloat(cantEl.value) || 0;
+      const p = parseFloat(priceEl.value) || 0;
+      if (c && p && !subEl.value) subEl.value = (c * p).toFixed(2);
+    }
+    priceEl.addEventListener('input', recalc);
+    cantEl.addEventListener('input', recalc);
+  });
+
+})();
+</script>
+
+{% endblock %}
