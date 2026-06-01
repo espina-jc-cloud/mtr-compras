@@ -415,3 +415,18 @@ class OperationCargoSummary(Base):
             name="uq_cargo_summary",
         ),
     )
+
+
+# ── Módulo Operativos en Tiempo Real ─────────────────────────────────────────
+# Los modelos están en un archivo separado para mantener legibilidad.
+# Se importan aquí para que Base.metadata.create_all() los incluya
+# en la migración automáticamente.
+from app.models_live import (  # noqa: E402, F401
+    OperationLiveSession,
+    OperationLiveSessionProduct,
+    OperationLiveShift,
+    OperationLiveBodegaData,
+    OperationLiveDelay,
+    OperationLiveEquipment,
+    OperationLiveStaff,
+)

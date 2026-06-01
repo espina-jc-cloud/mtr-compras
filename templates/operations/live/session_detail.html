@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block title %}{{ session.ship_name }} — Operativo Live — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-start justify-between gap-3 mb-5">
+  <div class="flex items-start gap-3 min-w-0">
+    <a href="/operations/live"
+      class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0 mt-0.5">
+      <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h1 class="text-xl font-bold text-gray-900">{{ session.ship_name }}</h1>
+        <!-- Badge de estado -->
+        {% if session.status == 'active' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          Activo
+        </span>
+        {% elif session.status == 'paused' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          Pausado
+        </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+          <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+          Finalizado
+        </span>
+        {% endif %}
+      </div>
+      <!-- Productos badges -->
+      <div class="flex flex-wrap gap-1.5 mt-1.5">
+        {% for sp in session.products %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+          {{ sp.product }}{% if sp.client %} · <span class="font-normal opacity-75">{{ sp.client }}</span>{% endif %}
+          {% if sp.kg_contracted %}<span class="ml-1 font-normal opacity-60">/ {{ fmt_kg(sp.kg_contracted) }} kg</span>{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-gray-400 mt-1">
+        Creado {{ session.created_at | fmt_date }}
+        {% if session.created_by %} · {{ session.created_by }}{% endif %}
+        {% if session.finished_at %} · Finalizado {{ session.finished_at | fmt_date }}{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Acciones del header -->
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <a href="/operations/live/{{ session.id }}/edit"
+      class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+      title="Editar sesión">
+      <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+    </a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE A: Progreso por producto
+     Incluye turnos abiertos + cerrados (dashboard live)
+     ══════════════════════════════════════════════════════ -->
+<div class="space-y-3 mb-5">
+  {% for ps in product_summaries %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <!-- Producto y cliente -->
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="text-sm font-bold text-gray-900">{{ ps.product }}</p>
+        {% if ps.client %}
+        <p class="text-xs text-gray-400">{{ ps.client }}</p>
+        {% endif %}
+      </div>
+      {% if ps.progreso_pct is not none %}
+      <span class="text-lg font-black text-emerald-600">{{ ps.progreso_pct }}%</span>
+      {% endif %}
+    </div>
+
+    <!-- Barra de progreso -->
+    {% if ps.kg_contracted and ps.kg_contracted > 0 %}
+    <div class="w-full bg-gray-100 rounded-full h-2.5 mb-3">
+      <div class="bg-emerald-500 h-2.5 rounded-full transition-all"
+        style="width: {{ [ps.progreso_pct or 0, 100] | min }}%"></div>
+    </div>
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+      <span>{{ fmt_kg(ps.kg_coop) }} kg descargados</span>
+      <span class="text-gray-400">de {{ fmt_kg(ps.kg_contracted) }} kg</span>
+    </div>
+    {% if ps.restan is not none %}
+    <div class="flex items-center gap-1.5 text-xs font-semibold
+      {% if ps.restan <= 0 %}text-emerald-600{% else %}text-gray-700{% endif %}">
+      {% if ps.restan <= 0 %}
+      <span class="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">✓</span>
+      Descarga completa
+      {% else %}
+      Restan {{ fmt_kg(ps.restan) }} kg
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <!-- Sin kg contratados: mostrar solo totales -->
+    <div class="text-xs text-gray-400 mb-1">Sin total contratado cargado</div>
+    {% endif %}
+
+    <!-- Desglose depósito / directo / CV (si hay datos) -->
+    {% if ps.kg_total_mtr > 0 or ps.kg_coop %}
+    <div class="mt-3 pt-3 border-t border-gray-50 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      <div class="flex justify-between">
+        <span class="text-gray-400">Depósito MTR</span>
+        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_deposito) }} kg</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-gray-400">Coop declarado</span>
+        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_coop) if ps.kg_coop is not none else '—' }} kg</span>
+      </div>
+      {% if ps.kg_directo > 0 %}
+      <div class="flex justify-between">
+        <span class="text-gray-400">Directo</span>
+        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_directo) }} kg</span>
+      </div>
+      {% endif %}
+      {% if ps.kg_cv > 0 %}
+      <div class="flex justify-between">
+        <span class="text-gray-400">CV</span>
+        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_cv) }} kg</span>
+      </div>
+      {% endif %}
+      {% if ps.delta is not none %}
+      {% set badge = delta_badge(ps.delta) %}
+      <div class="flex justify-between col-span-2 pt-1 border-t border-gray-50 mt-1">
+        <span class="text-gray-400">Δ MTR vs Coop</span>
+        <span class="font-semibold px-1.5 py-0.5 rounded-md text-[11px] {{ badge.css_class }}">
+          {{ badge.text }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="mt-2 text-xs text-gray-300 text-center py-2">Sin datos cargados aún</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- Total general (si hay más de un producto) -->
+  {% if product_summaries | length > 1 %}
+  <div class="bg-gray-900 rounded-2xl p-4 text-white">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-bold">Total operativo</p>
+      {% if grand_total.progreso_pct is not none %}
+      <span class="text-lg font-black text-emerald-400">{{ grand_total.progreso_pct }}%</span>
+      {% endif %}
+    </div>
+    {% if grand_total.kg_contracted and grand_total.kg_contracted > 0 %}
+    <div class="w-full bg-gray-700 rounded-full h-2 mb-2">
+      <div class="bg-emerald-500 h-2 rounded-full"
+        style="width: {{ [grand_total.progreso_pct or 0, 100] | min }}%"></div>
+    </div>
+    {% endif %}
+    <div class="grid grid-cols-3 gap-3 text-xs mt-2">
+      <div>
+        <p class="text-gray-400 mb-0.5">Coop total</p>
+        <p class="font-bold text-emerald-300">{{ fmt_kg(grand_total.kg_coop) if grand_total.kg_coop is not none else '—' }} kg</p>
+      </div>
+      <div>
+        <p class="text-gray-400 mb-0.5">MTR total</p>
+        <p class="font-bold">{{ fmt_kg(grand_total.kg_total_mtr) }} kg</p>
+      </div>
+      {% if grand_total.restan is not none %}
+      <div>
+        <p class="text-gray-400 mb-0.5">Restan</p>
+        <p class="font-bold {% if grand_total.restan <= 0 %}text-emerald-400{% endif %}">
+          {{ fmt_kg(grand_total.restan) }} kg
+        </p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Nota de acumulados -->
+<p class="text-[10px] text-gray-300 text-center mb-5">
+  ↑ Los acumulados incluyen turnos abiertos y cerrados — datos en tiempo real
+</p>
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE B: Turno activo
+     ══════════════════════════════════════════════════════ -->
+{% if active_shift %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <p class="text-sm font-bold text-emerald-800">
+        Turno {{ active_shift.shift_number }} abierto
+        · desde {{ active_shift.shift_start }}
+        {% if active_shift.shift_date %} · {{ active_shift.shift_date | fmt_date }}{% endif %}
+      </p>
+    </div>
+    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}/edit"
+      class="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
+      Editar →
+    </a>
+  </div>
+  {% if active_shift.supervisor_mtr %}
+  <p class="text-xs text-emerald-600 mb-2">Jefe: {{ active_shift.supervisor_mtr }}</p>
+  {% endif %}
+
+  <!-- Resumen rápido del turno activo -->
+  {% set active_in_history = shift_history | selectattr("shift.id", "equalto", active_shift.id) | first %}
+  {% if active_in_history and active_in_history.by_product %}
+  <div class="space-y-1.5 mb-3">
+    {% for prod, data in active_in_history.by_product.items() %}
+    <div class="flex items-center justify-between text-xs">
+      <span class="font-semibold text-emerald-700">{{ prod }}</span>
+      <div class="flex items-center gap-3">
+        <span class="text-emerald-600">MTR {{ fmt_kg(data.kg_total_mtr) }} kg</span>
+        <span class="text-emerald-500">Coop {{ fmt_kg(data.kg_coop) if data.kg_coop is not none else '—' }} kg</span>
+        {% if data.delta is not none %}
+        {% set badge = delta_badge(data.delta) %}
+        <span class="px-1.5 py-0.5 rounded {{ badge.css_class }} text-[11px] font-semibold">{{ badge.text }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if active_in_history and active_in_history.delay_min > 0 %}
+  <p class="text-xs text-emerald-600">
+    ⏱ {{ active_in_history.delay_fmt }} de demoras este turno
+  </p>
+  {% endif %}
+
+  <div class="flex gap-2 mt-3">
+    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}/edit"
+      class="flex-1 text-center text-xs font-semibold text-emerald-700 border border-emerald-300
+             bg-white hover:bg-emerald-50 rounded-lg py-2 transition-colors">
+      ✏ Editar datos
+    </a>
+    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}"
+      class="flex-1 text-center text-xs font-semibold text-emerald-700 border border-emerald-300
+             bg-white hover:bg-emerald-50 rounded-lg py-2 transition-colors">
+      Ver detalle
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE C: Acciones
+     ══════════════════════════════════════════════════════ -->
+{% if session.status != 'finished' %}
+<div class="flex gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}/shift/new"
+    class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold
+           px-4 py-2.5 rounded-xl text-center shadow-sm transition-colors">
+    + Nuevo turno
+  </a>
+  <a href="/operations/live/{{ session.id }}/reconciliacion"
+    class="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50
+           text-sm font-semibold px-4 py-2.5 rounded-xl text-center transition-colors">
+    Ver reconciliación
+  </a>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE D: Historial de turnos
+     ══════════════════════════════════════════════════════ -->
+{% if shift_history %}
+<h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+  Historial de turnos ({{ shift_history | length }})
+</h2>
+<div class="space-y-2 mb-5">
+  {% for item in shift_history %}
+  {% set shift = item.shift %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <!-- Color de estado del turno -->
+    <div class="h-0.5 {% if shift.status == 'open' %}bg-emerald-400{% elif shift.status == 'adjusted' %}bg-blue-400{% else %}bg-gray-200{% endif %}"></div>
+
+    <div class="p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <p class="text-sm font-bold text-gray-900">Parte Nº {{ shift.shift_number }}</p>
+            {% if shift.status == 'open' %}
+            <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">abierto</span>
+            {% elif shift.status == 'adjusted' %}
+            <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">ajustado</span>
+            {% endif %}
+            {% if shift.await_adjustment %}
+            <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⏳ esperando ajuste</span>
+            {% endif %}
+            {% if shift.is_final_shift %}
+            <span class="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">✓ descarga finalizada</span>
+            {% endif %}
+          </div>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {{ shift.shift_date | fmt_date if shift.shift_date }}
+            · {{ shift.shift_start }}
+            {% if shift.shift_end %} → {{ shift.shift_end }}{% else %} → en curso{% endif %}
+            {% if shift.supervisor_mtr %} · {{ shift.supervisor_mtr }}{% endif %}
+          </p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          {% if item.totals.kg_coop %}
+          <p class="text-sm font-bold text-gray-800">{{ fmt_kg(item.totals.kg_coop) }} kg</p>
+          <p class="text-[11px] text-gray-400">coop</p>
+          {% endif %}
+          {% if item.delta_badge.status != 'none' %}
+          <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold {{ item.delta_badge.css_class }}">
+            {{ item.delta_badge.text }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Desglose por producto si hay datos -->
+      {% if item.by_product %}
+      <div class="mt-3 space-y-1">
+        {% for prod, data in item.by_product.items() %}
+        <div class="grid grid-cols-4 gap-2 text-xs">
+          <span class="font-semibold text-gray-700 truncate">{{ prod }}</span>
+          <span class="text-gray-500 text-right">MTR {{ fmt_kg(data.kg_total_mtr) }}</span>
+          <span class="text-gray-500 text-right">Coop {{ fmt_kg(data.kg_coop) if data.kg_coop is not none else '—' }}</span>
+          {% if data.delta is not none %}
+          {% set badge = delta_badge(data.delta) %}
+          <span class="text-right">
+            <span class="px-1 py-0.5 rounded text-[10px] font-semibold {{ badge.css_class }}">{{ badge.text }}</span>
+          </span>
+          {% else %}
+          <span></span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Pie: demoras / equipos / personal + botones -->
+      <div class="mt-3 pt-2 border-t border-gray-50 space-y-1.5">
+        <!-- Demoras por motivo -->
+        {% if item.delay_by_type %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for tipo, mins in item.delay_by_type.items() %}
+          <span class="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+            ⏱ {{ MOTIVO_LABELS.get(tipo, tipo) }}: {{ format_minutes(mins) }}
+          </span>
+          {% endfor %}
+        </div>
+        {% elif item.delay_min == 0 and item.equip_hrs == 0 and not item.staff %}
+        <div class="text-xs text-gray-300">Sin demoras ni equipos cargados</div>
+        {% endif %}
+        <!-- Equipos por empresa -->
+        {% if item.equip_by_empresa %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for emp, hrs in item.equip_by_empresa.items() %}
+          <span class="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">
+            🔧 {{ emp }}: {{ hrs }} hs
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <!-- Personal -->
+        {% if item.staff %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for s in item.staff %}
+          <span class="text-[10px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+            👷 {{ s.label }}{% if s.turno_range %}
+            {% set parts = s.turno_range.split("A") %} {{ parts[0][:2] }}-{{ parts[1][:2] }}{% endif %}
+            × {{ s.cantidad }}
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <!-- Link a detalle -->
+        <div class="flex justify-end pt-1">
+          <a href="/operations/live/{{ session.id }}/shift/{{ shift.id }}"
+            class="text-xs font-semibold text-gray-500 hover:text-gray-900 whitespace-nowrap">
+            Ver detalle →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center mb-5">
+  <p class="text-gray-400 text-sm">Aún no hay turnos cargados para este operativo.</p>
+  {% if session.status != 'finished' %}
+  <a href="/operations/live/{{ session.id }}/shift/new"
+    class="inline-block mt-3 text-emerald-600 font-semibold text-sm hover:text-emerald-800">
+    Crear el primer turno →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE E: Estadísticas del operativo (demoras + equipos)
+     ══════════════════════════════════════════════════════ -->
+{% if session_delay_total > 0 or session_equip_total > 0 %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Estadísticas del operativo</h2>
+  <div class="grid grid-cols-2 gap-3">
+    <!-- Demoras acumuladas -->
+    {% if session_delay_total > 0 %}
+    <div class="rounded-xl bg-amber-50 border border-amber-100 p-3">
+      <div class="text-xs text-amber-600 font-semibold mb-1">⏱ Demoras totales</div>
+      <div class="text-lg font-bold text-amber-700">{{ session_delay_fmt }}</div>
+      {% if session_delay_by_type %}
+      <div class="mt-2 space-y-1">
+        {% for tipo, mins in session_delay_by_type.items() %}
+        <div class="flex justify-between text-[11px]">
+          <span class="text-amber-600">{{ MOTIVO_LABELS.get(tipo, tipo) }}</span>
+          <span class="font-semibold text-amber-700">{{ format_minutes(mins) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    <!-- Equipos acumulados -->
+    {% if session_equip_total > 0 %}
+    <div class="rounded-xl bg-blue-50 border border-blue-100 p-3">
+      <div class="text-xs text-blue-600 font-semibold mb-1">🔧 Horas equipo total</div>
+      <div class="text-lg font-bold text-blue-700">{{ session_equip_total }} hs</div>
+      {% if session_equip_by_empresa %}
+      <div class="mt-2 space-y-1">
+        {% for emp, hrs in session_equip_by_empresa.items() %}
+        <div class="flex justify-between text-[11px]">
+          <span class="text-blue-600">{{ emp }}</span>
+          <span class="font-bold text-blue-700">{{ hrs }} hs</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Cierre del operativo (si está activo) -->
+{% if session.status == 'active' or session.status == 'paused' %}
+<details class="bg-white rounded-2xl border border-gray-100 shadow-sm mb-8">
+  <summary class="px-4 py-3 text-sm font-medium text-gray-500 cursor-pointer hover:bg-gray-50 rounded-2xl">
+    ⚙ Opciones del operativo
+  </summary>
+  <div class="px-4 pb-4 pt-2 border-t border-gray-50 space-y-3">
+    <!-- Pausar / reactivar -->
+    {% if session.status == 'active' %}
+    <form method="post" action="/operations/live/{{ session.id }}/edit">
+      <input type="hidden" name="status" value="paused">
+      <button type="submit"
+        class="w-full text-sm text-amber-700 border border-amber-200 bg-amber-50
+               hover:bg-amber-100 font-semibold px-4 py-2 rounded-xl transition-colors">
+        ⏸ Pausar operativo
+      </button>
+    </form>
+    {% else %}
+    <form method="post" action="/operations/live/{{ session.id }}/edit">
+      <input type="hidden" name="status" value="active">
+      <button type="submit"
+        class="w-full text-sm text-emerald-700 border border-emerald-200 bg-emerald-50
+               hover:bg-emerald-100 font-semibold px-4 py-2 rounded-xl transition-colors">
+        ▶ Reactivar operativo
+      </button>
+    </form>
+    {% endif %}
+
+    <!-- Finalizar -->
+    <details class="border border-red-100 rounded-xl">
+      <summary class="px-3 py-2.5 text-sm text-red-600 font-medium cursor-pointer hover:bg-red-50 rounded-xl">
+        ✅ Marcar como finalizado
+      </summary>
+      <form method="post" action="/operations/live/{{ session.id }}/finish"
+        class="px-3 pb-3 pt-2 border-t border-red-50">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">
+          Observaciones de cierre (opcional)
+        </label>
+        <textarea name="closing_notes" rows="2"
+          placeholder="Ej: Descarga finalizada sin novedad. Pendiente ajuste de tonelaje..."
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                 focus:outline-none focus:ring-2 focus:ring-red-300 bg-gray-50 mb-3"></textarea>
+        <button type="submit"
+          class="w-full text-sm text-white bg-red-500 hover:bg-red-600
+                 font-semibold px-4 py-2 rounded-xl transition-colors">
+          Confirmar cierre
+        </button>
+      </form>
+    </details>
+  </div>
+</details>
+{% endif %}
+
+{% endblock %}

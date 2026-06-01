@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Editar Operativo — {{ session.ship_name }} — MTR{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center gap-3 mb-6">
+  <a href="/operations/live/{{ session.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Editar operativo</h1>
+    <p class="text-sm text-gray-500">{{ session.ship_name }}</p>
+  </div>
+</div>
+
+<form method="post" action="/operations/live/{{ session.id }}/edit" id="edit-session-form">
+  <div class="space-y-4 max-w-2xl">
+
+    <!-- Datos generales -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <h2 class="text-sm font-bold text-gray-700 mb-4">Datos del barco</h2>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1.5" for="ship_name">
+          Nombre del barco
+        </label>
+        <input
+          id="ship_name" name="ship_name" type="text"
+          value="{{ session.ship_name }}"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium
+                 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 uppercase"
+        >
+      </div>
+    </div>
+
+    <!-- Productos -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-bold text-gray-700">Productos</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            ⚠ Editar los productos recrea las filas. Los datos de bodegas no se pierden.
+          </p>
+        </div>
+      </div>
+
+      <div id="products-container" class="space-y-3">
+        {% for sp in session.products %}
+        {% set i = loop.index0 %}
+        <div class="product-row bg-gray-50 rounded-xl p-4 border border-gray-100" data-index="{{ i }}">
+          <div class="flex items-start gap-2">
+            <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
+                <input name="product_{{ i }}" type="text" value="{{ sp.product }}"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white uppercase">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
+                <input name="client_{{ i }}" type="text" value="{{ sp.client or '' }}"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">Kg contratados</label>
+                <input name="kg_contracted_{{ i }}" type="text" inputmode="numeric"
+                  value="{{ sp.kg_contracted or '' }}"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              </div>
+            </div>
+            <button type="button" onclick="removeProductRow(this)"
+              class="remove-btn mt-6 w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-400
+                     hover:text-red-600 flex items-center justify-center flex-shrink-0
+                     {% if loop.first %}hidden{% endif %}">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <button type="button" onclick="addProductRow()"
+        class="mt-3 w-full border-2 border-dashed border-gray-200 rounded-xl px-4 py-3
+               text-sm text-gray-400 hover:text-emerald-600 hover:border-emerald-300
+               hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Agregar otro producto
+      </button>
+    </div>
+
+    <!-- Botones -->
+    <div class="flex items-center gap-3 pb-8">
+      <a href="/operations/live/{{ session.id }}"
+        class="flex-1 text-center border border-gray-200 text-gray-600 hover:bg-gray-50
+               text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+        Cancelar
+      </a>
+      <button type="submit"
+        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold
+               px-4 py-2.5 rounded-xl shadow-sm transition-colors">
+        Guardar cambios
+      </button>
+    </div>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let productCount = {{ session.products | length }};
+
+  function addProductRow() {
+    const idx = productCount++;
+    const container = document.getElementById('products-container');
+    const row = document.createElement('div');
+    row.className = 'product-row bg-gray-50 rounded-xl p-4 border border-gray-100';
+    row.dataset.index = idx;
+    row.innerHTML = `
+      <div class="flex items-start gap-2">
+        <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1.5">Producto</label>
+            <input name="product_${idx}" type="text"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white uppercase">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1.5">Cliente</label>
+            <input name="client_${idx}" type="text"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1.5">Kg contratados</label>
+            <input name="kg_contracted_${idx}" type="text" inputmode="numeric"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+          </div>
+        </div>
+        <button type="button" onclick="removeProductRow(this)"
+          class="remove-btn mt-6 w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-400
+                 hover:text-red-600 flex items-center justify-center flex-shrink-0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>`;
+    container.appendChild(row);
+  }
+
+  function removeProductRow(btn) {
+    const row = btn.closest('.product-row');
+    const container = document.getElementById('products-container');
+    if (container.querySelectorAll('.product-row').length > 1) {
+      row.remove();
+      renumberRows();
+    }
+  }
+
+  function renumberRows() {
+    const rows = document.querySelectorAll('.product-row');
+    rows.forEach((row, i) => {
+      row.dataset.index = i;
+      ['product', 'client', 'kg_contracted'].forEach(field => {
+        const input = row.querySelector(`[name^="${field}_"]`);
+        if (input) input.name = `${field}_${i}`;
+      });
+    });
+    productCount = rows.length;
+  }
+</script>
+{% endblock %}

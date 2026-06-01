@@ -1,0 +1,762 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if is_new %}Nuevo turno{% else %}Editar Parte #{{ shift.shift_number }}{% endif %}
+  — {{ session.ship_name }} — MTR
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/operations/live/{{ session.id }}"
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div>
+    {% if is_new %}
+      <h1 class="text-xl font-semibold text-gray-900">Nuevo turno</h1>
+      <p class="text-sm text-gray-500">{{ session.ship_name }} · Parte #{{ next_num }}</p>
+    {% else %}
+      <h1 class="text-xl font-semibold text-gray-900">Editar Parte #{{ shift.shift_number }}</h1>
+      <p class="text-sm text-gray-500">
+        {{ session.ship_name }} ·
+        <span class="{% if shift.status == 'open' %}text-emerald-600 font-medium{% else %}text-gray-400{% endif %}">
+          {{ "Abierto" if shift.status == "open" else "Cerrado" }}
+        </span>
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Productos de la sesión (referencia rápida) -->
+<div class="mb-4 flex flex-wrap gap-2">
+  {% for sp in session.products %}
+  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-xs font-semibold text-emerald-700">
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+    {{ sp.product }}{% if sp.client %} · {{ sp.client }}{% endif %}
+  </span>
+  {% endfor %}
+</div>
+
+<form
+  method="post"
+  action="{% if is_new %}/operations/live/{{ session.id }}/shift/new{% else %}/operations/live/{{ session.id }}/shift/{{ shift.id }}/edit{% endif %}"
+  id="shift-form"
+>
+  <div class="space-y-4 max-w-3xl">
+
+    <!-- ══ 1. DATOS DEL TURNO ══════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <h2 class="text-sm font-bold text-gray-700 mb-4">Datos del turno</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Parte Nº</label>
+          <input name="shift_number" type="number" min="1"
+            value="{% if is_new %}{{ next_num }}{% else %}{{ shift.shift_number }}{% endif %}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-center
+                   focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Fecha</label>
+          <input name="shift_date" type="date"
+            value="{% if is_new %}{{ today_str }}{% else %}{{ shift.shift_date.isoformat() }}{% endif %}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Inicio</label>
+          <input name="shift_start" id="shift_start" type="time"
+            value="{% if not is_new and shift.shift_start %}{{ shift.shift_start }}{% endif %}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">
+            Fin <span class="text-gray-300 font-normal">(al cerrar)</span>
+          </label>
+          <input name="shift_end" id="shift_end" type="time"
+            value="{% if not is_new and shift.shift_end %}{{ shift.shift_end }}{% endif %}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <span class="text-xs text-gray-400 self-center">Rango rápido:</span>
+        {% for r in TURNO_RANGES %}{% set parts = r.split("A") %}
+        <button type="button"
+          onclick="setShiftRange('{{ parts[0][:2] }}:{{ parts[0][2:] }}', '{{ parts[1][:2] }}:{{ parts[1][2:] }}')"
+          class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-100 hover:text-emerald-700 text-xs font-medium text-gray-500 transition-colors">
+          {{ parts[0][:2] }}–{{ parts[1][:2] }}hs
+        </button>
+        {% endfor %}
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Jefe MTR</label>
+          <input name="supervisor_mtr" type="text"
+            value="{% if not is_new %}{{ shift.supervisor_mtr or '' }}{% endif %}"
+            placeholder="Nombre…"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Apuntador</label>
+          <input name="apuntador" type="text"
+            value="{% if not is_new %}{{ shift.apuntador or '' }}{% endif %}"
+            placeholder="Nombre…"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Manos</label>
+          <input name="manos" type="number" min="0"
+            value="{% if not is_new and shift.manos %}{{ shift.manos }}{% endif %}"
+            placeholder="0"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
+        </div>
+      </div>
+      <div class="mt-4">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Notas</label>
+        <textarea name="notes" rows="2" placeholder="Observaciones opcionales…"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">{% if not is_new %}{{ shift.notes or '' }}{% endif %}</textarea>
+      </div>
+    </div>
+
+    <!-- ══ 2. BODEGAS ══════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-bold text-gray-700">Bodegas</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Una fila por bodega × producto.</p>
+        </div>
+        <div class="text-right">
+          <div id="live-total-mtr" class="text-lg font-bold text-gray-900">0 kg</div>
+          <div class="text-xs text-gray-400">MTR total</div>
+        </div>
+      </div>
+      <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_5rem_5rem_2rem] gap-2 mb-2 px-1">
+        <div class="text-xs font-semibold text-gray-400 text-center">Bod.</div>
+        <div class="text-xs font-semibold text-gray-400">Producto</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">V.MTR</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">Dep</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">Dir</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">CV</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">V.Coop</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">Kg Coop</div>
+        <div></div>
+      </div>
+      <div id="bodegas-container" class="space-y-2"></div>
+      <button type="button" onclick="addBodegaRow()"
+        class="mt-3 w-full border-2 border-dashed border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-400
+               hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Agregar bodega
+      </button>
+    </div>
+
+    <!-- ══ 3. DEMORAS ══════════════════════════════════════════════════════════ -->
+    <details class="bg-white rounded-2xl border border-gray-100 shadow-sm" id="delays-section">
+      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none group">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold text-gray-700">⏱ Demoras</span>
+          <span id="delay-count-badge" class="hidden text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <span class="text-xs text-gray-400 group-open:hidden">Tocar para expandir</span>
+      </summary>
+      <div class="px-5 pb-5 pt-2 border-t border-gray-50">
+        <div class="hidden sm:grid grid-cols-[4rem_1fr_5rem_5rem_1fr_2rem] gap-2 mb-2 px-1">
+          <div class="text-xs font-semibold text-gray-400 text-center">Bodega</div>
+          <div class="text-xs font-semibold text-gray-400">Motivo</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Desde</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Hasta</div>
+          <div class="text-xs font-semibold text-gray-400">Texto libre</div>
+          <div></div>
+        </div>
+        <div id="delays-container" class="space-y-2"></div>
+        <button type="button" onclick="addDelayRow()"
+          class="mt-3 w-full border-2 border-dashed border-amber-100 rounded-xl px-4 py-3 text-sm text-gray-400
+                 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Agregar demora
+        </button>
+        <!-- Total de demoras en tiempo real -->
+        <div id="delay-total-bar" class="hidden mt-3 flex items-center gap-2 text-xs text-amber-700">
+          <span class="font-semibold">Total demoras:</span>
+          <span id="delay-total-text" class="font-bold"></span>
+        </div>
+      </div>
+    </details>
+
+    <!-- ══ 4. EQUIPOS ══════════════════════════════════════════════════════════ -->
+    <details class="bg-white rounded-2xl border border-gray-100 shadow-sm" id="equip-section">
+      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none group">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold text-gray-700">🔧 Equipos</span>
+          <span id="equip-count-badge" class="hidden text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <span class="text-xs text-gray-400 group-open:hidden">Tocar para expandir</span>
+      </summary>
+      <div class="px-5 pb-5 pt-2 border-t border-gray-50">
+        <div class="hidden sm:grid grid-cols-[1fr_8rem_4rem_5rem_5rem_1fr_2rem] gap-2 mb-2 px-1">
+          <div class="text-xs font-semibold text-gray-400">Empresa</div>
+          <div class="text-xs font-semibold text-gray-400">Tipo</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Bod.</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Desde</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Hasta</div>
+          <div class="text-xs font-semibold text-gray-400">Comentarios</div>
+          <div></div>
+        </div>
+        <div id="equip-container" class="space-y-2"></div>
+        <button type="button" onclick="addEquipRow()"
+          class="mt-3 w-full border-2 border-dashed border-blue-100 rounded-xl px-4 py-3 text-sm text-gray-400
+                 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Agregar equipo
+        </button>
+        <div id="equip-total-bar" class="hidden mt-3 text-xs text-blue-700">
+          <span class="font-semibold">Total hs equipos:</span>
+          <span id="equip-total-text" class="font-bold ml-1"></span>
+        </div>
+      </div>
+    </details>
+
+    <!-- ══ 5. PERSONAL ════════════════════════════════════════════════════════ -->
+    <details class="bg-white rounded-2xl border border-gray-100 shadow-sm" id="staff-section">
+      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none group">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold text-gray-700">👷 Personal</span>
+          <span id="staff-count-badge" class="hidden text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <span class="text-xs text-gray-400 group-open:hidden">Tocar para expandir</span>
+      </summary>
+      <div class="px-5 pb-5 pt-2 border-t border-gray-50">
+        <div class="hidden sm:grid grid-cols-[1fr_8rem_5rem_8rem_8rem_2rem] gap-2 mb-2 px-1">
+          <div class="text-xs font-semibold text-gray-400">Función</div>
+          <div class="text-xs font-semibold text-gray-400">Descripción</div>
+          <div class="text-xs font-semibold text-gray-400 text-center">Cant.</div>
+          <div class="text-xs font-semibold text-gray-400">Rango</div>
+          <div class="text-xs font-semibold text-gray-400">Empresa</div>
+          <div></div>
+        </div>
+        <div id="staff-container" class="space-y-2"></div>
+        <button type="button" onclick="addStaffRow()"
+          class="mt-3 w-full border-2 border-dashed border-indigo-100 rounded-xl px-4 py-3 text-sm text-gray-400
+                 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Agregar función
+        </button>
+      </div>
+    </details>
+
+    <!-- ══ 6. BOTONES ══════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div id="delta-summary" class="hidden mb-4 p-3 rounded-xl bg-gray-50 border border-gray-100">
+        <div class="text-xs font-semibold text-gray-500 mb-2">Resumen antes de cerrar</div>
+        <div id="delta-summary-content" class="text-sm text-gray-700"></div>
+      </div>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <a href="/operations/live/{{ session.id }}"
+          class="flex-1 text-center border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          Cancelar
+        </a>
+        <button type="submit" name="save_action" value="draft"
+          class="flex-1 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800
+                 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+          </svg>
+          Guardar borrador
+        </button>
+        <button type="submit" name="save_action" value="close"
+          class="flex-1 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Cerrar turno
+        </button>
+      </div>
+    </div>
+
+    <div class="pb-8"></div>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Datos del servidor ────────────────────────────────────────────────────────
+const SESSION_PRODUCTS = [
+  {% for sp in session.products %}
+  { value: "{{ sp.product }}", label: "{{ sp.product }}{% if sp.client %} ({{ sp.client }}){% endif %}" },
+  {% endfor %}
+];
+const MOTIVO_OPTIONS = [
+  {% for k, v in MOTIVO_LABELS.items() %}{ value: "{{ k }}", label: "{{ v }}" },{% endfor %}
+];
+const EQUIPO_TIPOS = [
+  {% for t in EQUIPO_TIPOS %}"{{ t }}",{% endfor %}
+];
+const TURNO_RANGES = [
+  {% for r in TURNO_RANGES %}"{{ r }}",{% endfor %}
+];
+const FUNCION_OPTIONS = [
+  {% for k, v in FUNCION_LABELS.items() %}{ value: "{{ k }}", label: "{{ v }}" },{% endfor %}
+];
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+let bodegaCount = 0, delayCount = 0, equipCount = 0, staffCount = 0;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function productOptions(selected) {
+  let opts = `<option value="">— Producto —</option>`;
+  SESSION_PRODUCTS.forEach(p => {
+    opts += `<option value="${p.value}"${p.value===selected?' selected':''}>${p.label}</option>`;
+  });
+  return opts;
+}
+function motivoOptions(selected) {
+  let opts = `<option value="">— Motivo —</option>`;
+  MOTIVO_OPTIONS.forEach(o => {
+    opts += `<option value="${o.value}"${o.value===selected?' selected':''}>${o.label}</option>`;
+  });
+  return opts;
+}
+function tipoEquipoOptions(selected) {
+  let opts = `<option value="">— Tipo —</option>`;
+  EQUIPO_TIPOS.forEach(t => {
+    opts += `<option value="${t}"${t===selected?' selected':''}>${t}</option>`;
+  });
+  return opts;
+}
+function turnoRangeOptions(selected) {
+  let opts = `<option value="">— Rango —</option>`;
+  TURNO_RANGES.forEach(r => {
+    const parts = r.split('A');
+    const label = `${parts[0].slice(0,2)}–${parts[1].slice(0,2)}hs`;
+    opts += `<option value="${r}"${r===selected?' selected':''}>${label}</option>`;
+  });
+  return opts;
+}
+function funcionOptions(selected) {
+  let opts = `<option value="">— Función —</option>`;
+  FUNCION_OPTIONS.forEach(o => {
+    opts += `<option value="${o.value}"${o.value===selected?' selected':''}>${o.label}</option>`;
+  });
+  return opts;
+}
+function rv(data, field, def='') {
+  const v = data ? data[field] : undefined;
+  return (v === null || v === undefined) ? def : v;
+}
+function diffMins(desde, hasta) {
+  if (!desde || !hasta) return null;
+  const [dh,dm] = desde.split(':').map(Number);
+  const [hh,hm] = hasta.split(':').map(Number);
+  let diff = (hh*60+hm) - (dh*60+dm);
+  if (diff < 0) diff += 1440;
+  return diff;
+}
+function fmtMins(m) {
+  if (m===null) return '';
+  const h=Math.floor(m/60), min=m%60;
+  return h ? (min ? `${h}h ${min}m` : `${h}h`) : `${min}m`;
+}
+function fmtHrs(secs) {
+  return secs ? secs.toFixed(2) + ' hs' : '';
+}
+function removeBtn(color='red') {
+  return `<button type="button" onclick="removeRow(this)"
+    class="remove-btn w-7 h-7 rounded-lg bg-${color}-50 hover:bg-${color}-100 text-${color}-400
+           hover:text-${color}-600 flex items-center justify-center flex-shrink-0 transition-colors">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+    </svg></button>`;
+}
+function removeRow(btn) { btn.closest('[data-row]').remove(); recalcAll(); }
+
+// ── BODEGA ROWS ───────────────────────────────────────────────────────────────
+function addBodegaRow(data) {
+  const idx = bodegaCount++;
+  const container = document.getElementById('bodegas-container');
+  const div = document.createElement('div');
+  div.dataset.row = 'bodega';
+  div.dataset.index = idx;
+
+  // Desktop
+  div.innerHTML = `
+  <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_5rem_5rem_2rem] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+    <input name="bodega_${idx}_number" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="#" oninput="recalcBodega()" class="input-xs text-center font-bold">
+    <select name="bodega_${idx}_product" class="input-xs">${productOptions(rv(data,'product'))}</select>
+    <input name="bodega_${idx}_viajes_mtr" type="number" min="0" value="${rv(data,'viajes_mtr')}" placeholder="—" class="input-xs text-center">
+    <input name="bodega_${idx}_kg_deposito_mtr" type="number" min="0" value="${rv(data,'kg_deposito_mtr',0)}" oninput="recalcBodega()" class="input-xs text-center">
+    <input name="bodega_${idx}_kg_directo_mtr"  type="number" min="0" value="${rv(data,'kg_directo_mtr',0)}"  oninput="recalcBodega()" class="input-xs text-center">
+    <input name="bodega_${idx}_kg_cv_mtr"       type="number" min="0" value="${rv(data,'kg_cv_mtr',0)}"       oninput="recalcBodega()" class="input-xs text-center">
+    <input name="bodega_${idx}_viajes_coop"  type="number" min="0" value="${rv(data,'viajes_coop')}" placeholder="—" class="input-xs text-center">
+    <input name="bodega_${idx}_kg_coop"      type="number" min="0" value="${rv(data,'kg_coop')}"     oninput="recalcBodega()" placeholder="—" class="input-xs text-center">
+    <input type="hidden" name="bodega_${idx}_measurement" value="${rv(data,'measurement','fiscal')}">
+    ${removeBtn()}
+  </div>
+  <!-- Mobile -->
+  <div class="sm:hidden bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-3">
+    <div class="flex items-center gap-2">
+      <input name="bodega_${idx}_number" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="#" oninput="recalcBodega()" class="w-14 border border-gray-200 rounded-lg px-2 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+      <select name="bodega_${idx}_product" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">${productOptions(rv(data,'product'))}</select>
+      ${removeBtn()}
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      ${['viajes_mtr','kg_deposito_mtr','kg_directo_mtr','kg_cv_mtr','viajes_coop','kg_coop'].map((f,fi) => {
+        const labels = ['V.MTR','Kg Dep','Kg Dir','Kg CV','V.Coop','Kg Coop'];
+        const ev = fi>=1&&fi<=3?'oninput="recalcBodega()"':fi===5?'oninput="recalcBodega()"':'';
+        return `<div><div class="text-xs text-gray-400 mb-1">${labels[fi]}</div>
+        <input name="bodega_${idx}_${f}" type="number" min="0" value="${rv(data,f,fi>=1&&fi<=3?0:'')}" ${ev} placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>`;
+      }).join('')}
+    </div>
+    <input type="hidden" name="bodega_${idx}_measurement" value="${rv(data,'measurement','fiscal')}">
+  </div>`;
+  container.appendChild(div);
+  recalcBodega();
+}
+
+// ── DELAY ROWS ────────────────────────────────────────────────────────────────
+function addDelayRow(data) {
+  const idx = delayCount++;
+  const container = document.getElementById('delays-container');
+  const div = document.createElement('div');
+  div.dataset.row = 'delay';
+  div.dataset.index = idx;
+
+  div.innerHTML = `
+  <div class="hidden sm:grid grid-cols-[4rem_1fr_5rem_5rem_1fr_2rem] gap-2 items-start bg-amber-50 rounded-xl px-3 py-2.5 border border-amber-100">
+    <input name="delay_${idx}_bodega" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="—"
+      class="input-xs text-center">
+    <select name="delay_${idx}_motivo_tipo" class="input-xs">${motivoOptions(rv(data,'motivo_tipo'))}</select>
+    <input name="delay_${idx}_desde" type="time" value="${rv(data,'desde')}" oninput="recalcDelays()"
+      class="input-xs text-center">
+    <div>
+      <input name="delay_${idx}_hasta" type="time" value="${rv(data,'hasta')}" oninput="recalcDelays()"
+        class="input-xs text-center">
+      <div class="delay-dur text-[10px] text-amber-600 text-center mt-0.5 font-semibold"></div>
+    </div>
+    <input name="delay_${idx}_motivo_texto" type="text" value="${rv(data,'motivo_texto')}" placeholder="Observaciones…"
+      class="input-xs">
+    ${removeBtn('red')}
+    <input type="hidden" name="delay_${idx}_product" value="${rv(data,'product')}">
+  </div>
+  <!-- Mobile -->
+  <div class="sm:hidden bg-amber-50 rounded-xl p-3 border border-amber-100 space-y-2">
+    <div class="flex items-center gap-2">
+      <div class="flex-none w-14">
+        <div class="text-xs text-gray-400 mb-1">Bodega</div>
+        <input name="delay_${idx}_bodega" type="number" value="${rv(data,'bodega_number')}" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+      </div>
+      <div class="flex-1">
+        <div class="text-xs text-gray-400 mb-1">Motivo</div>
+        <select name="delay_${idx}_motivo_tipo" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">${motivoOptions(rv(data,'motivo_tipo'))}</select>
+      </div>
+      ${removeBtn('red')}
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <div class="text-xs text-gray-400 mb-1">Desde</div>
+        <input name="delay_${idx}_desde" type="time" value="${rv(data,'desde')}" oninput="recalcDelays()"
+          class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+      </div>
+      <div>
+        <div class="text-xs text-gray-400 mb-1">Hasta <span class="delay-dur text-amber-600 font-semibold"></span></div>
+        <input name="delay_${idx}_hasta" type="time" value="${rv(data,'hasta')}" oninput="recalcDelays()"
+          class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+      </div>
+    </div>
+    <input name="delay_${idx}_motivo_texto" type="text" value="${rv(data,'motivo_texto')}" placeholder="Observaciones…"
+      class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+    <input type="hidden" name="delay_${idx}_product" value="${rv(data,'product')}">
+  </div>`;
+  container.appendChild(div);
+  recalcDelays();
+}
+
+// ── EQUIP ROWS ────────────────────────────────────────────────────────────────
+function addEquipRow(data) {
+  const idx = equipCount++;
+  const container = document.getElementById('equip-container');
+  const div = document.createElement('div');
+  div.dataset.row = 'equip';
+  div.dataset.index = idx;
+
+  div.innerHTML = `
+  <div class="hidden sm:grid grid-cols-[1fr_8rem_4rem_5rem_5rem_1fr_2rem] gap-2 items-start bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100">
+    <input name="equip_${idx}_empresa" type="text" value="${rv(data,'empresa')}" placeholder="MTR / COOP / …"
+      class="input-xs">
+    <select name="equip_${idx}_tipo" class="input-xs">${tipoEquipoOptions(rv(data,'tipo'))}</select>
+    <input name="equip_${idx}_bodega" type="number" value="${rv(data,'bodega_number')}" placeholder="—"
+      class="input-xs text-center">
+    <input name="equip_${idx}_desde" type="time" value="${rv(data,'desde')}" oninput="recalcEquip()"
+      class="input-xs text-center">
+    <div>
+      <input name="equip_${idx}_hasta" type="time" value="${rv(data,'hasta')}" oninput="recalcEquip()"
+        class="input-xs text-center">
+      <div class="equip-dur text-[10px] text-blue-600 text-center mt-0.5 font-semibold"></div>
+    </div>
+    <input name="equip_${idx}_comentarios" type="text" value="${rv(data,'comentarios')}" placeholder="Comentarios…"
+      class="input-xs">
+    ${removeBtn('blue')}
+  </div>
+  <!-- Mobile -->
+  <div class="sm:hidden bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-2">
+    <div class="flex items-center gap-2">
+      <input name="equip_${idx}_empresa" type="text" value="${rv(data,'empresa')}" placeholder="Empresa…"
+        class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+      <select name="equip_${idx}_tipo" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">${tipoEquipoOptions(rv(data,'tipo'))}</select>
+      ${removeBtn('blue')}
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <div><div class="text-xs text-gray-400 mb-1">Bodega</div>
+        <input name="equip_${idx}_bodega" type="number" value="${rv(data,'bodega_number')}" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">Desde</div>
+        <input name="equip_${idx}_desde" type="time" value="${rv(data,'desde')}" oninput="recalcEquip()"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">Hasta <span class="equip-dur text-blue-600 font-semibold"></span></div>
+        <input name="equip_${idx}_hasta" type="time" value="${rv(data,'hasta')}" oninput="recalcEquip()"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"></div>
+    </div>
+    <input name="equip_${idx}_comentarios" type="text" value="${rv(data,'comentarios')}" placeholder="Comentarios…"
+      class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+  </div>`;
+  container.appendChild(div);
+  recalcEquip();
+}
+
+// ── STAFF ROWS ────────────────────────────────────────────────────────────────
+function addStaffRow(data) {
+  const idx = staffCount++;
+  const container = document.getElementById('staff-container');
+  const div = document.createElement('div');
+  div.dataset.row = 'staff';
+  div.dataset.index = idx;
+
+  div.innerHTML = `
+  <div class="hidden sm:grid grid-cols-[1fr_8rem_5rem_8rem_8rem_2rem] gap-2 items-start bg-indigo-50 rounded-xl px-3 py-2.5 border border-indigo-100">
+    <select name="staff_${idx}_funcion" onchange="toggleFuncionTexto(this)" class="input-xs">${funcionOptions(rv(data,'funcion'))}</select>
+    <input name="staff_${idx}_funcion_texto" type="text" value="${rv(data,'funcion_texto')}"
+      placeholder="Descrip…" class="input-xs ${rv(data,'funcion')==='otro'?'':'hidden-if-not-otro'}">
+    <input name="staff_${idx}_cantidad" type="number" min="1" value="${rv(data,'cantidad',1)}"
+      class="input-xs text-center">
+    <select name="staff_${idx}_turno_range" class="input-xs">${turnoRangeOptions(rv(data,'turno_range'))}</select>
+    <input name="staff_${idx}_empresa" type="text" value="${rv(data,'empresa','coop')}"
+      placeholder="coop / mtr"
+      class="input-xs">
+    ${removeBtn('indigo')}
+  </div>
+  <!-- Mobile -->
+  <div class="sm:hidden bg-indigo-50 rounded-xl p-3 border border-indigo-100 space-y-2">
+    <div class="flex items-center gap-2">
+      <select name="staff_${idx}_funcion" onchange="toggleFuncionTexto(this)" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">${funcionOptions(rv(data,'funcion'))}</select>
+      ${removeBtn('indigo')}
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div><div class="text-xs text-gray-400 mb-1">Empresa</div>
+        <input name="staff_${idx}_empresa" type="text" value="${rv(data,'empresa','coop')}" placeholder="coop/mtr"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">Cant.</div>
+        <input name="staff_${idx}_cantidad" type="number" min="1" value="${rv(data,'cantidad',1)}"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"></div>
+      <div class="col-span-2"><div class="text-xs text-gray-400 mb-1">Rango</div>
+        <select name="staff_${idx}_turno_range" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">${turnoRangeOptions(rv(data,'turno_range'))}</select></div>
+    </div>
+  </div>`;
+  container.appendChild(div);
+  updateStaffBadge();
+}
+
+function toggleFuncionTexto(sel) {
+  const row = sel.closest('[data-row]');
+  const txt = row.querySelector('[name$="_funcion_texto"]');
+  if (txt) txt.classList.toggle('hidden', sel.value !== 'otro');
+}
+
+// ── RECALCULOS ────────────────────────────────────────────────────────────────
+function recalcBodega() {
+  let totalMtr = 0, totalCoop = 0, hasCoop = false;
+  document.querySelectorAll('[data-row="bodega"]').forEach(row => {
+    const idx = row.dataset.index;
+    const dep  = parseInt(document.querySelector(`[name="bodega_${idx}_kg_deposito_mtr"]`)?.value,10)||0;
+    const dir  = parseInt(document.querySelector(`[name="bodega_${idx}_kg_directo_mtr"]`)?.value,10)||0;
+    const cv   = parseInt(document.querySelector(`[name="bodega_${idx}_kg_cv_mtr"]`)?.value,10)||0;
+    const coop = document.querySelector(`[name="bodega_${idx}_kg_coop"]`)?.value;
+    totalMtr += dep+dir+cv;
+    if (coop !== '' && coop !== null && coop !== undefined && coop !== 'null') { totalCoop += parseInt(coop,10)||0; hasCoop=true; }
+  });
+  const el = document.getElementById('live-total-mtr');
+  if (el) el.textContent = totalMtr.toLocaleString('es-AR') + ' kg';
+  const summary = document.getElementById('delta-summary');
+  const content = document.getElementById('delta-summary-content');
+  if (hasCoop && summary && content) {
+    summary.classList.remove('hidden');
+    const delta = totalMtr - totalCoop;
+    const abs = Math.abs(delta);
+    const cls = abs<=500?'text-green-700':abs<=2000?'text-yellow-700':'text-red-700';
+    const lbl = abs<=500?'✓ OK':abs<=2000?'⚠ Revisar':'✗ Alta diferencia';
+    const sign = delta>=0?'+':'−';
+    content.innerHTML = `<div class="flex flex-wrap gap-4 items-center">
+      <span>MTR: <strong>${totalMtr.toLocaleString('es-AR')} kg</strong></span>
+      <span>Coop: <strong>${totalCoop.toLocaleString('es-AR')} kg</strong></span>
+      <span class="font-bold ${cls}">Δ ${sign}${abs.toLocaleString('es-AR')} kg — ${lbl}</span></div>`;
+  } else if (summary) summary.classList.add('hidden');
+}
+
+function recalcDelays() {
+  let totalMins = 0;
+  document.querySelectorAll('[data-row="delay"]').forEach(row => {
+    const idx = row.dataset.index;
+    const d = document.querySelector(`[name="delay_${idx}_desde"]`)?.value;
+    const h = document.querySelector(`[name="delay_${idx}_hasta"]`)?.value;
+    const mins = diffMins(d, h);
+    // update per-row display
+    row.querySelectorAll('.delay-dur').forEach(el => { el.textContent = mins!==null ? fmtMins(mins) : ''; });
+    if (mins !== null) totalMins += mins;
+  });
+  const bar = document.getElementById('delay-total-bar');
+  const txt = document.getElementById('delay-total-text');
+  if (totalMins > 0) {
+    if (bar) bar.classList.remove('hidden');
+    if (txt) txt.textContent = fmtMins(totalMins);
+  } else { if (bar) bar.classList.add('hidden'); }
+  updateDelayBadge(document.querySelectorAll('[data-row="delay"]').length);
+}
+
+function recalcEquip() {
+  let totalMins = 0;
+  document.querySelectorAll('[data-row="equip"]').forEach(row => {
+    const idx = row.dataset.index;
+    const d = document.querySelector(`[name="equip_${idx}_desde"]`)?.value;
+    const h = document.querySelector(`[name="equip_${idx}_hasta"]`)?.value;
+    const mins = diffMins(d, h);
+    row.querySelectorAll('.equip-dur').forEach(el => { el.textContent = mins!==null ? fmtMins(mins) : ''; });
+    if (mins !== null) totalMins += mins;
+  });
+  const bar = document.getElementById('equip-total-bar');
+  const txt = document.getElementById('equip-total-text');
+  if (totalMins > 0) {
+    if (bar) bar.classList.remove('hidden');
+    if (txt) txt.textContent = (totalMins/60).toFixed(2) + ' hs';
+  } else { if (bar) bar.classList.add('hidden'); }
+  updateEquipBadge(document.querySelectorAll('[data-row="equip"]').length);
+}
+
+function recalcAll() { recalcBodega(); recalcDelays(); recalcEquip(); updateStaffBadge(); }
+
+function updateDelayBadge(n) {
+  const b = document.getElementById('delay-count-badge');
+  if (!b) return;
+  if (n>0) { b.classList.remove('hidden'); b.textContent = n + (n===1?' demora':' demoras'); }
+  else b.classList.add('hidden');
+}
+function updateEquipBadge(n) {
+  const b = document.getElementById('equip-count-badge');
+  if (!b) return;
+  if (n>0) { b.classList.remove('hidden'); b.textContent = n + (n===1?' equipo':' equipos'); }
+  else b.classList.add('hidden');
+}
+function updateStaffBadge() {
+  const n = document.querySelectorAll('[data-row="staff"]').length;
+  const b = document.getElementById('staff-count-badge');
+  if (!b) return;
+  if (n>0) { b.classList.remove('hidden'); b.textContent = n + (n===1?' función':' funciones'); }
+  else b.classList.add('hidden');
+}
+
+// ── RANGOS RÁPIDOS ────────────────────────────────────────────────────────────
+function setShiftRange(start, end) {
+  const s = document.getElementById('shift_start');
+  const e = document.getElementById('shift_end');
+  if (s) s.value = start;
+  if (e) e.value = end;
+}
+
+// ── DATOS EXISTENTES (modo edición) ──────────────────────────────────────────
+const EXISTING_BODEGAS = [
+  {% if bodega_rows is defined %}{% for row in bodega_rows %}{
+    bodega_number:   {{ row.bodega_number }},
+    product:         "{{ row.product }}",
+    measurement:     "{{ row.measurement or 'fiscal' }}",
+    viajes_mtr:      {{ row.viajes_mtr if row.viajes_mtr is not none else 'null' }},
+    kg_deposito_mtr: {{ row.kg_deposito_mtr or 0 }},
+    kg_directo_mtr:  {{ row.kg_directo_mtr or 0 }},
+    kg_cv_mtr:       {{ row.kg_cv_mtr or 0 }},
+    viajes_coop:     {{ row.viajes_coop if row.viajes_coop is not none else 'null' }},
+    kg_coop:         {{ row.kg_coop if row.kg_coop is not none else 'null' }},
+  },{% endfor %}{% endif %}
+];
+const EXISTING_DELAYS = [
+  {% if delay_rows is defined %}{% for row in delay_rows %}{
+    bodega_number: {{ row.bodega_number if row.bodega_number is not none else 'null' }},
+    product:       "{{ row.product or '' }}",
+    desde:         "{{ row.desde or '' }}",
+    hasta:         "{{ row.hasta or '' }}",
+    motivo_tipo:   "{{ row.motivo_tipo or '' }}",
+    motivo_texto:  "{{ row.motivo_texto or '' }}",
+  },{% endfor %}{% endif %}
+];
+const EXISTING_EQUIP = [
+  {% if equip_rows is defined %}{% for row in equip_rows %}{
+    empresa:       "{{ row.empresa or '' }}",
+    tipo:          "{{ row.tipo or '' }}",
+    bodega_number: {{ row.bodega_number if row.bodega_number is not none else 'null' }},
+    desde:         "{{ row.desde or '' }}",
+    hasta:         "{{ row.hasta or '' }}",
+    comentarios:   "{{ row.comentarios or '' }}",
+  },{% endfor %}{% endif %}
+];
+const EXISTING_STAFF = [
+  {% if staff_rows is defined %}{% for row in staff_rows %}{
+    funcion:       "{{ row.funcion or '' }}",
+    funcion_texto: "{{ row.funcion_texto or '' }}",
+    cantidad:      {{ row.cantidad or 1 }},
+    turno_range:   "{{ row.turno_range or '' }}",
+    empresa:       "{{ row.empresa or 'coop' }}",
+  },{% endfor %}{% endif %}
+];
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Auto-expand sections with data
+  if (EXISTING_BODEGAS.length) EXISTING_BODEGAS.forEach(r => addBodegaRow(r));
+  else addBodegaRow();
+
+  if (EXISTING_DELAYS.length) {
+    document.getElementById('delays-section').open = true;
+    EXISTING_DELAYS.forEach(r => addDelayRow(r));
+  }
+  if (EXISTING_EQUIP.length) {
+    document.getElementById('equip-section').open = true;
+    EXISTING_EQUIP.forEach(r => addEquipRow(r));
+  }
+  if (EXISTING_STAFF.length) {
+    document.getElementById('staff-section').open = true;
+    EXISTING_STAFF.forEach(r => addStaffRow(r));
+  }
+  recalcAll();
+});
+</script>
+
+<style>
+.input-xs {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  width: 100%;
+  background-color: #fff;
+}
+.input-xs:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #10b981;
+  border-color: #10b981;
+}
+</style>
+{% endblock %}

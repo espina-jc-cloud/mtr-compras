@@ -41,4 +41,10 @@ _env.filters["fmt_ar"]   = _fmt_ar
 _env.filters["fmt_num"]  = _fmt_num
 _env.filters["fmt_date"] = _fmt_date
 
+# ── Globals para el módulo Live (disponibles en todos los templates sin pasarlos) ─
+from app.live_utils import fmt_kg as _fmt_kg, delta_badge as _delta_badge, format_minutes as _format_minutes
+_env.globals["fmt_kg"]          = _fmt_kg
+_env.globals["delta_badge"]     = _delta_badge
+_env.globals["format_minutes"]  = _format_minutes
+
 templates = Jinja2Templates(env=_env)

@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel
 from app.routers import operations
+from app.routers import operations_live
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -30,6 +31,9 @@ app.include_router(quotes.router)
 app.include_router(equipment.router)
 app.include_router(maintenance.router)
 app.include_router(fuel.router)
+# Live DEBE registrarse antes que operations para que /operations/live
+# no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
+app.include_router(operations_live.router)
 app.include_router(operations.router)
 app.include_router(operations.api_router)
 
