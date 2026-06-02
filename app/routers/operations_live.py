@@ -874,6 +874,43 @@ def _parse_bodega_rows(form) -> list[dict]:
 # _save_shift_with_bodegas reemplazado por _save_shift_complete (ver arriba)
 
 
+# ── Helper: acumulado de sesión para el form de turno ────────────────────────
+
+def _build_shift_form_cumulative(
+    session: OperationLiveSession,
+    exclude_shift_id: int | None,
+    db: Session,
+) -> dict | None:
+    """
+    Calcula el acumulado de la sesión excluyendo el turno indicado.
+    Usado para mostrar 'Acumulado anterior' en el formulario de turno.
+    Devuelve None si no hay datos relevantes.
+    """
+    include_ids = [
+        s.id for s in session.shifts
+        if s.id != exclude_shift_id
+    ]
+    if not include_ids:
+        return None
+
+    rows = (
+        db.query(OperationLiveBodegaData)
+        .filter(OperationLiveBodegaData.shift_id.in_(include_ids))
+        .all()
+    )
+    product_summaries = session_totals_by_product(rows, session.products)
+    grand = session_grand_total(product_summaries)
+
+    # No mostrar el bloque si no hay nada cargado
+    if grand["kg_total_mtr"] == 0 and grand["viajes_total"] is None:
+        return None
+
+    return {
+        "grand_total": grand,
+        "shift_count": len(include_ids),
+    }
+
+
 # ── Vista 6: Nuevo turno ──────────────────────────────────────────────────────
 
 @router.get("/{sid}/shift/new", response_class=HTMLResponse)
@@ -901,20 +938,21 @@ async def new_shift_form(
         request,
         "operations/live/shift_form.html",
         {
-            "current_user":   current_user,
-            "session":        session,
-            "shift":          None,
-            "bodega_rows":    [],
-            "delay_rows":     [],
-            "equip_rows":     [],
-            "staff_rows":     [],
-            "next_num":       next_num,
-            "today_str":      today_str,
-            "TURNO_RANGES":   TURNO_RANGES,
-            "MOTIVO_LABELS":  MOTIVO_LABELS,
-            "FUNCION_LABELS": FUNCION_LABELS,
-            "EQUIPO_TIPOS":   EQUIPO_TIPOS,
-            "is_new":         True,
+            "current_user":       current_user,
+            "session":            session,
+            "shift":              None,
+            "bodega_rows":        [],
+            "delay_rows":         [],
+            "equip_rows":         [],
+            "staff_rows":         [],
+            "next_num":           next_num,
+            "today_str":          today_str,
+            "TURNO_RANGES":       TURNO_RANGES,
+            "MOTIVO_LABELS":      MOTIVO_LABELS,
+            "FUNCION_LABELS":     FUNCION_LABELS,
+            "EQUIPO_TIPOS":       EQUIPO_TIPOS,
+            "is_new":             True,
+            "session_cumulative": _build_shift_form_cumulative(session, None, db),
         },
     )
 
@@ -1089,18 +1127,19 @@ async def edit_shift_form(
         request,
         "operations/live/shift_form.html",
         {
-            "current_user":    current_user,
-            "session":         session,
-            "shift":           shift,
-            "bodega_rows":     bodega_rows,
-            "delay_rows":      delay_rows_edit,
-            "equip_rows":      equip_rows_edit,
-            "staff_rows":      staff_rows_edit,
-            "TURNO_RANGES":    TURNO_RANGES,
-            "MOTIVO_LABELS":   MOTIVO_LABELS,
-            "FUNCION_LABELS":  FUNCION_LABELS,
-            "EQUIPO_TIPOS":    EQUIPO_TIPOS,
-            "is_new":          False,
+            "current_user":       current_user,
+            "session":            session,
+            "shift":              shift,
+            "bodega_rows":        bodega_rows,
+            "delay_rows":         delay_rows_edit,
+            "equip_rows":         equip_rows_edit,
+            "staff_rows":         staff_rows_edit,
+            "TURNO_RANGES":       TURNO_RANGES,
+            "MOTIVO_LABELS":      MOTIVO_LABELS,
+            "FUNCION_LABELS":     FUNCION_LABELS,
+            "EQUIPO_TIPOS":       EQUIPO_TIPOS,
+            "is_new":             False,
+            "session_cumulative": _build_shift_form_cumulative(session, shid, db),
         },
     )
 
