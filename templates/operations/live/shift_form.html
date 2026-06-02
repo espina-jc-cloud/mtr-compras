@@ -55,6 +55,74 @@
       <div class="text-xs text-gray-500">hasta ahora</div>
     </div>
   </div>
+
+  {% if session_cumulative.product_summaries | length > 1 %}
+  <!-- Desglose por producto -->
+  {% for ps in session_cumulative.product_summaries %}
+  {% if ps.kg_total_mtr > 0 or ps.viajes_total %}
+  <div class="mb-2">
+    <p class="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1.5">{{ ps.product }}</p>
+    <div class="grid grid-cols-3 gap-1.5 text-center text-xs">
+      <div class="bg-white/5 rounded-lg p-1.5">
+        <div class="text-gray-500 mb-0.5">V.MTR</div>
+        <div class="font-black text-white text-base">{{ ps.viajes_mtr if ps.viajes_mtr is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/5 rounded-lg p-1.5">
+        <div class="text-gray-500 mb-0.5">Kg MTR</div>
+        <div class="font-bold text-white">{{ fmt_kg(ps.kg_deposito) }}</div>
+      </div>
+      <div class="bg-white/5 rounded-lg p-1.5">
+        <div class="text-gray-500 mb-0.5">V.C.Vapor</div>
+        <div class="font-black text-white text-base">{{ ps.viajes_coop if ps.viajes_coop is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/5 rounded-lg p-1.5">
+        <div class="text-gray-500 mb-0.5">Kg C.Vapor</div>
+        <div class="font-bold text-white">{{ fmt_kg(ps.kg_directo) }}</div>
+      </div>
+      <div class="bg-emerald-900/40 rounded-lg p-1.5 border border-emerald-800/40">
+        <div class="text-emerald-500 font-semibold mb-0.5">Viajes</div>
+        <div class="font-black text-emerald-300 text-base">{{ ps.viajes_total if ps.viajes_total is not none else "—" }}</div>
+      </div>
+      <div class="bg-emerald-900/40 rounded-lg p-1.5 border border-emerald-800/40">
+        <div class="text-emerald-500 font-semibold mb-0.5">Kg tot.</div>
+        <div class="font-bold text-emerald-300">{{ fmt_kg(ps.kg_total_mtr) }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  <!-- Total acumulado general -->
+  <div class="border-t border-white/10 pt-2 mt-1">
+    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 text-center">Total acumulado</p>
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
+      <div>
+        <div class="text-gray-400 mb-0.5">V.MTR</div>
+        <div class="font-black text-white text-lg">{{ session_cumulative.grand_total.viajes_mtr if session_cumulative.grand_total.viajes_mtr is not none else "—" }}</div>
+      </div>
+      <div>
+        <div class="text-gray-400 mb-0.5">Kg MTR</div>
+        <div class="font-bold text-white">{{ fmt_kg(session_cumulative.grand_total.kg_deposito) }}</div>
+      </div>
+      <div>
+        <div class="text-gray-400 mb-0.5">V.C.Vapor</div>
+        <div class="font-black text-white text-lg">{{ session_cumulative.grand_total.viajes_coop if session_cumulative.grand_total.viajes_coop is not none else "—" }}</div>
+      </div>
+      <div>
+        <div class="text-gray-400 mb-0.5">Kg C.Vapor</div>
+        <div class="font-bold text-white">{{ fmt_kg(session_cumulative.grand_total.kg_directo) }}</div>
+      </div>
+      <div>
+        <div class="text-emerald-400 mb-0.5 font-semibold">Viajes tot.</div>
+        <div class="font-black text-emerald-300 text-lg">{{ session_cumulative.grand_total.viajes_total if session_cumulative.grand_total.viajes_total is not none else "—" }}</div>
+      </div>
+      <div>
+        <div class="text-emerald-400 mb-0.5 font-semibold">Kg totales</div>
+        <div class="font-black text-emerald-300">{{ fmt_kg(session_cumulative.grand_total.kg_total_mtr) }}</div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- Producto único: fila de agregados -->
   <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
     <div>
       <div class="text-gray-400 mb-0.5">V.MTR</div>
@@ -81,6 +149,7 @@
       <div class="font-black text-emerald-300">{{ fmt_kg(session_cumulative.grand_total.kg_total_mtr) }}</div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -204,30 +273,32 @@
           <span class="text-xs text-emerald-400 font-medium">en vivo</span>
         </div>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-        <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
-          <div class="text-xs text-gray-400 mb-0.5">V.MTR</div>
-          <div id="live-v-mtr" class="text-2xl font-black text-gray-900">—</div>
-        </div>
-        <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
-          <div class="text-xs text-gray-400 mb-0.5">Kg MTR</div>
-          <div id="live-kg-mtr" class="text-xl font-black text-gray-900">0</div>
-        </div>
-        <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
-          <div class="text-xs text-gray-400 mb-0.5">V.C.Vapor</div>
-          <div id="live-v-cv" class="text-2xl font-black text-gray-900">—</div>
-        </div>
-        <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
-          <div class="text-xs text-gray-400 mb-0.5">Kg C.Vapor</div>
-          <div id="live-kg-cv" class="text-xl font-black text-gray-900">0</div>
-        </div>
-        <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
-          <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Viajes totales</div>
-          <div id="live-v-total" class="text-2xl font-black text-white">—</div>
-        </div>
-        <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
-          <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Kg totales</div>
-          <div id="live-kg-total" class="text-xl font-black text-white">0</div>
+      <div id="live-shift-summary-body">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+            <div class="text-xs text-gray-400 mb-0.5">V.MTR</div>
+            <div class="text-2xl font-black text-gray-900">—</div>
+          </div>
+          <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+            <div class="text-xs text-gray-400 mb-0.5">Kg MTR</div>
+            <div class="text-xl font-black text-gray-900">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+            <div class="text-xs text-gray-400 mb-0.5">V.C.Vapor</div>
+            <div class="text-2xl font-black text-gray-900">—</div>
+          </div>
+          <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+            <div class="text-xs text-gray-400 mb-0.5">Kg C.Vapor</div>
+            <div class="text-xl font-black text-gray-900">0</div>
+          </div>
+          <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
+            <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Viajes totales</div>
+            <div class="text-2xl font-black text-white">—</div>
+          </div>
+          <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
+            <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Kg totales</div>
+            <div class="text-xl font-black text-white">0</div>
+          </div>
         </div>
       </div>
     </div>
@@ -466,7 +537,7 @@ function addBodegaRow(data) {
   div.innerHTML = `
   <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4rem_4rem_2rem] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
     <input name="bodega_${idx}_number" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="#" oninput="recalcBodega()" class="input-xs text-center font-bold">
-    <select name="bodega_${idx}_product" class="input-xs">${productOptions(rv(data,'product'))}</select>
+    <select name="bodega_${idx}_product" onchange="recalcBodega()" class="input-xs">${productOptions(rv(data,'product'))}</select>
     <input name="bodega_${idx}_viajes_mtr"    type="number" min="0" value="${rv(data,'viajes_mtr')}"        placeholder="—" oninput="recalcBodega()" class="input-xs text-center">
     <input name="bodega_${idx}_kg_deposito_mtr" type="number" min="0" value="${rv(data,'kg_deposito_mtr',0)}" oninput="recalcBodega()" class="input-xs text-center">
     <input name="bodega_${idx}_viajes_coop"   type="number" min="0" value="${rv(data,'viajes_coop')}"       placeholder="—" oninput="recalcBodega()" class="input-xs text-center">
@@ -481,7 +552,7 @@ function addBodegaRow(data) {
   <div class="sm:hidden bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-3">
     <div class="flex items-center gap-2">
       <input name="bodega_${idx}_number" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="#" oninput="recalcBodega()" class="w-14 border border-gray-200 rounded-lg px-2 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
-      <select name="bodega_${idx}_product" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">${productOptions(rv(data,'product'))}</select>
+      <select name="bodega_${idx}_product" onchange="recalcBodega()" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">${productOptions(rv(data,'product'))}</select>
       ${removeBtn()}
     </div>
     <div class="grid grid-cols-2 gap-2">
@@ -672,38 +743,148 @@ function toggleFuncionTexto(sel) {
 
 // ── RECALCULOS ────────────────────────────────────────────────────────────────
 function recalcBodega() {
+  // Totales globales
   let totalDep = 0, totalDir = 0;
-  let vMtr = 0, vCoop = 0, hasVMtr = false, hasVCoop = false;
+  let vMtrTotal = 0, vCoopTotal = 0, hasVMtrTotal = false, hasVCoopTotal = false;
+  // Por producto
+  const products = {}; // { name: { dep, dir, vMtr, vCoop, hasVMtr, hasVCoop } }
 
   document.querySelectorAll('[data-row="bodega"]').forEach(row => {
-    const idx = row.dataset.index;
+    const idx  = row.dataset.index;
     // querySelector returns first match: desktop input (appears first in innerHTML)
-    const dep = parseInt(document.querySelector(`[name="bodega_${idx}_kg_deposito_mtr"]`)?.value, 10) || 0;
-    const dir = parseInt(document.querySelector(`[name="bodega_${idx}_kg_directo_mtr"]`)?.value, 10) || 0;
-    const vm  = document.querySelector(`[name="bodega_${idx}_viajes_mtr"]`)?.value;
-    const vc  = document.querySelector(`[name="bodega_${idx}_viajes_coop"]`)?.value;
+    const prod = document.querySelector(`[name="bodega_${idx}_product"]`)?.value || '—';
+    const dep  = parseInt(document.querySelector(`[name="bodega_${idx}_kg_deposito_mtr"]`)?.value, 10) || 0;
+    const dir  = parseInt(document.querySelector(`[name="bodega_${idx}_kg_directo_mtr"]`)?.value,  10) || 0;
+    const vm   = document.querySelector(`[name="bodega_${idx}_viajes_mtr"]`)?.value;
+    const vc   = document.querySelector(`[name="bodega_${idx}_viajes_coop"]`)?.value;
+
+    // Acumula en producto
+    if (!products[prod]) products[prod] = { dep: 0, dir: 0, vMtr: 0, vCoop: 0, hasVMtr: false, hasVCoop: false };
+    const p = products[prod];
+    p.dep += dep;
+    p.dir += dir;
+    if (vm !== '' && vm != null) { p.vMtr  += parseInt(vm, 10) || 0; p.hasVMtr  = true; }
+    if (vc !== '' && vc != null) { p.vCoop += parseInt(vc, 10) || 0; p.hasVCoop = true; }
+
+    // Acumula en global
     totalDep += dep;
     totalDir += dir;
-    if (vm !== '' && vm != null) { vMtr  += parseInt(vm,  10) || 0; hasVMtr  = true; }
-    if (vc !== '' && vc != null) { vCoop += parseInt(vc,  10) || 0; hasVCoop = true; }
+    if (vm !== '' && vm != null) { vMtrTotal  += parseInt(vm, 10) || 0; hasVMtrTotal  = true; }
+    if (vc !== '' && vc != null) { vCoopTotal += parseInt(vc, 10) || 0; hasVCoopTotal = true; }
   });
 
-  const totalMtr  = totalDep + totalDir;
-  const vTotal    = (hasVMtr || hasVCoop) ? vMtr + vCoop : null;
-  const fmtK      = n => n.toLocaleString('es-AR');
-  const set       = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  const totalMtr = totalDep + totalDir;
+  const vTotal   = (hasVMtrTotal || hasVCoopTotal) ? vMtrTotal + vCoopTotal : null;
+  const fmtK     = n => n.toLocaleString('es-AR');
+  const set      = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
 
-  // Mini badge en header bodegas
+  // Mini badge en header bodegas + total en header del panel
   set('live-total-mtr', fmtK(totalMtr) + ' kg');
-
-  // Panel de resumen en vivo
-  set('live-v-mtr',    hasVMtr  ? fmtK(vMtr)  : '—');
-  set('live-kg-mtr',   fmtK(totalDep));
-  set('live-v-cv',     hasVCoop ? fmtK(vCoop) : '—');
-  set('live-kg-cv',    fmtK(totalDir));
-  set('live-v-total',  vTotal !== null ? fmtK(vTotal) : '—');
-  set('live-kg-total', fmtK(totalMtr));
   set('live-total-tn', (totalMtr / 1000).toLocaleString('es-AR', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' tn');
+
+  // Rebuild live summary body
+  const body = document.getElementById('live-shift-summary-body');
+  if (!body) return;
+
+  const prodKeys = Object.keys(products);
+  let html = '';
+
+  if (prodKeys.length > 1) {
+    // Bloque por producto
+    prodKeys.forEach(prod => {
+      const p = products[prod];
+      const kg   = p.dep + p.dir;
+      const vTot = (p.hasVMtr || p.hasVCoop) ? p.vMtr + p.vCoop : null;
+      html += `<div class="mb-2">
+        <p class="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5">${prod || '—'}</p>
+        <div class="grid grid-cols-3 gap-1.5 text-center">
+          <div class="bg-white rounded-lg p-2 shadow-sm border border-emerald-100">
+            <div class="text-[10px] text-gray-400 mb-0.5">V.MTR</div>
+            <div class="text-lg font-black text-gray-900">${p.hasVMtr ? fmtK(p.vMtr) : '—'}</div>
+          </div>
+          <div class="bg-white rounded-lg p-2 shadow-sm border border-emerald-100">
+            <div class="text-[10px] text-gray-400 mb-0.5">Kg MTR</div>
+            <div class="text-sm font-bold text-gray-900">${fmtK(p.dep)}</div>
+          </div>
+          <div class="bg-white rounded-lg p-2 shadow-sm border border-emerald-100">
+            <div class="text-[10px] text-gray-400 mb-0.5">V.C.Vapor</div>
+            <div class="text-lg font-black text-gray-900">${p.hasVCoop ? fmtK(p.vCoop) : '—'}</div>
+          </div>
+          <div class="bg-white rounded-lg p-2 shadow-sm border border-emerald-100">
+            <div class="text-[10px] text-gray-400 mb-0.5">Kg C.Vapor</div>
+            <div class="text-sm font-bold text-gray-900">${fmtK(p.dir)}</div>
+          </div>
+          <div class="bg-emerald-100 rounded-lg p-2">
+            <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Viajes tot.</div>
+            <div class="text-lg font-black text-emerald-700">${vTot !== null ? fmtK(vTot) : '—'}</div>
+          </div>
+          <div class="bg-emerald-100 rounded-lg p-2">
+            <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Kg tot.</div>
+            <div class="text-sm font-bold text-emerald-700">${fmtK(kg)}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+    // Total del turno
+    html += `<div class="border-t border-emerald-200 pt-2 mt-1">
+      <p class="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1.5 text-center">Total del turno</p>
+      <div class="grid grid-cols-3 gap-1.5 text-center">
+        <div class="bg-white rounded-xl p-2.5 shadow-sm border border-emerald-100">
+          <div class="text-xs text-gray-400 mb-0.5">V.MTR</div>
+          <div class="text-2xl font-black text-gray-900">${hasVMtrTotal ? fmtK(vMtrTotal) : '—'}</div>
+        </div>
+        <div class="bg-white rounded-xl p-2.5 shadow-sm border border-emerald-100">
+          <div class="text-xs text-gray-400 mb-0.5">Kg MTR</div>
+          <div class="text-xl font-black text-gray-900">${fmtK(totalDep)}</div>
+        </div>
+        <div class="bg-white rounded-xl p-2.5 shadow-sm border border-emerald-100">
+          <div class="text-xs text-gray-400 mb-0.5">V.C.Vapor</div>
+          <div class="text-2xl font-black text-gray-900">${hasVCoopTotal ? fmtK(vCoopTotal) : '—'}</div>
+        </div>
+        <div class="bg-white rounded-xl p-2.5 shadow-sm border border-emerald-100">
+          <div class="text-xs text-gray-400 mb-0.5">Kg C.Vapor</div>
+          <div class="text-xl font-black text-gray-900">${fmtK(totalDir)}</div>
+        </div>
+        <div class="bg-emerald-600 rounded-xl p-2.5">
+          <div class="text-xs text-emerald-200 font-semibold mb-0.5">Viajes totales</div>
+          <div class="text-2xl font-black text-white">${vTotal !== null ? fmtK(vTotal) : '—'}</div>
+        </div>
+        <div class="bg-emerald-600 rounded-xl p-2.5">
+          <div class="text-xs text-emerald-200 font-semibold mb-0.5">Kg totales</div>
+          <div class="text-xl font-black text-white">${fmtK(totalMtr)}</div>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    // Producto único: 6 celdas simples
+    html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+      <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+        <div class="text-xs text-gray-400 mb-0.5">V.MTR</div>
+        <div class="text-2xl font-black text-gray-900">${hasVMtrTotal ? fmtK(vMtrTotal) : '—'}</div>
+      </div>
+      <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+        <div class="text-xs text-gray-400 mb-0.5">Kg MTR</div>
+        <div class="text-xl font-black text-gray-900">${fmtK(totalDep)}</div>
+      </div>
+      <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+        <div class="text-xs text-gray-400 mb-0.5">V.C.Vapor</div>
+        <div class="text-2xl font-black text-gray-900">${hasVCoopTotal ? fmtK(vCoopTotal) : '—'}</div>
+      </div>
+      <div class="bg-white rounded-xl p-2.5 text-center shadow-sm border border-emerald-100">
+        <div class="text-xs text-gray-400 mb-0.5">Kg C.Vapor</div>
+        <div class="text-xl font-black text-gray-900">${fmtK(totalDir)}</div>
+      </div>
+      <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
+        <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Viajes totales</div>
+        <div class="text-2xl font-black text-white">${vTotal !== null ? fmtK(vTotal) : '—'}</div>
+      </div>
+      <div class="bg-emerald-600 rounded-xl p-2.5 text-center shadow-sm">
+        <div class="text-xs text-emerald-200 mb-0.5 font-semibold">Kg totales</div>
+        <div class="text-xl font-black text-white">${fmtK(totalMtr)}</div>
+      </div>
+    </div>`;
+  }
+  body.innerHTML = html;
 }
 
 function recalcDelays() {

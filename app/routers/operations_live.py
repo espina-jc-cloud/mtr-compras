@@ -908,6 +908,7 @@ def _build_shift_form_cumulative(
     return {
         "grand_total": grand,
         "shift_count": len(include_ids),
+        "product_summaries": product_summaries,
     }
 
 
