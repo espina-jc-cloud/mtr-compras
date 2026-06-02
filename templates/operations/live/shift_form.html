@@ -134,17 +134,15 @@
           <div class="text-xs text-gray-400">MTR total</div>
         </div>
       </div>
-      <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4rem_4rem_5rem_5rem_2rem] gap-2 mb-2 px-1">
+      <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4rem_4rem_2rem] gap-2 mb-2 px-1">
         <div class="text-xs font-semibold text-gray-400 text-center">Bod.</div>
         <div class="text-xs font-semibold text-gray-400">Producto</div>
         <div class="text-xs font-semibold text-gray-400 text-center">V.MTR</div>
-        <div class="text-xs font-semibold text-gray-400 text-center">Dep</div>
-        <div class="text-xs font-semibold text-gray-400 text-center">C.Vapor</div>
-        <div class="text-xs font-semibold text-gray-400 text-center">CV</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">Kg MTR</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">V.C.Vapor</div>
+        <div class="text-xs font-semibold text-gray-400 text-center">Kg C.Vapor</div>
         <div class="text-xs font-semibold text-gray-400 text-center">Gche.</div>
         <div class="text-xs font-semibold text-gray-400 text-center">Grpa.</div>
-        <div class="text-xs font-semibold text-gray-400 text-center">V.Coop</div>
-        <div class="text-xs font-semibold text-gray-400 text-center">Kg Coop</div>
         <div></div>
       </div>
       <div id="bodegas-container" class="space-y-2"></div>
@@ -388,17 +386,16 @@ function addBodegaRow(data) {
   // Desktop
   const gOpts = (sel) => `<option value="">—</option><option value="fiscal"${sel==='fiscal'?' selected':''}>Fiscal</option><option value="abordo"${sel==='abordo'?' selected':''}>A bordo</option>`;
   div.innerHTML = `
-  <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4rem_4rem_5rem_5rem_2rem] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+  <div class="hidden sm:grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4rem_4rem_2rem] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
     <input name="bodega_${idx}_number" type="number" min="1" value="${rv(data,'bodega_number')}" placeholder="#" oninput="recalcBodega()" class="input-xs text-center font-bold">
     <select name="bodega_${idx}_product" class="input-xs">${productOptions(rv(data,'product'))}</select>
-    <input name="bodega_${idx}_viajes_mtr" type="number" min="0" value="${rv(data,'viajes_mtr')}" placeholder="—" class="input-xs text-center">
+    <input name="bodega_${idx}_viajes_mtr"    type="number" min="0" value="${rv(data,'viajes_mtr')}"        placeholder="—" class="input-xs text-center">
     <input name="bodega_${idx}_kg_deposito_mtr" type="number" min="0" value="${rv(data,'kg_deposito_mtr',0)}" oninput="recalcBodega()" class="input-xs text-center">
-    <input name="bodega_${idx}_kg_directo_mtr"  type="number" min="0" value="${rv(data,'kg_directo_mtr',0)}"  oninput="recalcBodega()" class="input-xs text-center">
-    <input name="bodega_${idx}_kg_cv_mtr"       type="number" min="0" value="${rv(data,'kg_cv_mtr',0)}"       oninput="recalcBodega()" class="input-xs text-center">
+    <input name="bodega_${idx}_viajes_coop"   type="number" min="0" value="${rv(data,'viajes_coop')}"       placeholder="—" class="input-xs text-center">
+    <input name="bodega_${idx}_kg_directo_mtr" type="number" min="0" value="${rv(data,'kg_directo_mtr',0)}" oninput="recalcBodega()" class="input-xs text-center">
     <select name="bodega_${idx}_tipo_guinche" class="input-xs text-center">${gOpts(rv(data,'tipo_guinche'))}</select>
     <select name="bodega_${idx}_tipo_grampa"  class="input-xs text-center">${gOpts(rv(data,'tipo_grampa'))}</select>
-    <input name="bodega_${idx}_viajes_coop"  type="number" min="0" value="${rv(data,'viajes_coop')}" placeholder="—" class="input-xs text-center">
-    <input name="bodega_${idx}_kg_coop"      type="number" min="0" value="${rv(data,'kg_coop')}"     oninput="recalcBodega()" placeholder="—" class="input-xs text-center">
+    <input type="hidden" name="bodega_${idx}_kg_cv_mtr"   value="0">
     <input type="hidden" name="bodega_${idx}_measurement" value="${rv(data,'measurement','fiscal')}">
     ${removeBtn()}
   </div>
@@ -409,14 +406,19 @@ function addBodegaRow(data) {
       <select name="bodega_${idx}_product" class="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">${productOptions(rv(data,'product'))}</select>
       ${removeBtn()}
     </div>
-    <div class="grid grid-cols-3 gap-2">
-      ${['viajes_mtr','kg_deposito_mtr','kg_directo_mtr','kg_cv_mtr','viajes_coop','kg_coop'].map((f,fi) => {
-        const labels = ['V.MTR','Kg Dep','Kg C.Vapor','Kg CV','V.Coop','Kg Coop'];
-        const ev = fi>=1&&fi<=3?'oninput="recalcBodega()"':fi===5?'oninput="recalcBodega()"':'';
-        return `<div><div class="text-xs text-gray-400 mb-1">${labels[fi]}</div>
-        <input name="bodega_${idx}_${f}" type="number" min="0" value="${rv(data,f,fi>=1&&fi<=3?0:'')}" ${ev} placeholder="—"
-          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>`;
-      }).join('')}
+    <div class="grid grid-cols-2 gap-2">
+      <div><div class="text-xs text-gray-400 mb-1">V.MTR</div>
+        <input name="bodega_${idx}_viajes_mtr" type="number" min="0" value="${rv(data,'viajes_mtr')}" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">Kg MTR</div>
+        <input name="bodega_${idx}_kg_deposito_mtr" type="number" min="0" value="${rv(data,'kg_deposito_mtr',0)}" oninput="recalcBodega()" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">V.C.Vapor</div>
+        <input name="bodega_${idx}_viajes_coop" type="number" min="0" value="${rv(data,'viajes_coop')}" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>
+      <div><div class="text-xs text-gray-400 mb-1">Kg C.Vapor</div>
+        <input name="bodega_${idx}_kg_directo_mtr" type="number" min="0" value="${rv(data,'kg_directo_mtr',0)}" oninput="recalcBodega()" placeholder="—"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"></div>
     </div>
     <div class="grid grid-cols-2 gap-2">
       <div><div class="text-xs text-gray-400 mb-1">Guinche</div>
@@ -424,6 +426,7 @@ function addBodegaRow(data) {
       <div><div class="text-xs text-gray-400 mb-1">Grampa</div>
         <select name="bodega_${idx}_tipo_grampa" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">${gOpts(rv(data,'tipo_grampa'))}</select></div>
     </div>
+    <input type="hidden" name="bodega_${idx}_kg_cv_mtr"   value="0">
     <input type="hidden" name="bodega_${idx}_measurement" value="${rv(data,'measurement','fiscal')}">
   </div>`;
   container.appendChild(div);
