@@ -86,7 +86,7 @@
         <span class="text-xs text-gray-400 self-center">Rango rápido:</span>
         {% for r in TURNO_RANGES %}{% set parts = r.split("A") %}
         <button type="button"
-          onclick="setShiftRange('{{ parts[0][:2] }}:{{ parts[0][2:] }}', '{{ parts[1][:2] }}:{{ parts[1][2:] }}')"
+          onclick="setShiftRange('{{ parts[0][:2] }}:00', '{{ parts[1][:2] }}:00')"
           class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-100 hover:text-emerald-700 text-xs font-medium text-gray-500 transition-colors">
           {{ parts[0][:2] }}–{{ parts[1][:2] }}hs
         </button>
