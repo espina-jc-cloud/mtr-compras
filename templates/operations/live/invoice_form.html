@@ -119,11 +119,12 @@
   </div>
 
   <!-- Encabezados de columnas (desktop) -->
-  <div class="hidden md:grid grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 px-1">
+  <div class="hidden md:grid grid-cols-[110px_90px_80px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 px-1">
     <span class="text-xs text-gray-400">Fecha</span>
     <span class="text-xs text-gray-400">Turno</span>
     <span class="text-xs text-gray-400">Guinche</span>
     <span class="text-xs text-gray-400">Descripción</span>
+    <span class="text-xs text-gray-400">Producto</span>
     <span class="text-xs text-gray-400">Tns Háb</span>
     <span class="text-xs text-gray-400">Tns Inh</span>
     <span class="text-xs text-gray-400">Tns Ext</span>
@@ -137,7 +138,7 @@
   <div id="ton-rows">
     {% if invoice and invoice.tonnage_lines %}
       {% for line in invoice.tonnage_lines %}
-      <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="{{ loop.index0 }}">
+      <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="{{ loop.index0 }}">
         {% set i = loop.index0 %}
         <input type="date" name="ton_{{ i }}_shift_date"
           value="{{ line.shift_date.isoformat() if line.shift_date else '' }}"
@@ -152,6 +153,10 @@
         </select>
         <input type="text" name="ton_{{ i }}_guinche_descripcion"
           value="{{ line.guinche_descripcion or '' }}" placeholder="opcional"
+          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+        <input type="text" name="ton_{{ i }}_product"
+          value="{{ line.product or '' }}" placeholder="Producto"
+          list="session-products-list"
           class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
         <input type="number" step="0.01" name="ton_{{ i }}_tns_habiles"
           value="{{ line.tns_habiles_recibido | float if line.tns_habiles_recibido is not none else '' }}"
@@ -183,7 +188,7 @@
       {% endfor %}
     {% else %}
     <!-- fila vacía por defecto -->
-    <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="0">
+    <div class="ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center" data-idx="0">
       <input type="date" name="ton_0_shift_date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
       <input type="text" name="ton_0_turno_range" placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
       <select name="ton_0_guinche_tipo" class="ton-guinche w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
@@ -191,6 +196,7 @@
         <option value="fiscal">Fiscal</option>
       </select>
       <input type="text" name="ton_0_guinche_descripcion" placeholder="opcional" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
+      <input type="text" name="ton_0_product" placeholder="Producto" list="session-products-list" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
       <input type="number" step="0.01" name="ton_0_tns_habiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
       <input type="number" step="0.01" name="ton_0_tns_inhabiles" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
       <input type="number" step="0.01" name="ton_0_tns_extraordinarias" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300">
@@ -207,9 +213,16 @@
     {% endif %}
   </div>
   <p class="text-xs text-gray-400 mt-2">
-    Producto por línea: dejá vacío si el parte no lo especifica (se inferirá si hay un solo producto en el operativo).
+    ⚠ Producto obligatorio por línea. Sin producto asignado la línea quedará como <strong>SIN_PRODUCTO</strong> y será excluida de la conciliación automática.
   </p>
 </div>
+
+<!-- Datalist de productos del operativo para autocompletar -->
+<datalist id="session-products-list">
+  {% for sp in session.products %}
+  <option value="{{ sp.product }}">
+  {% endfor %}
+</datalist>
 
 <!-- ══════════════════════════════════════════════════════
      BLOQUE 4: Líneas de jornales
@@ -446,7 +459,7 @@
 
   // ── TONELAJE ───────────────────────────────────────────────────────────────
   const tonContainer = document.getElementById('ton-rows');
-  const tonFields = ['shift_date','turno_range','guinche_tipo','guinche_descripcion',
+  const tonFields = ['shift_date','turno_range','guinche_tipo','guinche_descripcion','product',
     'tns_habiles','tns_inhabiles','tns_extraordinarias','manos',
     'tarifa_habiles','tarifa_inhabiles','tarifa_extraordinarias'];
 
@@ -460,12 +473,13 @@
   document.getElementById('add-ton-row').addEventListener('click', function () {
     const idx = tonContainer.querySelectorAll('.dyn-row').length;
     const row = document.createElement('div');
-    row.className = 'dyn-row ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center';
+    row.className = 'dyn-row ton-row flex flex-wrap md:grid md:grid-cols-[110px_90px_80px_80px_80px_60px_60px_60px_50px_80px_80px_80px_24px] gap-1 mb-1 items-center';
     row.innerHTML = `
       <input type="date"   name="ton_${idx}_shift_date"          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="shift_date">
       <input type="text"   name="ton_${idx}_turno_range"         placeholder="07-19" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="turno_range">
       <select              name="ton_${idx}_guinche_tipo"        class="ton-guinche w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="guinche_tipo"><option value="abordo">Abordo</option><option value="fiscal">Fiscal</option></select>
       <input type="text"   name="ton_${idx}_guinche_descripcion" placeholder="opcional" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="guinche_descripcion">
+      <input type="text"   name="ton_${idx}_product"             placeholder="Producto" list="session-products-list" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="product">
       <input type="number" step="0.01" name="ton_${idx}_tns_habiles"          class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_habiles">
       <input type="number" step="0.01" name="ton_${idx}_tns_inhabiles"        class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_inhabiles">
       <input type="number" step="0.01" name="ton_${idx}_tns_extraordinarias"  class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-1 focus:ring-sky-300" data-field="tns_extraordinarias">

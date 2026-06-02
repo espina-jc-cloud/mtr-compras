@@ -215,8 +215,14 @@
     </div>
     {% if totals.base_tonelaje_revisado is not none %}
     <div class="flex justify-between text-sm text-gray-400">
-      <span>Base tonelaje (revisado)</span>
+      <span>Base tonelaje <span class="text-sky-500">revisado</span></span>
       <span class="font-mono">${{ "%.2f"|format(totals.base_tonelaje_revisado | float) }}</span>
+    </div>
+    {% endif %}
+    {% if totals.base_jornales_revisado is not none %}
+    <div class="flex justify-between text-sm text-gray-400">
+      <span>Base jornales <span class="text-sky-500">revisado</span></span>
+      <span class="font-mono">${{ "%.2f"|format(totals.base_jornales_revisado | float) }}</span>
     </div>
     {% endif %}
   </div>

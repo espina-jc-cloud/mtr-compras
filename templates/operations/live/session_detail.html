@@ -26,8 +26,8 @@
           Pausado
         </span>
         {% elif session.status == 'closed' %}
-        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
           Cerrado
         </span>
         {% elif session.status == 'reconciled' %}
@@ -266,17 +266,17 @@
 <!-- ══════════════════════════════════════════════════════
      BLOQUE C: Acciones
      ══════════════════════════════════════════════════════ -->
-{% if session.status != 'finished' %}
+{% if session.status in ('active', 'paused') %}
 <div class="flex gap-3 mb-5">
   <a href="/operations/live/{{ session.id }}/shift/new"
     class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold
            px-4 py-2.5 rounded-xl text-center shadow-sm transition-colors">
     + Nuevo turno
   </a>
-  <a href="/operations/live/{{ session.id }}/reconciliacion"
+  <a href="/operations/live/{{ session.id }}/reconciliation"
     class="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50
            text-sm font-semibold px-4 py-2.5 rounded-xl text-center transition-colors">
-    Ver reconciliación
+    Ver conciliación
   </a>
 </div>
 {% endif %}
@@ -559,7 +559,8 @@
     {% elif active_invoice.status == 'approved_for_payment' %}
     <!-- approved: solo conciliación -->
     <div class="flex items-center gap-1.5 text-xs text-emerald-600 font-medium mb-1">
-      <span>✅</span> <span>Aprobado para pago — {{ active_invoice.validated_by or '' }}</span>
+      <span>✅</span>
+      <span>Aprobado para pago{% if active_invoice.validated_by %} · {{ active_invoice.validated_by }}{% endif %}</span>
     </div>
     <a href="/operations/live/{{ session.id }}/reconciliation"
       class="flex items-center justify-center gap-2 w-full text-sm text-white

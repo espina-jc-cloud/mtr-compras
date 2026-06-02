@@ -289,6 +289,9 @@
     const hasDiff = recibido !== '' && revisado !== '' &&
                     parseFloat(recibido) !== parseFloat(revisado);
 
+    // Buscar el hint span correspondiente (ton_{i}_nota_hint)
+    const hintEl = notaId ? document.getElementById(notaId.replace('diferencia_nota', 'nota_hint')) : null;
+
     if (hasDiff) {
       input.classList.add('border-amber-400', 'bg-amber-50');
       input.classList.remove('border-sky-200');
@@ -296,6 +299,7 @@
         notaEl.classList.add('border-amber-300');
         notaEl.placeholder = '⚠ Obligatorio: explicar diferencia';
       }
+      if (hintEl) hintEl.textContent = '(obligatoria — hay diferencia)';
     } else {
       input.classList.remove('border-amber-400', 'bg-amber-50');
       input.classList.add('border-sky-200');
@@ -303,6 +307,7 @@
         notaEl.classList.remove('border-amber-300');
         notaEl.placeholder = '¿Por qué difiere el dato revisado?';
       }
+      if (hintEl) hintEl.textContent = '(opcional si no hay diferencia)';
     }
   }
 
