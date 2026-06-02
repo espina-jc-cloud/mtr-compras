@@ -214,11 +214,17 @@ def shift_summary_by_product(bodega_rows: list[Any]) -> dict[str, dict]:
         if kc is not None:
             r["kg_coop"] = (r["kg_coop"] or 0) + kc
 
-    # Calcular delta y semáforo ahora que están todos los totales
+    # Calcular delta, semáforo y viajes_total ahora que están todos los totales
     for prod, r in result.items():
         if r["kg_coop"] is not None:
             r["delta"] = r["kg_total_mtr"] - r["kg_coop"]
             r["delta_status"] = delta_status(r["delta"])
+        has_vm = r["viajes_mtr"] is not None
+        has_vc = r["viajes_coop"] is not None
+        r["viajes_total"] = (
+            (r["viajes_mtr"] or 0) + (r["viajes_coop"] or 0)
+            if (has_vm or has_vc) else None
+        )
 
     return result
 

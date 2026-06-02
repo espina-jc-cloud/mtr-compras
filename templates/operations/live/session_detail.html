@@ -118,24 +118,34 @@
     <div class="text-xs text-gray-400 mb-1">Sin total contratado cargado</div>
     {% endif %}
 
-    <!-- Desglose MTR / Costado Vapor (si hay datos) -->
-    {% if ps.kg_total_mtr > 0 %}
-    <div class="mt-3 pt-3 border-t border-gray-50 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-      {% if ps.kg_deposito > 0 %}
-      <div class="flex justify-between">
-        <span class="text-gray-400">Kg MTR</span>
-        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_deposito) }} kg</span>
-      </div>
-      {% endif %}
-      {% if ps.kg_directo > 0 %}
-      <div class="flex justify-between">
-        <span class="text-gray-400">Kg C.Vapor</span>
-        <span class="font-medium text-gray-700">{{ fmt_kg(ps.kg_directo) }} kg</span>
-      </div>
-      {% endif %}
-      <div class="flex justify-between col-span-2 pt-1 border-t border-gray-50 mt-1 font-semibold">
-        <span class="text-gray-500">Total MTR</span>
-        <span class="text-gray-800">{{ fmt_kg(ps.kg_total_mtr) }} kg</span>
+    <!-- Desglose por métricas (si hay datos) -->
+    {% if ps.kg_total_mtr > 0 or ps.viajes_total %}
+    <div class="mt-3 pt-3 border-t border-gray-50">
+      <div class="grid grid-cols-3 gap-1.5 text-center">
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-400 mb-0.5">V.MTR</div>
+          <div class="text-xl font-black text-gray-900">{{ ps.viajes_mtr if ps.viajes_mtr is not none else "—" }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-400 mb-0.5">Kg MTR</div>
+          <div class="text-sm font-bold text-gray-900">{{ fmt_kg(ps.kg_deposito) }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-400 mb-0.5">V.C.Vapor</div>
+          <div class="text-xl font-black text-gray-900">{{ ps.viajes_coop if ps.viajes_coop is not none else "—" }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-400 mb-0.5">Kg C.Vapor</div>
+          <div class="text-sm font-bold text-gray-900">{{ fmt_kg(ps.kg_directo) }}</div>
+        </div>
+        <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Viajes tot.</div>
+          <div class="text-xl font-black text-emerald-700">{{ ps.viajes_total if ps.viajes_total is not none else "—" }}</div>
+        </div>
+        <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Kg totales</div>
+          <div class="text-sm font-bold text-emerald-700">{{ fmt_kg(ps.kg_total_mtr) }}</div>
+        </div>
       </div>
     </div>
     {% else %}

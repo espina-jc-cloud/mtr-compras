@@ -57,7 +57,71 @@
     </div>
   </div>
 
-  <!-- 6 métricas en 2 filas -->
+  {% if by_product | length > 1 %}
+  <!-- Desglose por producto -->
+  {% for prod, bp in by_product.items() %}
+  <div class="bg-white/10 rounded-xl p-3 mb-2">
+    <p class="text-xs font-bold text-emerald-200 uppercase tracking-wider mb-2">{{ prod }}</p>
+    <div class="grid grid-cols-3 gap-1.5 text-center">
+      <div class="bg-white/10 rounded-lg p-2">
+        <div class="text-[10px] text-emerald-300 mb-0.5">V.MTR</div>
+        <div class="text-lg font-black">{{ bp.viajes_mtr if bp.viajes_mtr is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/10 rounded-lg p-2">
+        <div class="text-[10px] text-emerald-300 mb-0.5">Kg MTR</div>
+        <div class="text-sm font-bold">{{ fmt_kg(bp.kg_deposito) }}</div>
+      </div>
+      <div class="bg-white/10 rounded-lg p-2">
+        <div class="text-[10px] text-emerald-300 mb-0.5">V.C.Vapor</div>
+        <div class="text-lg font-black">{{ bp.viajes_coop if bp.viajes_coop is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/10 rounded-lg p-2">
+        <div class="text-[10px] text-emerald-300 mb-0.5">Kg C.Vapor</div>
+        <div class="text-sm font-bold">{{ fmt_kg(bp.kg_directo) }}</div>
+      </div>
+      <div class="bg-white/20 rounded-lg p-2 border border-white/15">
+        <div class="text-[10px] text-emerald-200 font-semibold mb-0.5">Viajes tot.</div>
+        <div class="text-lg font-black">{{ bp.viajes_total if bp.viajes_total is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/20 rounded-lg p-2 border border-white/15">
+        <div class="text-[10px] text-emerald-200 font-semibold mb-0.5">Kg tot.</div>
+        <div class="text-sm font-bold">{{ fmt_kg(bp.kg_total_mtr) }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  <!-- Total del turno (general) -->
+  <div class="border-t border-white/20 pt-3 mt-1">
+    <p class="text-xs font-bold text-emerald-200 uppercase tracking-wider mb-2 text-center">Total del turno</p>
+    <div class="grid grid-cols-3 gap-1.5 text-center">
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-xs text-emerald-200 mb-1">V.MTR</div>
+        <div class="text-2xl font-black">{{ totals.viajes_mtr if totals.viajes_mtr is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-xs text-emerald-200 mb-1">Kg MTR</div>
+        <div class="text-xl font-black">{{ fmt_kg(totals.kg_deposito) }}</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-xs text-emerald-200 mb-1">V.C.Vapor</div>
+        <div class="text-2xl font-black">{{ totals.viajes_coop if totals.viajes_coop is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-xs text-emerald-200 mb-1">Kg C.Vapor</div>
+        <div class="text-xl font-black">{{ fmt_kg(totals.kg_directo) }}</div>
+      </div>
+      <div class="bg-white/25 rounded-xl p-3 border border-white/20">
+        <div class="text-xs text-emerald-100 font-bold mb-1">Viajes totales</div>
+        <div class="text-2xl font-black">{{ totals.viajes_total if totals.viajes_total is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/25 rounded-xl p-3 border border-white/20">
+        <div class="text-xs text-emerald-100 font-bold mb-1">Kg totales</div>
+        <div class="text-xl font-black">{{ fmt_kg(totals.kg_total_mtr) }}</div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- Producto único: 6 métricas en 2 filas -->
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
     <div class="bg-white/10 rounded-xl p-3 text-center">
       <div class="text-xs text-emerald-200 mb-1">V.MTR</div>
@@ -84,6 +148,7 @@
       <div class="text-xl font-black">{{ fmt_kg(totals.kg_total_mtr) }}</div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endif %}
 
