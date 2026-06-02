@@ -753,6 +753,8 @@ def _save_shift_complete(
             bodega_number   = row["bodega_number"],
             product         = row["product"],
             measurement     = row["measurement"],
+            tipo_guinche    = row["tipo_guinche"],
+            tipo_grampa     = row["tipo_grampa"],
             viajes_mtr      = row["viajes_mtr"],
             kg_deposito_mtr = row["kg_deposito_mtr"],
             kg_directo_mtr  = row["kg_directo_mtr"],
@@ -849,10 +851,14 @@ def _parse_bodega_rows(form) -> list[dict]:
         raw_product = str(form.get(f"bodega_{i}_product", "")).strip()
         product_norm = normalize_product(raw_product) if raw_product else None
 
+        raw_guinche = str(form.get(f"bodega_{i}_tipo_guinche", "")).strip()
+        raw_grampa  = str(form.get(f"bodega_{i}_tipo_grampa",  "")).strip()
         rows.append({
             "bodega_number":    bodega_number,
             "product":          product_norm,
             "measurement":      str(form.get(f"bodega_{i}_measurement", "fiscal")).strip() or "fiscal",
+            "tipo_guinche":     raw_guinche if raw_guinche in ("fiscal", "abordo") else None,
+            "tipo_grampa":      raw_grampa  if raw_grampa  in ("fiscal", "abordo") else None,
             "viajes_mtr":       _parse_int(str(form.get(f"bodega_{i}_viajes_mtr", "")).strip()),
             "kg_deposito_mtr":  _parse_int(str(form.get(f"bodega_{i}_kg_deposito_mtr", "0")).strip()) or 0,
             "kg_directo_mtr":   _parse_int(str(form.get(f"bodega_{i}_kg_directo_mtr", "0")).strip()) or 0,

@@ -52,7 +52,10 @@ def run():
         # Fase 2: Operativos en Tiempo Real — Cierre + Factura + Conciliación
         _add_column(conn, "operation_live_sessions", "closed_at",     "TIMESTAMP")
         _add_column(conn, "operation_live_sessions", "reconciled_at", "TIMESTAMP")
-        _add_column(conn, "operation_live_shifts",   "turno_tipo",    "VARCHAR DEFAULT 'habil'")
+        _add_column(conn, "operation_live_shifts",       "turno_tipo",    "VARCHAR DEFAULT 'habil'")
+        # Bodega: tipo de guinche y grampa por fila
+        _add_column(conn, "operation_live_bodega_data", "tipo_guinche",  "VARCHAR")
+        _add_column(conn, "operation_live_bodega_data", "tipo_grampa",   "VARCHAR")
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

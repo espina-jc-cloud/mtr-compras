@@ -214,6 +214,8 @@ class OperationLiveBodegaData(Base):
     # ^ normalize_product() aplicado al guardar; validado contra session_products
 
     measurement      = Column(String, default="fiscal")  # 'fiscal' | 'grampa'
+    tipo_guinche     = Column(String, nullable=True)      # 'fiscal' | 'abordo'
+    tipo_grampa      = Column(String, nullable=True)      # 'fiscal' | 'abordo'
 
     # ── Datos MTR (jefe de turno) ────────────────────────────────────────────
     viajes_mtr       = Column(Integer, nullable=True)
