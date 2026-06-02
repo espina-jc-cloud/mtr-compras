@@ -144,39 +144,69 @@
   </div>
   {% endfor %}
 
-  <!-- Total general (si hay más de un producto) -->
-  {% if product_summaries | length > 1 %}
-  <div class="bg-gray-900 rounded-2xl p-4 text-white">
-    <div class="flex items-center justify-between mb-2">
-      <p class="text-sm font-bold">Total operativo</p>
-      {% if grand_total.progreso_pct is not none %}
-      <span class="text-lg font-black text-emerald-400">{{ grand_total.progreso_pct }}%</span>
-      {% endif %}
-    </div>
-    {% if grand_total.kg_contracted and grand_total.kg_contracted > 0 %}
-    <div class="w-full bg-gray-700 rounded-full h-2 mb-2">
-      <div class="bg-emerald-500 h-2 rounded-full"
-        style="width: {{ [grand_total.progreso_pct or 0, 100] | min }}%"></div>
-    </div>
-    {% endif %}
-    <div class="grid grid-cols-3 gap-3 text-xs mt-2">
+  <!-- ── Acumulado general del operativo (siempre visible si hay datos) ── -->
+  {% if grand_total.kg_total_mtr > 0 or grand_total.viajes_total %}
+  <div class="bg-gray-900 rounded-2xl p-5 text-white">
+    <div class="flex items-start justify-between mb-4">
       <div>
-        <p class="text-gray-400 mb-0.5">Coop total</p>
-        <p class="font-bold text-emerald-300">{{ fmt_kg(grand_total.kg_coop) if grand_total.kg_coop is not none else '—' }} kg</p>
-      </div>
-      <div>
-        <p class="text-gray-400 mb-0.5">MTR total</p>
-        <p class="font-bold">{{ fmt_kg(grand_total.kg_total_mtr) }} kg</p>
-      </div>
-      {% if grand_total.restan is not none %}
-      <div>
-        <p class="text-gray-400 mb-0.5">Restan</p>
-        <p class="font-bold {% if grand_total.restan <= 0 %}text-emerald-400{% endif %}">
-          {{ fmt_kg(grand_total.restan) }} kg
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Acumulado del operativo</p>
+        <p class="text-sm text-gray-300 mt-0.5">
+          {{ shift_history | length }} turno{% if shift_history | length != 1 %}s{% endif %} cargado{% if shift_history | length != 1 %}s{% endif %}
         </p>
       </div>
-      {% endif %}
+      <div class="text-right flex-shrink-0">
+        <div class="text-3xl font-black text-emerald-400">{{ "%.1f"|format(grand_total.kg_total_mtr / 1000) }} tn</div>
+        <div class="text-xs text-gray-500">acumulado</div>
+      </div>
     </div>
+
+    <!-- 6 métricas -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-3">
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">V.MTR acum.</div>
+        <div class="text-2xl font-black text-white">{{ grand_total.viajes_mtr if grand_total.viajes_mtr is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">Kg MTR acum.</div>
+        <div class="text-lg font-black text-white">{{ fmt_kg(grand_total.kg_deposito) }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">V.C.Vapor acum.</div>
+        <div class="text-2xl font-black text-white">{{ grand_total.viajes_coop if grand_total.viajes_coop is not none else "—" }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">Kg C.Vapor acum.</div>
+        <div class="text-lg font-black text-white">{{ fmt_kg(grand_total.kg_directo) }}</div>
+      </div>
+      <div class="bg-emerald-900/60 rounded-xl p-3 text-center border border-emerald-700/40">
+        <div class="text-xs text-emerald-400 font-bold mb-1">Viajes totales</div>
+        <div class="text-2xl font-black text-emerald-300">{{ grand_total.viajes_total if grand_total.viajes_total is not none else "—" }}</div>
+      </div>
+      <div class="bg-emerald-900/60 rounded-xl p-3 text-center border border-emerald-700/40">
+        <div class="text-xs text-emerald-400 font-bold mb-1">Kg totales</div>
+        <div class="text-lg font-black text-emerald-300">{{ fmt_kg(grand_total.kg_total_mtr) }}</div>
+      </div>
+    </div>
+
+    <!-- Contratado / Restan (si aplica) -->
+    {% if grand_total.kg_contracted and grand_total.kg_contracted > 0 %}
+    <div class="pt-3 border-t border-white/10">
+      {% if grand_total.progreso_pct is not none %}
+      <div class="w-full bg-gray-700 rounded-full h-1.5 mb-2">
+        <div class="bg-emerald-500 h-1.5 rounded-full transition-all"
+          style="width: {{ [grand_total.progreso_pct or 0, 100] | min }}%"></div>
+      </div>
+      {% endif %}
+      <div class="flex justify-between text-xs">
+        <span class="text-gray-400">Contratado: {{ fmt_kg(grand_total.kg_contracted) }} kg</span>
+        {% if grand_total.restan is not none %}
+        <span class="font-semibold {% if grand_total.restan <= 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">
+          {% if grand_total.restan <= 0 %}✓ Completo{% else %}Restan {{ fmt_kg(grand_total.restan) }} kg{% endif %}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 </div>

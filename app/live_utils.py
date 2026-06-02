@@ -236,10 +236,14 @@ def shift_totals(bodega_rows: list[Any]) -> dict:
         "kg_coop":      int | None,
         "delta":        int | None,
         "delta_status": str,
+        "viajes_mtr":   int | None,   # None si ninguna bodega tiene dato
+        "viajes_coop":  int | None,
+        "viajes_total": int | None,   # viajes_mtr + viajes_coop (si al menos uno existe)
     }
     """
     kg_dep = kg_dir = kg_cv = kg_coop_total = 0
-    has_coop = False
+    v_mtr = v_coop = 0
+    has_coop = has_v_mtr = has_v_coop = False
 
     for row in bodega_rows:
         kg_dep  += getattr(row, "kg_deposito_mtr", 0) or 0
@@ -249,10 +253,25 @@ def shift_totals(bodega_rows: list[Any]) -> dict:
         if kc is not None:
             kg_coop_total += kc
             has_coop = True
+        vm = getattr(row, "viajes_mtr", None)
+        if vm is not None:
+            v_mtr += vm
+            has_v_mtr = True
+        vc = getattr(row, "viajes_coop", None)
+        if vc is not None:
+            v_coop += vc
+            has_v_coop = True
 
     kg_mtr = kg_dep + kg_dir + kg_cv
     kg_coop = kg_coop_total if has_coop else None
     d = (kg_mtr - kg_coop) if kg_coop is not None else None
+
+    viajes_mtr   = v_mtr  if has_v_mtr  else None
+    viajes_coop  = v_coop if has_v_coop else None
+    viajes_total = (
+        (viajes_mtr or 0) + (viajes_coop or 0)
+        if (has_v_mtr or has_v_coop) else None
+    )
 
     return {
         "kg_deposito":  kg_dep,
@@ -262,6 +281,9 @@ def shift_totals(bodega_rows: list[Any]) -> dict:
         "kg_coop":      kg_coop,
         "delta":        d,
         "delta_status": delta_status(d),
+        "viajes_mtr":   viajes_mtr,
+        "viajes_coop":  viajes_coop,
+        "viajes_total": viajes_total,
     }
 
 
@@ -356,11 +378,16 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
         "delta_status":   str,
         "restan":         int | None,
         "progreso_pct":   float | None,
+        "viajes_mtr":     int | None,
+        "viajes_coop":    int | None,
+        "viajes_total":   int | None,
     }
     """
     kg_dep = kg_dir = kg_cv = 0
     kg_coop_total = kg_contracted_total = 0
     has_coop = has_contracted = False
+    v_mtr = v_coop = 0
+    has_v_mtr = has_v_coop = False
 
     for ps in product_summaries:
         kg_dep += ps["kg_deposito"]
@@ -372,6 +399,12 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
         if ps["kg_contracted"] is not None:
             kg_contracted_total += ps["kg_contracted"]
             has_contracted = True
+        if ps.get("viajes_mtr") is not None:
+            v_mtr += ps["viajes_mtr"]
+            has_v_mtr = True
+        if ps.get("viajes_coop") is not None:
+            v_coop += ps["viajes_coop"]
+            has_v_coop = True
 
     kg_mtr        = kg_dep + kg_dir + kg_cv
     kg_coop       = kg_coop_total       if has_coop       else None
@@ -386,6 +419,13 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
     if kg_contracted and kg_coop is not None and kg_contracted > 0:
         progreso_pct = round(min(kg_coop / kg_contracted * 100, 100), 1)
 
+    viajes_mtr   = v_mtr  if has_v_mtr  else None
+    viajes_coop  = v_coop if has_v_coop else None
+    viajes_total = (
+        (viajes_mtr or 0) + (viajes_coop or 0)
+        if (has_v_mtr or has_v_coop) else None
+    )
+
     return {
         "kg_deposito":   kg_dep,
         "kg_directo":    kg_dir,
@@ -397,6 +437,9 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
         "delta_status":  delta_status(d),
         "restan":        restan,
         "progreso_pct":  progreso_pct,
+        "viajes_mtr":    viajes_mtr,
+        "viajes_coop":   viajes_coop,
+        "viajes_total":  viajes_total,
     }
 
 
