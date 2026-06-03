@@ -56,6 +56,9 @@ def run():
         # Bodega: tipo de guinche y grampa por fila
         _add_column(conn, "operation_live_bodega_data", "tipo_guinche",  "VARCHAR")
         _add_column(conn, "operation_live_bodega_data", "tipo_grampa",   "VARCHAR")
+        # Fase 3: Fotos — ya creada por Base.metadata.create_all() arriba;
+        # _add_column aquí solo por si hay DBs viejas sin las columnas opcionales.
+        # (La tabla en sí la crea create_all automáticamente.)
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

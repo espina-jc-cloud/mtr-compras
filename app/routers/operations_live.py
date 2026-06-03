@@ -38,7 +38,8 @@ Decisiones de diseño explícitas:
 """
 
 from datetime import datetime, date as _date
-from fastapi import APIRouter, Request, Depends, HTTPException, Form
+import uuid
+from fastapi import APIRouter, Request, Depends, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -62,8 +63,11 @@ from app.models_live import (
     OperationLiveInvoiceLaborLine,
     OperationLiveInvoiceCargoLine,
     OperationLiveInvoiceTotals,
+    # Fase 3
+    OperationLivePhoto,
 )
 from app.invoice_utils import calculate_invoice_totals
+from app.cloudinary_upload import upload_file as _cloudinary_upload, delete_file as _cloudinary_delete
 from decimal import Decimal as _Decimal
 from sqlalchemy import asc as _asc
 from app.product_normalize import normalize_product
@@ -247,6 +251,25 @@ def _build_session_context(session: OperationLiveSession, db: Session) -> dict:
         .first()
     )
 
+    # Fase 3: Fotos del operativo
+    all_photos = (
+        db.query(OperationLivePhoto)
+        .filter(OperationLivePhoto.session_id == session.id)
+        .order_by(OperationLivePhoto.created_at.desc())
+        .all()
+    )
+    session_photos = [p for p in all_photos if p.shift_id is None]  # fotos del operativo general
+
+    # Fotos por shift (dict: shift_id → lista)
+    shift_photos_map: dict[int, list] = {}
+    for p in all_photos:
+        if p.shift_id is not None:
+            shift_photos_map.setdefault(p.shift_id, []).append(p)
+
+    # Inyectar fotos en cada entrada de shift_history
+    for sh in shift_history:
+        sh["photos"] = shift_photos_map.get(sh["shift"].id, [])
+
     return {
         "session":                  session,
         "product_summaries":        product_summaries,
@@ -264,6 +287,9 @@ def _build_session_context(session: OperationLiveSession, db: Session) -> dict:
         "all_shifts_closed_flag":   all_shifts_closed(session),
         "open_shifts_count":        open_shifts_count(session),
         "active_invoice":           active_invoice,
+        # Fase 3: Fotos
+        "session_photos":           session_photos,
+        "all_photos_count":         len(all_photos),
         # fmt_kg, delta_badge, format_minutes son Jinja2 globals (ver templates.py)
     }
 
@@ -1061,6 +1087,14 @@ async def shift_detail(
     equip_by_empresa = equipment_hours_by_empresa(equipment)
     staff            = staff_summary(staff_rows)
 
+    # Fase 3: Fotos del turno
+    shift_photos = (
+        db.query(OperationLivePhoto)
+        .filter_by(shift_id=shid)
+        .order_by(OperationLivePhoto.created_at.desc())
+        .all()
+    )
+
     return templates.TemplateResponse(
         request,
         "operations/live/shift_detail.html",
@@ -1083,6 +1117,8 @@ async def shift_detail(
             "MOTIVO_LABELS":   MOTIVO_LABELS,
             "FUNCION_LABELS":  FUNCION_LABELS,
             "EQUIPO_TIPOS":    EQUIPO_TIPOS,
+            # Fase 3
+            "shift_photos":    shift_photos,
         },
     )
 
@@ -2086,3 +2122,107 @@ async def reconciliation_save(
 
     db.commit()
     return RedirectResponse(url=f"/operations/live/{sid}/reconciliation", status_code=303)
+
+
+# ── Fase 3: Fotos ─────────────────────────────────────────────────────────────
+
+_PHOTO_CATEGORIES = ["barco", "tapas", "mercaderia", "equipos", "demora", "otro"]
+
+
+@router.post("/{sid}/photos")
+async def upload_photo(
+    request: Request,
+    sid: int,
+    files: list[UploadFile] = File(...),
+    caption: str = Form(""),
+    category: str = Form(""),
+    shift_id: Optional[int] = Form(None),
+    bodega_number: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_LIVE_ROLES)),
+):
+    """
+    Sube una o más fotos al operativo.
+    shift_id optional: si se envía, las fotos quedan asociadas a ese turno.
+    bodega_number optional: si se envía, indica la bodega específica.
+    """
+    session = _get_session_or_404(sid, db)
+
+    # Validar shift_id si se provee
+    shift = None
+    if shift_id:
+        shift = db.query(OperationLiveShift).filter_by(
+            id=shift_id, session_id=sid
+        ).first()
+        if not shift:
+            raise HTTPException(status_code=404, detail="Turno no encontrado en esta sesión")
+
+    uploaded_count = 0
+    for f in files:
+        if not f.filename:
+            continue
+        contents = await f.read()
+        if not contents:
+            continue
+        unique_name = f"{uuid.uuid4()}_{f.filename}"
+        result = _cloudinary_upload(contents, unique_name, folder="mtr-compras/live")
+
+        photo = OperationLivePhoto(
+            session_id    = session.id,
+            shift_id      = shift_id,
+            bodega_number = bodega_number,
+            file_url      = result["url"],
+            public_id     = result["public_id"],
+            caption       = caption.strip() or None,
+            uploaded_by   = getattr(current_user, "name", None) or getattr(current_user, "email", None),
+            category      = category.strip() or None,
+        )
+        db.add(photo)
+        uploaded_count += 1
+
+    if uploaded_count > 0:
+        db.commit()
+
+    # Redirige al origen correcto
+    if shift_id:
+        return RedirectResponse(
+            url=f"/operations/live/{sid}/shift/{shift_id}",
+            status_code=303,
+        )
+    return RedirectResponse(url=f"/operations/live/{sid}", status_code=303)
+
+
+@router.post("/{sid}/photos/{pid}/delete")
+async def delete_photo(
+    request: Request,
+    sid: int,
+    pid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_LIVE_ROLES)),
+):
+    """Borra una foto del operativo (DB + Cloudinary)."""
+    session = _get_session_or_404(sid, db)
+
+    photo = db.query(OperationLivePhoto).filter_by(
+        id=pid, session_id=session.id
+    ).first()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Foto no encontrada")
+
+    shift_id = photo.shift_id
+
+    # Borra de Cloudinary (best-effort: si falla no bloquea el borrado de DB)
+    try:
+        _cloudinary_delete(photo.public_id)
+    except Exception:
+        pass
+
+    db.delete(photo)
+    db.commit()
+
+    if shift_id:
+        return RedirectResponse(
+            url=f"/operations/live/{sid}/shift/{shift_id}",
+            status_code=303,
+        )
+    return RedirectResponse(url=f"/operations/live/{sid}", status_code=303)
