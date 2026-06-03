@@ -436,4 +436,6 @@ from app.models_live import (  # noqa: E402, F401
     OperationLiveInvoiceCargoLine,
     OperationLiveInvoiceTotals,
     OperationLiveReconciliation,
+    # Fase 3: Fotos
+    OperationLivePhoto,
 )

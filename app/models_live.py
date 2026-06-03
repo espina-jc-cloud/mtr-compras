@@ -76,6 +76,13 @@ class OperationLiveSession(Base):
         cascade="all, delete-orphan",
         order_by="OperationLiveShift.shift_number",
     )
+    photos = relationship(
+        "OperationLivePhoto",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="OperationLivePhoto.created_at",
+        primaryjoin="OperationLivePhoto.session_id == OperationLiveSession.id",
+    )
     invoices = relationship(
         "OperationLiveInvoice",
         back_populates="session",
@@ -180,6 +187,13 @@ class OperationLiveShift(Base):
         back_populates="shift",
         cascade="all, delete-orphan",
         order_by="OperationLiveStaff.id",
+    )
+    photos = relationship(
+        "OperationLivePhoto",
+        back_populates="shift",
+        cascade="all, delete-orphan",
+        order_by="OperationLivePhoto.created_at",
+        primaryjoin="OperationLivePhoto.shift_id == OperationLiveShift.id",
     )
 
 
@@ -596,4 +610,52 @@ class OperationLiveReconciliation(Base):
             "session_id", "product",
             name="uq_reconciliation_session_product",
         ),
+    )
+
+
+class OperationLivePhoto(Base):
+    """
+    Foto asociada a un operativo live.
+
+    Niveles de asociación:
+      - session_id siempre presente (foto pertenece al operativo)
+      - shift_id nullable: si presente, foto vinculada a ese turno
+      - bodega_number nullable: si presente, foto de esa bodega específica
+
+    public_id guarda el Cloudinary public_id para poder borrar desde la API.
+    """
+    __tablename__ = "operation_live_photos"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    session_id     = Column(
+        Integer, ForeignKey("operation_live_sessions.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    shift_id       = Column(
+        Integer, ForeignKey("operation_live_shifts.id", ondelete="CASCADE"),
+        nullable=True, index=True,
+    )
+    bodega_number  = Column(Integer, nullable=True)
+
+    file_url       = Column(Text, nullable=False)
+    public_id      = Column(String(255), nullable=False)  # Cloudinary public_id
+
+    caption        = Column(Text, nullable=True)
+    uploaded_by    = Column(String(120), nullable=True)   # nombre del usuario
+
+    # Categoría opcional para ordenar visualmente
+    # Valores sugeridos: 'barco' | 'tapas' | 'mercaderia' | 'equipos' | 'demora' | 'otro'
+    category       = Column(String(60), nullable=True)
+
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship(
+        "OperationLiveSession",
+        back_populates="photos",
+        foreign_keys=[session_id],
+    )
+    shift = relationship(
+        "OperationLiveShift",
+        back_populates="photos",
+        foreign_keys=[shift_id],
     )

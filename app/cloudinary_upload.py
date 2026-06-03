@@ -21,3 +21,8 @@ def upload_file(file_bytes: bytes, filename: str, folder: str = "mtr-compras") -
         unique_filename=True,
     )
     return {"url": result["secure_url"], "public_id": result["public_id"]}
+
+
+def delete_file(public_id: str) -> None:
+    """Borra un archivo de Cloudinary dado su public_id."""
+    cloudinary.uploader.destroy(public_id)
