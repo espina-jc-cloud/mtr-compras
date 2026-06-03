@@ -956,42 +956,60 @@ function setShiftRange(start, end) {
   if (e) e.value = end;
 }
 
-// ── MOBILE → DESKTOP SYNC ─────────────────────────────────────────────────────
+// ── MOBILE ↔ DESKTOP SYNC ────────────────────────────────────────────────────
 // CONTEXTO DEL BUG:
-//   Cada fila dinámica (bodega, demora, equipo, personal) genera DOS grupos de
-//   inputs con el mismo name=: uno para desktop (hidden sm:grid, primero en DOM)
-//   y otro para mobile (sm:hidden, segundo en DOM).
-//   Ambos se envían en el POST. form.get() en el servidor devuelve el PRIMERO.
-//   En viewport mobile el usuario edita los inputs del grupo mobile, pero los
-//   del grupo desktop (primeros en DOM) quedan vacíos → el parser los ve vacíos
-//   → omite todas las filas → solo se guarda la cabecera del turno.
+//   Cada fila dinámica genera DOS grupos de inputs con el mismo name=:
+//   desktop (hidden sm:grid, primero en DOM) y mobile (sm:hidden, segundo).
+//   Ambos se envían en el POST. form.get() en Starlette devuelve el PRIMERO.
+//   En mobile viewport el usuario edita el grupo mobile, pero los desktop
+//   (primeros) quedan vacíos → los parsers ven raw_num/raw_desde/raw_funcion
+//   vacíos → omiten todas las filas → solo se guarda la cabecera del turno.
 //
-// FIX:
-//   1. Pre-submit: copiar todos los valores mobile → desktop justo antes de enviar.
-//   2. Live sync (capture phase): corre ANTES del oninput inline → recalcBodega()
-//      lee el valor correcto en mobile.
+// FIX VIEWPORT-AWARE:
+//   Pre-submit: detecta con getComputedStyle cuál div está realmente visible.
+//   • Desktop visible → inhabilita los inputs mobile (no se envían).
+//   • Mobile visible  → copia mobile→desktop, luego inhabilita mobile.
+//   En ambos casos form.get() recibe exactamente UN valor correcto por campo.
+//
+//   Live sync (capture phase): en mobile, copia al desktop antes del oninput
+//   inline para que recalcBodega/recalcDelays/recalcEquip lean valor correcto.
 //
 // ARCHIVOS AFECTADOS: solo este template. Sin cambios en Python.
 (function () {
-  // Sincroniza todos los inputs/selects del div mobile (kids[1]) al desktop (kids[0])
-  function syncRow(row) {
-    var kids = row.children;            // solo elementos (no comentarios)
-    if (kids.length < 2) return;
-    var desktop = kids[0];              // hidden sm:grid → primero en DOM
-    var mobile  = kids[1];              // sm:hidden     → segundo en DOM
-    mobile.querySelectorAll('input[name],select[name]').forEach(function (mEl) {
-      var dEl = desktop.querySelector('[name="' + mEl.name + '"]');
-      if (dEl) dEl.value = mEl.value;
-    });
+  function visible(el) {
+    return window.getComputedStyle(el).display !== 'none';
   }
 
-  // 1. Pre-submit: garantiza que form.get() del servidor reciba el valor correcto
+  // Pre-submit viewport-aware: el servidor recibe un solo valor correcto por campo
   document.getElementById('shift-form').addEventListener('submit', function () {
-    document.querySelectorAll('[data-row]').forEach(syncRow);
+    document.querySelectorAll('[data-row]').forEach(function (row) {
+      var kids = row.children;   // element nodes solamente (los comentarios no cuentan)
+      if (kids.length < 2) return;
+      var desktopDiv = kids[0]; // hidden sm:grid → primero en DOM
+      var mobileDiv  = kids[1]; // sm:hidden     → segundo en DOM
+
+      if (visible(desktopDiv)) {
+        // Viewport desktop: usuario editó inputs del desktopDiv.
+        // Inhabilitar inputs del mobileDiv para que no se envíen (evita duplicados).
+        mobileDiv.querySelectorAll('input,select').forEach(function (el) {
+          el.disabled = true;
+        });
+      } else {
+        // Viewport mobile: usuario editó inputs del mobileDiv.
+        // Copiar mobile→desktop para que form.get() lea el valor correcto,
+        // luego inhabilitar mobile para evitar el envío duplicado.
+        mobileDiv.querySelectorAll('input[name],select[name]').forEach(function (mEl) {
+          var dEl = desktopDiv.querySelector('[name="' + mEl.name + '"]');
+          if (dEl) dEl.value = mEl.value;
+          mEl.disabled = true;
+        });
+      }
+    });
   });
 
-  // 2. Sincronización en vivo usando capture phase (dispara ANTES del oninput inline)
-  //    para que recalcBodega/recalcDelays/recalcEquip lean el valor ya actualizado.
+  // Live sync (capture phase → corre ANTES del oninput/onchange inline)
+  // Solo actúa en mobile: sincroniza el input mobile al desktop equivalente
+  // para que recalcBodega() lea el valor actualizado en tiempo real.
   function liveSync(e) {
     var el = e.target;
     if (!el.name) return;
@@ -999,7 +1017,7 @@ function setShiftRange(start, end) {
     if (!row) return;
     var kids = row.children;
     if (kids.length < 2) return;
-    if (!kids[1].contains(el)) return;  // solo actúa si el input es del div mobile
+    if (!kids[1].contains(el)) return;  // solo si el input pertenece al div mobile
     var dEl = kids[0].querySelector('[name="' + el.name + '"]');
     if (dEl) dEl.value = el.value;
   }
