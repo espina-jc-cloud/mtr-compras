@@ -152,6 +152,146 @@
 </div>
 {% endif %}
 
+<!-- ══ FOTOS DEL TURNO ══════════════════════════════════════════════════════════ -->
+<div class="mb-4 max-w-3xl">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">
+      Fotos del turno{% if shift_photos %} ({{ shift_photos | length }}){% endif %}
+    </h2>
+    <button type="button"
+      onclick="document.getElementById('photo-upload-form-shift').classList.toggle('hidden')"
+      class="text-xs font-semibold text-emerald-600 hover:text-emerald-800 flex items-center gap-1">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Subir fotos
+    </button>
+  </div>
+
+  <!-- Formulario de subida (oculto por defecto) -->
+  <div id="photo-upload-form-shift" class="hidden mb-4 bg-gray-50 border border-gray-200 rounded-2xl p-4">
+    <form method="post" action="/operations/live/{{ session.id }}/photos" enctype="multipart/form-data"
+      class="space-y-3">
+      <input type="hidden" name="shift_id" value="{{ shift.id }}">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Fotos (podés seleccionar varias)</label>
+        <input type="file" name="files" multiple accept="image/*" required
+          class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0
+                 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700
+                 file:cursor-pointer">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Descripción (opcional)</label>
+        <input type="text" name="caption" placeholder="Ej: Bodega 3 al inicio del turno"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Bodega (opcional)</label>
+          <input type="number" name="bodega_number" min="1" max="10" placeholder="Nº"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1.5">Categoría</label>
+          <select name="category"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+            <option value="">— Sin cat. —</option>
+            <option value="barco">Barco</option>
+            <option value="tapas">Tapas</option>
+            <option value="mercaderia">Mercadería</option>
+            <option value="equipos">Equipos</option>
+            <option value="demora">Demora</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit"
+          class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          Subir fotos
+        </button>
+        <button type="button"
+          onclick="document.getElementById('photo-upload-form-shift').classList.add('hidden')"
+          class="px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-xl hover:bg-gray-50">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Galería -->
+  {% if shift_photos %}
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+    {% for photo in shift_photos %}
+    <div class="relative group rounded-xl overflow-hidden bg-gray-100 aspect-square">
+      <img src="{{ photo.file_url | cl_thumb(400) }}" alt="{{ photo.caption or 'Foto' }}"
+        class="w-full h-full object-cover cursor-pointer"
+        onclick="openPhotoDialog('{{ photo.file_url }}', '{{ photo.caption or '' }}', '{{ photo.created_at | fmt_ar }}')">
+      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2
+                  opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        {% if photo.caption %}<p class="text-[10px] text-white font-medium truncate">{{ photo.caption }}</p>{% endif %}
+        {% if photo.bodega_number %}<p class="text-[9px] text-gray-300">Bodega {{ photo.bodega_number }}</p>{% endif %}
+        <p class="text-[9px] text-gray-300">{{ photo.created_at | fmt_ar }}</p>
+      </div>
+      {% if photo.category %}
+      <span class="absolute top-1 left-1 text-[9px] font-semibold bg-black/50 text-white px-1.5 py-0.5 rounded-full pointer-events-none">
+        {{ photo.category }}
+      </span>
+      {% endif %}
+      <form method="post" action="/operations/live/{{ session.id }}/photos/{{ photo.id }}/delete"
+        class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        onsubmit="return confirm('¿Borrar esta foto?')">
+        <button type="submit"
+          class="w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+          ✕
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-4 text-gray-300">
+    <div class="text-2xl mb-1">📷</div>
+    <p class="text-xs">Sin fotos del turno cargadas</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Lightbox (dialog nativo) -->
+<dialog id="photo-dialog" class="rounded-2xl shadow-2xl p-0 max-w-2xl w-[95vw] backdrop:bg-black/70">
+  <div class="relative bg-black rounded-t-2xl">
+    <img id="photo-dialog-img" src="" alt=""
+      class="w-full max-h-[70vh] object-contain rounded-t-2xl">
+    <button type="button" onclick="document.getElementById('photo-dialog').close()"
+      class="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white font-bold text-base flex items-center justify-center">
+      ✕
+    </button>
+  </div>
+  <div class="p-4 bg-white rounded-b-2xl">
+    <p id="photo-dialog-caption" class="text-sm text-gray-700 mb-1"></p>
+    <p id="photo-dialog-date" class="text-xs text-gray-400 mb-3"></p>
+    <button type="button" onclick="document.getElementById('photo-dialog').close()"
+      class="w-full border border-gray-200 text-sm text-gray-600 rounded-xl py-2.5 hover:bg-gray-50 font-medium">
+      Cerrar
+    </button>
+  </div>
+</dialog>
+<script>
+function openPhotoDialog(url, caption, date) {
+  document.getElementById('photo-dialog-img').src = url;
+  document.getElementById('photo-dialog-caption').textContent = caption || '';
+  document.getElementById('photo-dialog-date').textContent = date || '';
+  document.getElementById('photo-dialog').showModal();
+}
+document.getElementById('photo-dialog').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right ||
+      e.clientY < rect.top  || e.clientY > rect.bottom) { this.close(); }
+});
+</script>
+
 <div class="space-y-4 max-w-3xl">
 
   <!-- ══ 1. FICHA DEL TURNO ════════════════════════════════════════════════════ -->

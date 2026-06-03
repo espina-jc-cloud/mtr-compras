@@ -37,9 +37,16 @@ def _fmt_num(value, decimals=0):
     except (TypeError, ValueError):
         return str(value)
 
-_env.filters["fmt_ar"]   = _fmt_ar
-_env.filters["fmt_num"]  = _fmt_num
-_env.filters["fmt_date"] = _fmt_date
+def _cloudinary_thumb(url: str, width: int = 400) -> str:
+    """Genera URL de thumbnail Cloudinary insertando la transformación w_{width},c_limit."""
+    if not url or "/upload/" not in url:
+        return url
+    return url.replace("/upload/", f"/upload/w_{width},c_limit/", 1)
+
+_env.filters["fmt_ar"]        = _fmt_ar
+_env.filters["fmt_num"]       = _fmt_num
+_env.filters["fmt_date"]      = _fmt_date
+_env.filters["cl_thumb"]      = _cloudinary_thumb
 
 # ── Globals para el módulo Live (disponibles en todos los templates sin pasarlos) ─
 from app.live_utils import fmt_kg as _fmt_kg, delta_badge as _delta_badge, format_minutes as _format_minutes
