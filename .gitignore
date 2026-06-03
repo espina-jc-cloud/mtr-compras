@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
-*.pyo
-.env
-*.db
 .venv/
-venv/
+.env
+mtr_compras.db
+*.sqlite3
