@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — Proyectos MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="mb-6">
+    <a href="/projects" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Proyectos
+    </a>
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-1 flex-wrap">
+          <span class="status-proj-{{ project.status }} inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold">
+            {{ project.status|replace('_',' ')|capitalize }}
+          </span>
+          <span class="priority-{{ project.priority }} inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold">
+            {{ project.priority|capitalize }}
+          </span>
+          <span class="text-xs text-gray-400 font-mono">{{ project.plant }}</span>
+        </div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ project.name }}</h1>
+        <p class="text-sm text-gray-400 mt-0.5">
+          #{{ project.id }} · {{ project.responsible }}
+          {% if project.area %} · {{ project.area }}{% endif %}
+        </p>
+      </div>
+      {% if can_edit %}
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/projects/{{ project.id }}/edit"
+           class="inline-flex items-center gap-1.5 text-sm border border-gray-200 rounded-xl px-3 py-2 text-gray-600 hover:bg-gray-50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Editar
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Columna principal -->
+    <div class="lg:col-span-2 space-y-5">
+
+      <!-- Descripción -->
+      {% if project.description %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Descripción</h2>
+        <p class="text-sm text-gray-700 whitespace-pre-line">{{ project.description }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Observaciones -->
+      {% if project.notes %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Observaciones</h2>
+        <p class="text-sm text-gray-700 whitespace-pre-line">{{ project.notes }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Historial -->
+      {% if project.audit_logs %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Historial de cambios</h2>
+        <div class="space-y-2">
+          {% for log in project.audit_logs|sort(attribute='created_at', reverse=True) %}
+          <div class="flex items-start gap-3 text-sm">
+            <span class="text-gray-300 font-mono text-xs mt-0.5 flex-shrink-0">{{ log.created_at | fmt_ar }}</span>
+            <div>
+              <span class="font-medium text-gray-700">{{ log.user.name }}</span>
+              <span class="text-gray-400"> · {{ log.action|replace('_',' ')|capitalize }}</span>
+              {% if log.old_status and log.new_status %}
+              <span class="text-gray-400"> ({{ log.old_status }} → {{ log.new_status }})</span>
+              {% endif %}
+              {% if log.comment %}
+              <p class="text-gray-500 text-xs mt-0.5">{{ log.comment }}</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-4">
+
+      <!-- Cambiar estado (solo can_edit) -->
+      {% if can_edit and project.status not in ("finalizado", "cancelado") %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Cambiar estado</h2>
+        <form method="post" action="/projects/{{ project.id }}/status" class="space-y-2">
+          <select name="status" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if s == project.status %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="comment" placeholder="Comentario (opcional)"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+          <button type="submit"
+            class="w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-2.5 rounded-xl">
+            Actualizar estado
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      <!-- Ficha del proyecto -->
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Ficha</h2>
+        <div class="space-y-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Responsable</p>
+            <p class="text-gray-800 font-medium">{{ project.responsible }}</p>
+          </div>
+          {% if project.area %}
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Área / Cliente</p>
+            <p class="text-gray-700">{{ project.area }}</p>
+          </div>
+          {% endif %}
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Planta</p>
+            <p class="text-gray-700 font-mono">{{ project.plant }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Creado por</p>
+            <p class="text-gray-700">{{ project.created_by.name }}</p>
+            <p class="text-xs text-gray-400">{{ project.created_at | fmt_ar }}</p>
+          </div>
+          {% if project.updated_at and project.updated_at != project.created_at %}
+          <div>
+            <p class="text-xs text-gray-400 mb-0.5">Última modificación</p>
+            <p class="text-xs text-gray-500">{{ project.updated_at | fmt_ar }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Fechas -->
+      {% if project.start_date or project.estimated_end_date or project.actual_end_date %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Fechas</h2>
+        <div class="space-y-2 text-sm">
+          {% if project.start_date %}
+          <div class="flex justify-between">
+            <span class="text-gray-400">Inicio</span>
+            <span class="text-gray-700">{{ project.start_date | fmt_date }}</span>
+          </div>
+          {% endif %}
+          {% if project.estimated_end_date %}
+          <div class="flex justify-between">
+            <span class="text-gray-400">Fin estimado</span>
+            <span class="text-gray-700">{{ project.estimated_end_date | fmt_date }}</span>
+          </div>
+          {% endif %}
+          {% if project.actual_end_date %}
+          <div class="flex justify-between font-medium">
+            <span class="text-gray-500">Fin real</span>
+            <span class="text-gray-800">{{ project.actual_end_date | fmt_date }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Presupuesto / Costo -->
+      {% if project.estimated_budget or project.actual_cost %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Presupuesto</h2>
+        <div class="space-y-2 text-sm">
+          {% if project.estimated_budget %}
+          <div class="flex justify-between">
+            <span class="text-gray-400">Estimado</span>
+            <span class="text-gray-700">$ {{ project.estimated_budget | fmt_num }}</span>
+          </div>
+          {% endif %}
+          {% if project.actual_cost %}
+          <div class="flex justify-between font-semibold pt-1 border-t border-gray-100">
+            <span class="text-gray-600">Costo real</span>
+            <span class="text-gray-900">$ {{ project.actual_cost | fmt_num }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Eliminar (solo admin/superadmin) -->
+      {% if user.role in ("admin", "superadmin") %}
+      <div class="bg-white border border-red-100 rounded-2xl shadow-sm p-4">
+        <h2 class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-3">Zona peligrosa</h2>
+        <form method="post" action="/projects/{{ project.id }}/delete"
+          onsubmit="return confirm('¿Eliminar este proyecto? Esta acción no se puede deshacer.')">
+          <textarea name="deleted_reason" rows="2" required
+            placeholder="Motivo de eliminación (requerido)"
+            class="w-full border border-red-200 rounded-xl px-3 py-2 text-sm bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 mb-2 resize-none"></textarea>
+          <button type="submit"
+            class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-xl">
+            Eliminar proyecto
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- ── Bitácora diaria ──────────────────────────────────────────────────── -->
+  <div class="mt-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-700">Bitácora del proyecto</h2>
+      {% if can_edit %}
+      <a href="/projects/{{ project.id }}/entries/new"
+         class="inline-flex items-center gap-1.5 text-sm bg-violet-600 hover:bg-violet-700 text-white font-medium px-3 py-2 rounded-xl shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Agregar día
+      </a>
+      {% endif %}
+    </div>
+
+    {% set active_entries = project.entries | rejectattr("deleted_at") | list %}
+
+    {% if active_entries %}
+    <div class="space-y-2">
+      {% for entry in active_entries %}
+      <a href="/projects/{{ project.id }}/entries/{{ entry.id }}"
+         class="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-4 hover:border-violet-200 hover:shadow transition-all group">
+
+        <!-- Fecha -->
+        <div class="flex-shrink-0 w-16 text-center">
+          <p class="text-xs text-gray-400 leading-none mb-0.5">{{ entry.entry_date.strftime('%b') | upper }}</p>
+          <p class="text-2xl font-bold text-gray-800 leading-none">{{ entry.entry_date.strftime('%d') }}</p>
+          <p class="text-xs text-gray-400 leading-none mt-0.5">{{ entry.entry_date.strftime('%Y') }}</p>
+        </div>
+
+        <!-- Separador -->
+        <div class="w-px bg-gray-100 self-stretch flex-shrink-0"></div>
+
+        <!-- Contenido -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            {% if entry.avances %}
+            <span class="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Avances
+            </span>
+            {% endif %}
+            {% if entry.problemas %}
+            <span class="inline-flex items-center gap-1 text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              Problemas
+            </span>
+            {% endif %}
+            {% if entry.proximos_pasos %}
+            <span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">Próximos pasos</span>
+            {% endif %}
+          </div>
+
+          <!-- Preview del primer campo con contenido -->
+          {% if entry.avances %}
+          <p class="text-sm text-gray-700 truncate">{{ entry.avances }}</p>
+          {% elif entry.observaciones %}
+          <p class="text-sm text-gray-500 truncate">{{ entry.observaciones }}</p>
+          {% elif entry.tareas_realizadas %}
+          <p class="text-sm text-gray-500 truncate">{{ entry.tareas_realizadas }}</p>
+          {% else %}
+          <p class="text-sm text-gray-400 italic">Sin descripción</p>
+          {% endif %}
+
+          <p class="text-xs text-gray-400 mt-1">{{ entry.created_by.name }}</p>
+        </div>
+
+        <!-- Flecha -->
+        <div class="flex-shrink-0 text-gray-300 group-hover:text-violet-400 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
+      <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      <p class="text-sm text-gray-400">Todavía no hay entradas en la bitácora.</p>
+      {% if can_edit %}
+      <a href="/projects/{{ project.id }}/entries/new"
+         class="inline-block mt-3 text-sm text-violet-600 hover:text-violet-800 font-medium">
+        Registrar el primer día →
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}

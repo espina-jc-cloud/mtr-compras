@@ -59,6 +59,14 @@ def run():
         # Fase 3: Fotos — ya creada por Base.metadata.create_all() arriba;
         # _add_column aquí solo por si hay DBs viejas sin las columnas opcionales.
         # (La tabla en sí la crea create_all automáticamente.)
+        # Módulo Proyectos — Etapa 2A: Bitácora diaria
+        # project_entries se crea sola con create_all().
+        # Las columnas de projects que pasan a nullable no requieren ALTER en SQLite.
+        # En PostgreSQL prod tampoco, porque la restricción en modelos es suficiente
+        # (el constraint NOT NULL en columnas existentes no se altera automáticamente,
+        # pero los registros existentes ya tienen valores y los nuevos son opcionales).
+        # Módulo Proyectos — Etapa 2B: Adjuntos por entrada diaria
+        # project_entry_attachments se crea sola con create_all().
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

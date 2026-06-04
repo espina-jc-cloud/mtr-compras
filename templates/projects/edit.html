@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Editar proyecto — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="/projects/{{ project.id }}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      {{ project.name }}
+    </a>
+    <h1 class="text-xl font-semibold text-gray-900">Editar proyecto</h1>
+  </div>
+
+  {% if error %}
+  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/projects/{{ project.id }}/edit" class="space-y-4">
+
+    <!-- Datos principales -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Datos principales</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre del proyecto <span class="text-red-400">*</span></label>
+          <input type="text" name="name" required value="{{ project.name }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta</label>
+            <select name="plant" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+              <option value="" {% if not project.plant %}selected{% endif %}>— Sin definir —</option>
+              {% for p in plants %}
+              <option value="{{ p }}" {% if project.plant == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Responsable</label>
+            <input type="text" name="responsible" value="{{ project.responsible or '' }}"
+              class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Área / Cliente solicitante</label>
+          <input type="text" name="area" value="{{ project.area or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Estado</label>
+            <select name="status" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+              {% for s in statuses %}
+              <option value="{{ s }}" {% if project.status == s %}selected{% endif %}>{{ s|replace('_',' ')|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Prioridad</label>
+            <select name="priority" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+              {% for p in priorities %}
+              <option value="{{ p }}" {% if project.priority == p %}selected{% endif %}>{{ p|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Descripción -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Descripción</h2>
+      <textarea name="description" rows="3"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 resize-y placeholder-gray-400">{{ project.description or '' }}</textarea>
+    </div>
+
+    <!-- Fechas y presupuesto -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Fechas y presupuesto</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha inicio</label>
+          <input type="date" name="start_date"
+            value="{{ project.start_date.strftime('%Y-%m-%d') if project.start_date else '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha fin estimada</label>
+          <input type="date" name="estimated_end_date"
+            value="{{ project.estimated_end_date.strftime('%Y-%m-%d') if project.estimated_end_date else '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha fin real</label>
+          <input type="date" name="actual_end_date"
+            value="{{ project.actual_end_date.strftime('%Y-%m-%d') if project.actual_end_date else '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Presupuesto estimado ($)</label>
+          <input type="text" name="estimated_budget" inputmode="decimal"
+            value="{{ project.estimated_budget or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Costo real ($)</label>
+          <input type="text" name="actual_cost" inputmode="decimal"
+            value="{{ project.actual_cost or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Observaciones</h2>
+      <textarea name="notes" rows="2"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 resize-y placeholder-gray-400">{{ project.notes or '' }}</textarea>
+    </div>
+
+    <button type="submit"
+      class="w-full bg-violet-600 hover:bg-violet-700 text-white font-semibold py-4 rounded-2xl text-sm shadow-sm">
+      Guardar cambios
+    </button>
+  </form>
+</div>
+
+{% endblock %}

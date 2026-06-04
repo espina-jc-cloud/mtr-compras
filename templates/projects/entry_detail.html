@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.entry_date | fmt_date }} — {{ project.name }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+
+  <!-- Cabecera -->
+  <div class="mb-6">
+    <a href="/projects/{{ project.id }}"
+       class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      {{ project.name }}
+    </a>
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Bitácora</p>
+        <h1 class="text-xl font-semibold text-gray-900">{{ entry.entry_date | fmt_date }}</h1>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Registrado por {{ entry.created_by.name }}
+          {% if entry.updated_at and entry.updated_at != entry.created_at %}
+           · Editado {{ entry.updated_at | fmt_ar }}
+          {% endif %}
+        </p>
+      </div>
+      {% if can_edit %}
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/projects/{{ project.id }}/entries/{{ entry.id }}/edit"
+           class="inline-flex items-center gap-1.5 text-sm border border-gray-200 rounded-xl px-3 py-2 text-gray-600 hover:bg-gray-50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          Editar
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="space-y-4">
+
+    <!-- Avances -->
+    {% if entry.avances %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-green-600 uppercase tracking-wide mb-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        Avances
+      </h2>
+      <p class="text-sm text-gray-700 whitespace-pre-line">{{ entry.avances }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Tareas realizadas -->
+    {% if entry.tareas_realizadas %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+        Tareas realizadas
+      </h2>
+      <p class="text-sm text-gray-700 whitespace-pre-line">{{ entry.tareas_realizadas }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Observaciones -->
+    {% if entry.observaciones %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+        </svg>
+        Observaciones
+      </h2>
+      <p class="text-sm text-gray-700 whitespace-pre-line">{{ entry.observaciones }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Problemas -->
+    {% if entry.problemas %}
+    <div class="bg-white border border-red-100 rounded-2xl shadow-sm p-5">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        Problemas / Inconvenientes
+      </h2>
+      <p class="text-sm text-red-700 whitespace-pre-line">{{ entry.problemas }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Próximos pasos -->
+    {% if entry.proximos_pasos %}
+    <div class="bg-white border border-blue-100 rounded-2xl shadow-sm p-5">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-blue-500 uppercase tracking-wide mb-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+        </svg>
+        Próximos pasos
+      </h2>
+      <p class="text-sm text-blue-800 whitespace-pre-line">{{ entry.proximos_pasos }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Estado vacío -->
+    {% if not entry.avances and not entry.tareas_realizadas and not entry.observaciones and not entry.problemas and not entry.proximos_pasos %}
+    <div class="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
+      <p class="text-sm text-gray-400">Esta entrada no tiene contenido todavía.</p>
+      {% if can_edit %}
+      <a href="/projects/{{ project.id }}/entries/{{ entry.id }}/edit"
+         class="inline-block mt-3 text-sm text-violet-600 hover:text-violet-800 font-medium">
+        Completar entrada →
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- ── Adjuntos ─────────────────────────────────────────────────────────── -->
+  {% set active_atts = entry.attachments | rejectattr("deleted_at") | list %}
+  <div class="mt-6 space-y-4">
+
+    <!-- Lista de adjuntos existentes -->
+    {% if active_atts %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
+        Adjuntos ({{ active_atts | length }})
+      </h2>
+      <div class="space-y-3">
+        {% for att in active_atts %}
+        <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+
+          <!-- Icono tipo -->
+          <div class="flex-shrink-0 mt-0.5">
+            {% if att.file_type == "foto" %}
+            <span class="text-lg">🖼️</span>
+            {% elif att.file_type == "factura" %}
+            <span class="text-lg">🧾</span>
+            {% elif att.file_type == "remito" %}
+            <span class="text-lg">📋</span>
+            {% elif att.file_type == "cotizacion" %}
+            <span class="text-lg">💬</span>
+            {% elif att.file_type == "documento" %}
+            <span class="text-lg">📄</span>
+            {% else %}
+            <span class="text-lg">📎</span>
+            {% endif %}
+          </div>
+
+          <!-- Datos -->
+          <div class="flex-1 min-w-0">
+            <!-- Nombre + tipo -->
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              {% if att.file_url %}
+              <a href="{{ att.file_url }}" target="_blank" rel="noopener"
+                 class="text-sm font-medium text-violet-600 hover:text-violet-800 truncate">
+                {{ att.filename or "ver archivo" }}
+              </a>
+              {% elif att.filename %}
+              <span class="text-sm font-medium text-gray-700 truncate">{{ att.filename }}</span>
+              {% else %}
+              <span class="text-sm text-gray-400 italic">Sin archivo adjunto</span>
+              {% endif %}
+              <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full capitalize">
+                {{ att.file_type }}
+              </span>
+            </div>
+
+            <!-- Descripción y proveedor -->
+            {% if att.description %}
+            <p class="text-xs text-gray-600 mb-0.5">{{ att.description }}</p>
+            {% endif %}
+            {% if att.supplier %}
+            <p class="text-xs text-gray-500 mb-0.5">
+              <span class="font-medium text-gray-600">Proveedor:</span> {{ att.supplier }}
+            </p>
+            {% endif %}
+
+            <!-- Datos económicos -->
+            {% if att.amount_usd or att.amount_ars %}
+            <div class="flex items-center gap-3 mt-1 flex-wrap">
+              {% if att.amount_usd %}
+              <span class="text-xs text-gray-500">
+                USD {{ att.amount_usd | fmt_num(2) }}
+              </span>
+              {% endif %}
+              {% if att.exchange_rate %}
+              <span class="text-xs text-gray-400">× ${{ att.exchange_rate | fmt_num(2) }}</span>
+              {% endif %}
+              {% if att.amount_ars %}
+              <span class="text-xs font-semibold text-gray-700">
+                = ${{ att.amount_ars | fmt_num(2) }}
+              </span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Metadata -->
+            <p class="text-xs text-gray-400 mt-1">
+              {{ att.uploaded_by.name }} · {{ att.uploaded_at | fmt_ar }}
+            </p>
+          </div>
+
+          <!-- Eliminar -->
+          {% if can_edit %}
+          <form method="post"
+                action="/projects/{{ project.id }}/entries/{{ entry.id }}/attachments/{{ att.id }}/delete"
+                onsubmit="return confirm('¿Eliminar este adjunto? Esta acción no se puede deshacer.')"
+                class="flex-shrink-0">
+            <button type="submit"
+              class="text-xs text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 px-2 py-1 rounded-lg transition-colors">
+              Eliminar
+            </button>
+          </form>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Formulario subir adjunto -->
+    {% if can_edit %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Agregar registro</h2>
+      <form method="post"
+            action="/projects/{{ project.id }}/entries/{{ entry.id }}/attachments"
+            enctype="multipart/form-data"
+            class="space-y-4">
+
+        <!-- Tipo + archivo -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1.5">Tipo</label>
+            <select name="file_type"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+              <option value="foto">🖼️ Foto</option>
+              <option value="factura">🧾 Factura</option>
+              <option value="remito">📋 Remito</option>
+              <option value="cotizacion">💬 Cotización</option>
+              <option value="documento">📄 Documento</option>
+              <option value="otro">📎 Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1.5">
+              Archivo <span class="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input type="file" name="file"
+              class="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 border border-gray-200 rounded-xl px-2 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500">
+          </div>
+        </div>
+
+        <!-- Descripción -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1.5">
+            Descripción <span class="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input type="text" name="description"
+            placeholder="Ej: Factura de materiales eléctricos, Foto avance cimientos..."
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+        </div>
+
+        <!-- Proveedor -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1.5">
+            Proveedor <span class="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input type="text" name="supplier"
+            placeholder="Nombre del proveedor o emisor"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+        </div>
+
+        <!-- Campos económicos -->
+        <div class="border-t border-gray-100 pt-4">
+          <p class="text-xs text-gray-400 mb-3">
+            Datos económicos — completar solo si el adjunto tiene importes asociados.
+            Si completás USD y cotización, el importe en ARS se calcula automáticamente.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Importe USD</label>
+              <input type="text" name="amount_usd" inputmode="decimal" placeholder="0.00"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Cotización ($/USD)</label>
+              <input type="text" name="exchange_rate" inputmode="decimal" placeholder="0.00"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            Importe ARS = USD × Cotización — se calcula y guarda automáticamente.
+          </p>
+        </div>
+
+        <button type="submit"
+          class="w-full bg-violet-600 hover:bg-violet-700 text-white font-semibold py-3 rounded-2xl text-sm shadow-sm">
+          Guardar registro
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Eliminar -->
+  {% if can_edit %}
+  <div class="mt-6 bg-white border border-red-100 rounded-2xl shadow-sm p-4">
+    <h2 class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-3">Zona peligrosa</h2>
+    <form method="post" action="/projects/{{ project.id }}/entries/{{ entry.id }}/delete"
+          onsubmit="return confirm('¿Eliminar esta entrada? Esta acción no se puede deshacer.')">
+      <button type="submit"
+        class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-xl">
+        Eliminar entrada del {{ entry.entry_date | fmt_date }}
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
