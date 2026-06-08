@@ -153,61 +153,81 @@ def _parse_nutrien(
     date_to:   Optional[date] = None,
 ) -> list[dict]:
     """
-    Parsea las hojas de cupos de Nutrien.
+    Parsea los cupos de Nutrien desde la hoja operativa correcta.
 
-    Lógica de selección de hoja (CAMBIADA):
-    - Prioridad 1: hoja BASE (más limpia, sin duplicados con otras hojas)
-    - Prioridad 2: primera hoja operativa (ganel_embolsado_ramallo, etc.)
-    - Se omiten hojas cuya fecha más reciente sea anterior a hace 180 días
-      (evita importar datos viejos de AMSUL PROFERTIL, 2,000 urea espacio, etc.)
-    - Se toma UNA sola hoja, no varias (evita doble importación BASE+ganel)
+    SELECCIÓN DE HOJA:
+      Prioridad 1 — hojas tipo ganel/embolsado/ramallo/nutrien
+        Tienen la estructura D1/D2/SM completa y siempre en MT.
+        Se elige la primera que tenga datos recientes (< 180 días).
+      Prioridad 2 — hoja BASE, solo si no hay hojas operativas
+        Fallback limpio. Cuidado: algunas versiones del archivo
+        tienen BASE con kg en lugar de MT → se detecta automáticamente.
+      Se toma UNA sola hoja para evitar importación doble.
 
-    date_from / date_to: filtro de fecha aplicado ANTES de agregar la fila.
+    FILAS QUE SE SALTAN:
+      - D1 / D2  → ingredientes de mezcla (el SM es el total del camión)
+      - Packaging → "EMBOLSADO DE 50 KG", "BOLSONES" sin cantidad real
+      - Hojas con fecha máxima anterior a 180 días (AMSUL 2020, etc.)
+
+    UNIDADES:
+      Si la columna Cantidad tiene valores > 200, se asume que está en kg
+      y se convierte a MT dividiendo por 1000.
     """
     from datetime import timedelta
-    cutoff_stale = date.today() - timedelta(days=180)  # hojas "viejas" = se omiten
-
+    cutoff_stale = date.today() - timedelta(days=180)
     rows = []
 
-    # ── Prioridad 1: buscar hoja BASE ────────────────────────────────────────
-    # BASE es la más limpia: header en fila 1, sin mezcla de hojas
-    if "BASE" in wb.sheetnames:
-        chosen_sheet = "BASE"
-    else:
-        # ── Prioridad 2: primera hoja operativa reciente ─────────────────────
-        chosen_sheet = None
-        candidates = []
-        for name in wb.sheetnames:
-            nl = name.lower()
-            if any(k in nl for k in ("nutrien", "ganel", "embolsado", "ramallo",
-                                     "urea espacio", "amsul", "profertil")):
-                candidates.append(name)
+    # ── Elegir una sola hoja ──────────────────────────────────────────────────
+    # 1. Candidatas con estructura detallada (ganel, nutrien, embolsado, etc.)
+    candidates = [
+        n for n in wb.sheetnames
+        if any(k in n.lower() for k in
+               ("nutrien", "ganel", "embolsado", "ramallo", "amsul", "profertil"))
+    ]
+    # 2. Si no hay, usar BASE
+    if not candidates and "BASE" in wb.sheetnames:
+        candidates = ["BASE"]
+    # 3. Si nada, usar la primera hoja
+    if not candidates:
+        candidates = [wb.sheetnames[0]]
 
-        for name in candidates:
-            ws_test = wb[name]
-            hrow_test = None
-            for keyword in ("ST / SD / OD", "Destinatario", "ST/SD", "Destinatario "):
-                hrow_test = _find_header_row(ws_test, keyword, max_scan=15)
-                if hrow_test:
-                    break
-            if not hrow_test:
-                continue
-            # Encontrar col de fecha para chequear si la hoja es reciente
-            fc_test = None
-            for c in range(1, ws_test.max_column + 1):
-                if "FECHA" in str(ws_test.cell(hrow_test, c).value or "").upper():
-                    fc_test = c
-                    break
-            if not fc_test:
-                chosen_sheet = name  # sin fecha, aceptar de todas formas
+    chosen_sheet = None
+    for name in candidates:
+        ws_t = wb[name]
+        # Buscar fila de header
+        ht = None
+        for kw in ("ST / SD / OD", "Destinatario", "ST/SD", "Destinatario "):
+            ht = _find_header_row(ws_t, kw, max_scan=15)
+            if ht:
                 break
-            max_date = _sheet_max_date(ws_test, fc_test, hrow_test)
-            if max_date and max_date >= cutoff_stale:
-                chosen_sheet = name
-                break  # tomamos la primera hoja reciente y paramos
+        if not ht:
+            continue
+        # Buscar col de fecha y verificar si la hoja es reciente
+        fc_t = None
+        for c in range(1, ws_t.max_column + 1):
+            if "FECHA" in str(ws_t.cell(ht, c).value or "").upper():
+                fc_t = c
+                break
+        if not fc_t:
+            chosen_sheet = name
+            break  # sin fecha, aceptar
+        mx = _sheet_max_date(ws_t, fc_t, ht)
+        if mx and mx >= cutoff_stale:
+            chosen_sheet = name
+            break  # primera hoja reciente encontrada
 
-        if not chosen_sheet:
-            chosen_sheet = wb.sheetnames[0]
+    if not chosen_sheet:
+        # Ninguna hoja reciente → igualmente tomar la primera con header
+        for name in candidates:
+            ws_t = wb[name]
+            for kw in ("ST / SD / OD", "Destinatario", "ST/SD"):
+                if _find_header_row(ws_t, kw, max_scan=15):
+                    chosen_sheet = name
+                    break
+            if chosen_sheet:
+                break
+    if not chosen_sheet:
+        return rows  # sin hoja parseable
 
     # ── Parsear la hoja elegida ──────────────────────────────────────────────
     for sheet_name in [chosen_sheet]:
@@ -251,18 +271,65 @@ def _parse_nutrien(
         c_mezcla   = col("MEZCLA",)
         c_bolsa    = col("BOLSA",)
 
+        # Pre-leer todas las filas de datos para:
+        # a) consultar fila siguiente (packaging lookahead)
+        # b) detectar si las cantidades están en kg o MT
+        data_rows = []
         for r in range(hrow + 1, ws.max_row + 1):
-            # Parar si la fila está totalmente vacía
             sample = [ws.cell(r, c).value for c in range(1, min(ws.max_column + 1, 8))]
             if not any(v is not None for v in sample):
                 continue
+            data_rows.append(r)
 
-            fecha = _normalize_date(ws.cell(r, c_fecha).value if c_fecha else None)
-            st    = _normalize_str(ws.cell(r, c_st).value if c_st else None)
-            prod  = _normalize_str(ws.cell(r, c_prod).value if c_prod else None)
-            trans = _normalize_str(ws.cell(r, c_trans).value if c_trans else None)
+        # Detectar unidad de cantidad: si el promedio de valores numéricos > 200 → kg
+        cantidades = [
+            float(ws.cell(r, c_cant).value)
+            for r in data_rows
+            if c_cant and ws.cell(r, c_cant).value is not None
+            and isinstance(ws.cell(r, c_cant).value, (int, float))
+            and float(ws.cell(r, c_cant).value) > 0
+        ]
+        cant_unit_is_kg = bool(cantidades) and (sum(cantidades) / len(cantidades)) > 200
 
+        for idx, r in enumerate(data_rows):
+            fecha  = _normalize_date(ws.cell(r, c_fecha).value if c_fecha else None)
+            st     = _normalize_str(ws.cell(r, c_st).value if c_st else None)
+            prod   = _normalize_str(ws.cell(r, c_prod).value if c_prod else None)
+            cant_raw = _normalize_num(ws.cell(r, c_cant).value if c_cant else None)
+            cant = (cant_raw / 1000.0) if (cant_raw and cant_unit_is_kg) else cant_raw
+            trans  = _normalize_str(ws.cell(r, c_trans).value if c_trans else None)
+            mezcla = _normalize_str(ws.cell(r, c_mezcla).value if c_mezcla else None)
+            bolsa  = _normalize_str(ws.cell(r, c_bolsa).value if c_bolsa else None)
+
+            # Normalizar "0" string (algunas hojas tienen ceros como placeholder)
+            if prod in ("0", "0.0"):
+                prod = None
+            if st in ("0", "0.0"):
+                st = None
             if not prod and not st:
+                continue
+
+            prod_upper = (prod or "").upper()
+            st_upper   = (st   or "").upper()
+
+            # ── Lógica de exclusión de sub-filas ─────────────────────────────
+            # 1. D1 / D2 → ingredientes de mezcla → skip
+            if st and (st_upper.startswith("D1 ") or st_upper.startswith("D2 ")
+                       or st_upper == "D1" or st_upper == "D2"):
+                continue
+
+            # 2. "SM XXXXX" (SM con número): el ST se reutiliza para los
+            #    ingredientes y para el total.
+            #    Solo se conserva la fila del TOTAL (Producto contiene "MEZCLADO").
+            #    Las filas de ingredientes y packaging se descartan.
+            if st_upper.startswith("SM ") and len(st_upper) > 3:
+                if "MEZCLADO" not in prod_upper:
+                    continue  # ingrediente o packaging de la mezcla → skip
+
+            # 3. Sub-filas de packaging sin cantidad real:
+            #    "EMBOLSADO DE 50 KG", "BOLSONES", "BOLSAS DE", etc.
+            PACKAGING_KEYWORDS = ("EMBOLSADO", "BOLSONES", "BOLSON", "BOLSA DE", "EMBALAJE")
+            if cant is None and any(kw in prod_upper for kw in PACKAGING_KEYWORDS):
                 continue
 
             # ── Filtro de fecha (Nutrien) ────────────────────────────────────
@@ -271,6 +338,31 @@ def _parse_nutrien(
                     continue
                 if date_to and fecha > date_to:
                     continue
+
+            # ── Inferir presentación a partir del contexto ───────────────────
+            # Para embolsados (BOLSA=SI), la fila siguiente describe el envase
+            presentacion = None
+            if bolsa and bolsa.upper() == "SI":
+                # Mirar fila siguiente (si existe) para obtener tipo de envase
+                if idx + 1 < len(data_rows):
+                    next_r = data_rows[idx + 1]
+                    next_prod = _normalize_str(ws.cell(next_r, c_prod).value if c_prod else None)
+                    next_cant = ws.cell(next_r, c_cant).value
+                    if next_prod:
+                        np_upper = next_prod.upper()
+                        if "BOLSONES" in np_upper or "BOLSON" in np_upper:
+                            presentacion = "Bolsones 1000kg"
+                        elif "50 KG" in np_upper or "EMBOLSADO" in np_upper:
+                            presentacion = "Bolsas 50kg"
+                        elif "25 KG" in np_upper:
+                            presentacion = "Bolsas 25kg"
+                if not presentacion:
+                    presentacion = "Embolsado"
+            elif mezcla and mezcla.upper() == "NO":
+                presentacion = "Granel"
+            # SM rows = mezcla granel
+            if st and (st.upper() == "SM" or (st.upper().startswith("SM ") and len(st) > 3)):
+                presentacion = "Granel Mezcla"
 
             rows.append({
                 "source_type":    "nutrien",
@@ -281,11 +373,11 @@ def _parse_nutrien(
                 "external_ref":   st,
                 "destinatario":   _normalize_str(ws.cell(r, c_dest).value if c_dest else None),
                 "producto":       prod,
-                "cantidad_mt":    _normalize_num(ws.cell(r, c_cant).value if c_cant else None),
+                "cantidad_mt":    cant,
                 "origen":         _normalize_str(ws.cell(r, c_orig).value if c_orig else None),
                 "transporte":     trans,
                 "ac":             _normalize_str(ws.cell(r, c_ac).value if c_ac else None),
-                "presentacion":   _normalize_str(ws.cell(r, c_bolsa).value if c_bolsa else None),
+                "presentacion":   presentacion,
                 "row_hash":       _row_hash("nutrien", fecha, st, prod, trans),
             })
 
