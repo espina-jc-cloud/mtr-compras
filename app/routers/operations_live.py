@@ -206,10 +206,10 @@ def _build_session_context(session: OperationLiveSession, db: Session) -> dict:
     session_equip_by_empresa = equipment_hours_by_empresa(all_equipment)
     session_equip_total      = round(sum(session_equip_by_empresa.values()), 2)
 
-    # Turno activo (open)
-    active_shift = next(
-        (s for s in session.shifts if s.status == "open"), None
-    )
+    # Turnos en borrador (status="open") — puede haber más de uno (multi-borrador)
+    open_shifts = [s for s in session.shifts if s.status == "open"]
+    # active_shift: primer borrador (retrocompatibilidad con cualquier template que lo use)
+    active_shift = open_shifts[0] if open_shifts else None
 
     # Historial de turnos con resumen completo por turno
     shift_history = []
@@ -274,7 +274,8 @@ def _build_session_context(session: OperationLiveSession, db: Session) -> dict:
         "session":                  session,
         "product_summaries":        product_summaries,
         "grand_total":              grand_total,
-        "active_shift":             active_shift,
+        "active_shift":             active_shift,    # retrocompat: primer borrador o None
+        "open_shifts":              open_shifts,     # lista completa de borradores
         "shift_history":            shift_history,
         "session_delay_total":      session_delay_total,
         "session_delay_fmt":        format_minutes(session_delay_total),
@@ -329,14 +330,13 @@ async def list_live_sessions(
             all_bodega_rows, session.products
         )
         grand = session_grand_total(product_summaries)
-        active_shift = next(
-            (s for s in session.shifts if s.status == "open"), None
-        )
+        open_shifts_list = [s for s in session.shifts if s.status == "open"]
         return {
-            "product_summaries": product_summaries,
-            "grand_total":       grand,
-            "active_shift":      active_shift,
-            "shift_count":       len(session.shifts),
+            "product_summaries":    product_summaries,
+            "grand_total":          grand,
+            "active_shift":         open_shifts_list[0] if open_shifts_list else None,
+            "open_shifts_count":    len(open_shifts_list),
+            "shift_count":          len(session.shifts),
         }
 
     active_summaries   = {s.id: _session_list_summary(s) for s in sessions_active}
@@ -949,13 +949,12 @@ async def new_shift_form(
 ):
     session = _get_session_or_404(sid, db)
 
-    # Verificar que no haya ya un turno abierto
-    open_shift = next((s for s in session.shifts if s.status == "open"), None)
-    if open_shift:
+    # Multi-borrador: se permite crear un nuevo turno aunque haya otros en borrador.
+    # La única restricción que se mantiene es que la sesión esté activa/pausada.
+    if session.status not in ("active", "paused"):
         raise HTTPException(
             status_code=400,
-            detail=f"Ya hay un turno abierto (Parte #{open_shift.shift_number}). "
-                   "Cerralo antes de abrir otro."
+            detail="No se puede agregar turnos a un operativo que no está activo."
         )
 
     next_num  = _next_shift_number(session)
@@ -993,12 +992,11 @@ async def create_shift(
 ):
     session = _get_session_or_404(sid, db)
 
-    # Doble-check: no turno abierto
-    open_shift = next((s for s in session.shifts if s.status == "open"), None)
-    if open_shift:
+    # Multi-borrador: no se bloquea por turnos abiertos existentes.
+    if session.status not in ("active", "paused"):
         raise HTTPException(
             status_code=400,
-            detail=f"Ya hay un turno abierto (Parte #{open_shift.shift_number})."
+            detail="No se puede agregar turnos a un operativo que no está activo."
         )
 
     form         = await request.form()

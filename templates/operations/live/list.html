@@ -80,10 +80,15 @@
         </div>
       </div>
 
-      <!-- Turno activo si existe -->
-      {% if summ.active_shift %}
+      <!-- Turnos en borrador -->
+      {% if summ.open_shifts_count and summ.open_shifts_count > 1 %}
       <div class="text-xs text-emerald-700 font-medium mb-2">
-        🟢 Turno {{ summ.active_shift.shift_number }} abierto desde {{ summ.active_shift.shift_start }}
+        🟢 {{ summ.open_shifts_count }} turnos en borrador
+      </div>
+      {% elif summ.active_shift %}
+      <div class="text-xs text-emerald-700 font-medium mb-2">
+        🟢 Turno {{ summ.active_shift.shift_number }} en borrador
+        {% if summ.active_shift.shift_start %} · desde {{ summ.active_shift.shift_start }}{% endif %}
         {% if summ.active_shift.supervisor_mtr %} · {{ summ.active_shift.supervisor_mtr }}{% endif %}
       </div>
       {% endif %}

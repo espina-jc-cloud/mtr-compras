@@ -227,33 +227,33 @@
 </p>
 
 <!-- ══════════════════════════════════════════════════════
-     BLOQUE B: Turno activo
+     BLOQUE B: Turnos en borrador (puede haber más de uno)
      ══════════════════════════════════════════════════════ -->
-{% if active_shift %}
-<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
+{% for draft in open_shifts %}
+{% set draft_entry = shift_history | selectattr("shift.id", "equalto", draft.id) | first %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-3">
   <div class="flex items-center justify-between mb-3">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
       <p class="text-sm font-bold text-emerald-800">
-        Turno {{ active_shift.shift_number }} abierto
-        · desde {{ active_shift.shift_start }}
-        {% if active_shift.shift_date %} · {{ active_shift.shift_date | fmt_date }}{% endif %}
+        Turno {{ draft.shift_number }} — borrador
+        {% if draft.shift_start %} · desde {{ draft.shift_start }}{% endif %}
+        {% if draft.shift_date %} · {{ draft.shift_date | fmt_date }}{% endif %}
       </p>
     </div>
-    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}/edit"
+    <a href="/operations/live/{{ session.id }}/shift/{{ draft.id }}/edit"
       class="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
       Editar →
     </a>
   </div>
-  {% if active_shift.supervisor_mtr %}
-  <p class="text-xs text-emerald-600 mb-2">Jefe: {{ active_shift.supervisor_mtr }}</p>
+  {% if draft.supervisor_mtr %}
+  <p class="text-xs text-emerald-600 mb-2">Jefe: {{ draft.supervisor_mtr }}</p>
   {% endif %}
 
-  <!-- Resumen rápido del turno activo -->
-  {% set active_in_history = shift_history | selectattr("shift.id", "equalto", active_shift.id) | first %}
-  {% if active_in_history and active_in_history.by_product %}
+  <!-- Resumen rápido del borrador -->
+  {% if draft_entry and draft_entry.by_product %}
   <div class="space-y-1.5 mb-3">
-    {% for prod, data in active_in_history.by_product.items() %}
+    {% for prod, data in draft_entry.by_product.items() %}
     <div class="flex items-center justify-between text-xs">
       <span class="font-semibold text-emerald-700">{{ prod }}</span>
       <div class="flex items-center gap-3">
@@ -269,25 +269,30 @@
   </div>
   {% endif %}
 
-  {% if active_in_history and active_in_history.delay_min > 0 %}
-  <p class="text-xs text-emerald-600">
-    ⏱ {{ active_in_history.delay_fmt }} de demoras este turno
+  {% if draft_entry and draft_entry.delay_min > 0 %}
+  <p class="text-xs text-emerald-600 mb-2">
+    ⏱ {{ draft_entry.delay_fmt }} de demoras este turno
   </p>
   {% endif %}
 
   <div class="flex gap-2 mt-3">
-    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}/edit"
+    <a href="/operations/live/{{ session.id }}/shift/{{ draft.id }}/edit"
       class="flex-1 text-center text-xs font-semibold text-emerald-700 border border-emerald-300
              bg-white hover:bg-emerald-50 rounded-lg py-2 transition-colors">
       ✏ Editar datos
     </a>
-    <a href="/operations/live/{{ session.id }}/shift/{{ active_shift.id }}"
+    <a href="/operations/live/{{ session.id }}/shift/{{ draft.id }}"
       class="flex-1 text-center text-xs font-semibold text-emerald-700 border border-emerald-300
              bg-white hover:bg-emerald-50 rounded-lg py-2 transition-colors">
       Ver detalle
     </a>
   </div>
 </div>
+{% endfor %}
+{% if open_shifts %}
+<p class="text-xs text-emerald-600 mb-5">
+  {{ open_shifts | length }} turno{% if open_shifts | length != 1 %}s{% endif %} en borrador — podés crear más o finalizarlos cuando tengas la información completa.
+</p>
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════
