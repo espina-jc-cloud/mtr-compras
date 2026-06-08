@@ -1,7 +1,7 @@
 import os
 import sys
 import subprocess
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel
 from app.routers import operations
@@ -21,6 +21,19 @@ if _DB_URL and not _DB_URL.startswith("sqlite") and (not _SK or _SK == _INSECURE
     sys.exit(1)
 
 app = FastAPI(title="MTR Gestión")
+
+
+# ── Redirigir a /login cuando el browser pide HTML y no hay sesión ─────────────
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # 401 desde el browser (acepta HTML) → redirect a login
+    if exc.status_code == 401:
+        accepts_html = "text/html" in request.headers.get("accept", "")
+        if accepts_html:
+            return RedirectResponse(url="/login", status_code=302)
+    # Resto: devolver JSON normal
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
