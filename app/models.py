@@ -449,6 +449,8 @@ class Project(Base):
     entries    = relationship("ProjectEntry", back_populates="project",
                               cascade="all, delete-orphan",
                               order_by="ProjectEntry.entry_date.desc()")
+    tasks      = relationship("ProjectTask", back_populates="project",
+                              order_by="ProjectTask.start_date.asc()")
 
 
 class ProjectAuditLog(Base):
@@ -520,6 +522,31 @@ class ProjectEntryAttachment(Base):
 
     entry       = relationship("ProjectEntry", back_populates="attachments")
     uploaded_by = relationship("User", foreign_keys=[uploaded_by_id])
+
+
+class ProjectTask(Base):
+    """Tarea estructurada de un proyecto — base para visualización Gantt."""
+    __tablename__ = "project_tasks"
+    id                 = Column(Integer, primary_key=True, index=True)
+    project_id         = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    title              = Column(String,  nullable=False)
+    description        = Column(Text,    nullable=True)
+    responsible        = Column(String,  nullable=True)
+    priority           = Column(String,  nullable=False, default="media")
+    # baja | media | alta | urgente
+    status             = Column(String,  nullable=False, default="pendiente")
+    # pendiente | en_progreso | bloqueada | finalizada | cancelada
+    start_date         = Column(Date,    nullable=True)
+    estimated_end_date = Column(Date,    nullable=True)
+    actual_end_date    = Column(Date,    nullable=True)
+    progress_percent   = Column(Integer, nullable=False, default=0)  # 0–100
+    created_by_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    deleted_at         = Column(DateTime, nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project    = relationship("Project", back_populates="tasks")
+    created_by = relationship("User", foreign_keys=[created_by_id])
 
 
 # ── Módulo Operativos en Tiempo Real ─────────────────────────────────────────

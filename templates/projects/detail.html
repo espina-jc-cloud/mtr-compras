@@ -207,6 +207,149 @@
     </div>
   </div>
 
+  <!-- ── Tareas del proyecto ──────────────────────────────────────────────── -->
+  {% set active_tasks = project.tasks | rejectattr("deleted_at") | list %}
+  <div class="mt-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-700">Tareas del proyecto</h2>
+      {% if can_edit %}
+      <a href="/projects/{{ project.id }}/tasks/new"
+         class="inline-flex items-center gap-1.5 text-sm bg-violet-600 hover:bg-violet-700 text-white font-medium px-3 py-2 rounded-xl shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Nueva tarea
+      </a>
+      {% endif %}
+    </div>
+
+    {% if active_tasks %}
+    <div class="space-y-2">
+      {% for task in active_tasks %}
+      <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-4">
+        <div class="flex items-start gap-4">
+
+          <!-- Indicador de progreso circular (simple) -->
+          <div class="flex-shrink-0 w-10 text-center mt-0.5">
+            <div class="text-xs font-bold {% if task.status == 'finalizada' %}text-green-600{% elif task.status == 'bloqueada' %}text-red-500{% elif task.status == 'cancelada' %}text-gray-400{% else %}text-violet-600{% endif %}">
+              {{ task.progress_percent }}%
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1 mt-1">
+              <div class="h-1 rounded-full {% if task.status == 'finalizada' %}bg-green-500{% elif task.status == 'bloqueada' %}bg-red-400{% elif task.status == 'cancelada' %}bg-gray-300{% else %}bg-violet-500{% endif %}"
+                   style="width: {{ task.progress_percent }}%"></div>
+            </div>
+          </div>
+
+          <!-- Contenido -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <!-- Estado badge -->
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full
+                {% if task.status == 'finalizada' %}bg-green-50 text-green-700
+                {% elif task.status == 'en_progreso' %}bg-blue-50 text-blue-700
+                {% elif task.status == 'bloqueada' %}bg-red-50 text-red-600
+                {% elif task.status == 'cancelada' %}bg-gray-100 text-gray-500
+                {% else %}bg-yellow-50 text-yellow-700{% endif %}">
+                {{ task.status | replace('_', ' ') | capitalize }}
+              </span>
+              <!-- Prioridad badge -->
+              <span class="text-xs px-2 py-0.5 rounded-full
+                {% if task.priority == 'urgente' %}bg-red-50 text-red-600
+                {% elif task.priority == 'alta' %}bg-orange-50 text-orange-600
+                {% elif task.priority == 'media' %}bg-yellow-50 text-yellow-700
+                {% else %}bg-gray-50 text-gray-500{% endif %}">
+                {{ task.priority | capitalize }}
+              </span>
+            </div>
+
+            <p class="text-sm font-medium text-gray-800 {% if task.status == 'cancelada' %}line-through text-gray-400{% endif %}">
+              {{ task.title }}
+            </p>
+
+            {% if task.description %}
+            <p class="text-xs text-gray-500 mt-0.5 truncate">{{ task.description }}</p>
+            {% endif %}
+
+            <div class="flex items-center gap-3 mt-1 flex-wrap text-xs text-gray-400">
+              {% if task.responsible %}
+              <span>👤 {{ task.responsible }}</span>
+              {% endif %}
+              {% if task.start_date %}
+              <span>Inicio: {{ task.start_date | fmt_date }}</span>
+              {% endif %}
+              {% if task.estimated_end_date %}
+              <span>Fin est.: {{ task.estimated_end_date | fmt_date }}</span>
+              {% endif %}
+              {% if task.actual_end_date %}
+              <span class="text-green-600 font-medium">Fin real: {{ task.actual_end_date | fmt_date }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          {% if can_edit %}
+          <div class="flex-shrink-0 flex items-center gap-1">
+            <a href="/projects/{{ project.id }}/tasks/{{ task.id }}/edit"
+               class="text-xs border border-gray-200 text-gray-500 hover:bg-gray-50 px-2.5 py-1.5 rounded-lg">
+              Editar
+            </a>
+            <form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/delete"
+                  onsubmit="return confirm('¿Eliminar esta tarea?')" class="inline">
+              <button type="submit"
+                class="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-2.5 py-1.5 rounded-lg">
+                ✕
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Mini-form cambio rápido de estado + progreso -->
+        {% if can_edit and task.status not in ("finalizada", "cancelada") %}
+        <form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/status"
+              class="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50 flex-wrap">
+          <select name="status"
+            class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+            {% for s in task_statuses %}
+            <option value="{{ s }}" {% if s == task.status %}selected{% endif %}>
+              {{ s | replace('_', ' ') | capitalize }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="flex items-center gap-1">
+            <label class="text-xs text-gray-400">Avance:</label>
+            <input type="number" name="progress_percent"
+                   value="{{ task.progress_percent }}" min="0" max="100"
+                   class="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+            <span class="text-xs text-gray-400">%</span>
+          </div>
+          <button type="submit"
+            class="text-xs bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg font-medium">
+            Guardar
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="bg-white border border-dashed border-gray-200 rounded-2xl p-8 text-center">
+      <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+      </svg>
+      <p class="text-sm text-gray-400">Todavía no hay tareas en este proyecto.</p>
+      {% if can_edit %}
+      <a href="/projects/{{ project.id }}/tasks/new"
+         class="inline-block mt-3 text-sm text-violet-600 hover:text-violet-800 font-medium">
+        Crear la primera tarea →
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
   <!-- ── Bitácora diaria ──────────────────────────────────────────────────── -->
   <div class="mt-6">
     <div class="flex items-center justify-between mb-3">

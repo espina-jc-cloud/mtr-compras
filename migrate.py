@@ -67,6 +67,8 @@ def run():
         # pero los registros existentes ya tienen valores y los nuevos son opcionales).
         # Módulo Proyectos — Etapa 2B: Adjuntos por entrada diaria
         # project_entry_attachments se crea sola con create_all().
+        # Módulo Proyectos — Etapa Tareas
+        # project_tasks se crea sola con create_all().
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")

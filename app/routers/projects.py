@@ -16,6 +16,7 @@ router = APIRouter(prefix="/projects")
 PLANTS = ["MTR1", "MTR2", "ROSARIO", "TODAS"]
 STATUSES = ["pendiente", "en_progreso", "pausado", "finalizado", "cancelado"]
 PRIORITIES = ["baja", "media", "alta", "urgente"]
+TASK_STATUSES = ["pendiente", "en_progreso", "bloqueada", "finalizada", "cancelada"]
 
 
 def _add_audit(db, project_id, user_id, action, old_status=None, new_status=None, comment=""):
@@ -210,10 +211,11 @@ async def project_detail(
         raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
 
     return templates.TemplateResponse(request, "projects/detail.html", {
-        "user": current_user,
-        "project": project,
-        "can_edit": _can_edit(current_user, project),
-        "statuses": STATUSES,
+        "user":         current_user,
+        "project":      project,
+        "can_edit":     _can_edit(current_user, project),
+        "statuses":     STATUSES,
+        "task_statuses": TASK_STATUSES,
     })
 
 
@@ -685,3 +687,232 @@ async def delete_attachment(
     return RedirectResponse(
         url=f"/projects/{project_id}/entries/{entry_id}", status_code=303
     )
+
+
+# ── Tareas: helpers ───────────────────────────────────────────────────────────
+
+def _get_task_or_404(db, project_id, task_id):
+    t = db.query(models.ProjectTask).filter(
+        models.ProjectTask.id         == task_id,
+        models.ProjectTask.project_id == project_id,
+        models.ProjectTask.deleted_at == None,
+    ).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada.")
+    return t
+
+
+def _clamp_progress(value: str) -> int:
+    """Convierte string a int 0–100. Devuelve 0 si inválido."""
+    try:
+        n = int(value)
+        return max(0, min(100, n))
+    except (ValueError, TypeError):
+        return 0
+
+
+def _apply_task_status_rules(task, new_status: str):
+    """
+    Reglas de negocio al cambiar estado:
+    - Si pasa a 'finalizada' y actual_end_date está vacío → poner hoy.
+    - Si sale de 'finalizada' → NO borrar actual_end_date.
+    """
+    task.status = new_status
+    if new_status == "finalizada" and not task.actual_end_date:
+        task.actual_end_date = date.today()
+
+
+def _task_form_ctx(project, task=None, error=None):
+    return {
+        "project":          project,
+        "task":             task,
+        "error":            error,
+        "task_statuses":    TASK_STATUSES,
+        "priorities":       PRIORITIES,
+    }
+
+
+# ── Tareas: nueva ─────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/tasks/new", response_class=HTMLResponse)
+async def new_task_form(
+    project_id:   int,
+    request:      Request,
+    db:           Session = Depends(get_db),
+    current_user           = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos para crear tareas.")
+    return templates.TemplateResponse(request, "projects/task_form.html",
+                                      {"user": current_user,
+                                       **_task_form_ctx(project)})
+
+
+@router.post("/{project_id}/tasks/new")
+async def create_task(
+    project_id:        int,
+    request:           Request,
+    title:             str = Form(...),
+    description:       str = Form(""),
+    responsible:       str = Form(""),
+    priority:          str = Form("media"),
+    status:            str = Form("pendiente"),
+    start_date:        str = Form(""),
+    estimated_end_date:str = Form(""),
+    actual_end_date:   str = Form(""),
+    progress_percent:  str = Form("0"),
+    db:                Session = Depends(get_db),
+    current_user               = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos para crear tareas.")
+
+    if not title.strip():
+        return templates.TemplateResponse(request, "projects/task_form.html", {
+            "user": current_user,
+            **_task_form_ctx(project, error="El título de la tarea es obligatorio."),
+        })
+
+    if priority not in PRIORITIES:
+        priority = "media"
+    if status not in TASK_STATUSES:
+        status = "pendiente"
+
+    task = models.ProjectTask(
+        project_id         = project_id,
+        title              = title.strip(),
+        description        = description.strip() or None,
+        responsible        = responsible.strip() or None,
+        priority           = priority,
+        status             = status,
+        start_date         = _parse_date(start_date).date() if _parse_date(start_date) else None,
+        estimated_end_date = _parse_date(estimated_end_date).date() if _parse_date(estimated_end_date) else None,
+        actual_end_date    = _parse_date(actual_end_date).date() if _parse_date(actual_end_date) else None,
+        progress_percent   = _clamp_progress(progress_percent),
+        created_by_id      = current_user.id,
+    )
+    # Aplicar reglas de estado (ej: finalizada sin actual_end_date)
+    _apply_task_status_rules(task, status)
+
+    db.add(task)
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
+
+
+# ── Tareas: editar ────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/tasks/{task_id}/edit", response_class=HTMLResponse)
+async def edit_task_form(
+    project_id: int,
+    task_id:    int,
+    request:    Request,
+    db:         Session = Depends(get_db),
+    current_user         = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    task    = _get_task_or_404(db, project_id, task_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar tareas.")
+    return templates.TemplateResponse(request, "projects/task_form.html",
+                                      {"user": current_user,
+                                       **_task_form_ctx(project, task=task)})
+
+
+@router.post("/{project_id}/tasks/{task_id}/edit")
+async def update_task(
+    project_id:        int,
+    task_id:           int,
+    request:           Request,
+    title:             str = Form(...),
+    description:       str = Form(""),
+    responsible:       str = Form(""),
+    priority:          str = Form("media"),
+    status:            str = Form("pendiente"),
+    start_date:        str = Form(""),
+    estimated_end_date:str = Form(""),
+    actual_end_date:   str = Form(""),
+    progress_percent:  str = Form("0"),
+    db:                Session = Depends(get_db),
+    current_user               = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    task    = _get_task_or_404(db, project_id, task_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar tareas.")
+
+    if not title.strip():
+        return templates.TemplateResponse(request, "projects/task_form.html", {
+            "user": current_user,
+            **_task_form_ctx(project, task=task,
+                             error="El título de la tarea es obligatorio."),
+        })
+
+    if priority not in PRIORITIES:
+        priority = "media"
+    if status not in TASK_STATUSES:
+        status = "pendiente"
+
+    task.title              = title.strip()
+    task.description        = description.strip() or None
+    task.responsible        = responsible.strip() or None
+    task.priority           = priority
+    task.start_date         = _parse_date(start_date).date() if _parse_date(start_date) else None
+    task.estimated_end_date = _parse_date(estimated_end_date).date() if _parse_date(estimated_end_date) else None
+    task.progress_percent   = _clamp_progress(progress_percent)
+
+    # Fecha fin real: se respeta lo que venga del form; si está vacío se mantiene el anterior
+    parsed_actual = _parse_date(actual_end_date)
+    if parsed_actual:
+        task.actual_end_date = parsed_actual.date()
+    # (si viene vacío no tocamos actual_end_date — puede haberse seteado automáticamente antes)
+
+    _apply_task_status_rules(task, status)
+
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
+
+
+# ── Tareas: cambio rápido de estado + progreso (desde detail.html) ────────────
+
+@router.post("/{project_id}/tasks/{task_id}/status")
+async def change_task_status(
+    project_id:       int,
+    task_id:          int,
+    status:           str = Form(...),
+    progress_percent: str = Form(""),
+    db:               Session = Depends(get_db),
+    current_user               = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    task    = _get_task_or_404(db, project_id, task_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+    if status not in TASK_STATUSES:
+        raise HTTPException(status_code=400, detail="Estado de tarea inválido.")
+
+    if progress_percent.strip():
+        task.progress_percent = _clamp_progress(progress_percent)
+
+    _apply_task_status_rules(task, status)
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
+
+
+# ── Tareas: eliminar (soft delete) ────────────────────────────────────────────
+
+@router.post("/{project_id}/tasks/{task_id}/delete")
+async def delete_task(
+    project_id:  int,
+    task_id:     int,
+    db:          Session = Depends(get_db),
+    current_user          = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+    task    = _get_task_or_404(db, project_id, task_id)
+    if not _can_edit(current_user, project):
+        raise HTTPException(status_code=403, detail="Sin permisos para eliminar tareas.")
+    task.deleted_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
