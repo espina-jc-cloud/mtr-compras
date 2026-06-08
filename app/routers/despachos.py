@@ -119,28 +119,80 @@ def _row_hash(*parts) -> str:
 
 # ─── Parser Nutrien ───────────────────────────────────────────────────────────
 
-def _parse_nutrien(wb: openpyxl.Workbook) -> list[dict]:
+def _sheet_max_date(ws, fc: int, hrow: int) -> Optional[date]:
+    """Retorna la fecha más reciente de una hoja (columna fc, a partir de hrow+1)."""
+    latest = None
+    for r in range(hrow + 1, min(ws.max_row + 1, hrow + 500)):
+        v = _normalize_date(ws.cell(r, fc).value)
+        if v and (latest is None or v > latest):
+            latest = v
+    return latest
+
+
+def _parse_nutrien(
+    wb: openpyxl.Workbook,
+    date_from: Optional[date] = None,
+    date_to:   Optional[date] = None,
+) -> list[dict]:
     """
     Parsea las hojas de cupos de Nutrien.
-    Soporta el formato principal (ganel_embolsado_ramallo, header fila 10)
-    y el formato BASE (header fila 1).
-    Retorna lista de dicts listos para insertar en CupoDespacho.
+
+    Lógica de selección de hoja (CAMBIADA):
+    - Prioridad 1: hoja BASE (más limpia, sin duplicados con otras hojas)
+    - Prioridad 2: primera hoja operativa (ganel_embolsado_ramallo, etc.)
+    - Se omiten hojas cuya fecha más reciente sea anterior a hace 180 días
+      (evita importar datos viejos de AMSUL PROFERTIL, 2,000 urea espacio, etc.)
+    - Se toma UNA sola hoja, no varias (evita doble importación BASE+ganel)
+
+    date_from / date_to: filtro de fecha aplicado ANTES de agregar la fila.
     """
+    from datetime import timedelta
+    cutoff_stale = date.today() - timedelta(days=180)  # hojas "viejas" = se omiten
+
     rows = []
 
-    # Hojas a intentar (en orden de prioridad)
-    candidate_sheets = []
-    for name in wb.sheetnames:
-        nl = name.lower()
-        if any(k in nl for k in ("ganel", "embolsado", "ramallo", "urea espacio",
-                                 "amsul", "profertil")):
-            candidate_sheets.append(name)
-    if not candidate_sheets and "BASE" in wb.sheetnames:
-        candidate_sheets = ["BASE"]
-    if not candidate_sheets:
-        candidate_sheets = [wb.sheetnames[0]]
+    # ── Prioridad 1: buscar hoja BASE ────────────────────────────────────────
+    # BASE es la más limpia: header en fila 1, sin mezcla de hojas
+    if "BASE" in wb.sheetnames:
+        chosen_sheet = "BASE"
+    else:
+        # ── Prioridad 2: primera hoja operativa reciente ─────────────────────
+        chosen_sheet = None
+        candidates = []
+        for name in wb.sheetnames:
+            nl = name.lower()
+            if any(k in nl for k in ("ganel", "embolsado", "ramallo",
+                                     "urea espacio", "amsul", "profertil")):
+                candidates.append(name)
 
-    for sheet_name in candidate_sheets:
+        for name in candidates:
+            ws_test = wb[name]
+            hrow_test = None
+            for keyword in ("ST / SD / OD", "Destinatario", "ST/SD", "Destinatario "):
+                hrow_test = _find_header_row(ws_test, keyword, max_scan=15)
+                if hrow_test:
+                    break
+            if not hrow_test:
+                continue
+            # Encontrar col de fecha para chequear si la hoja es reciente
+            fc_test = None
+            for c in range(1, ws_test.max_column + 1):
+                if "FECHA" in str(ws_test.cell(hrow_test, c).value or "").upper():
+                    fc_test = c
+                    break
+            if not fc_test:
+                chosen_sheet = name  # sin fecha, aceptar de todas formas
+                break
+            max_date = _sheet_max_date(ws_test, fc_test, hrow_test)
+            if max_date and max_date >= cutoff_stale:
+                chosen_sheet = name
+                break  # tomamos la primera hoja reciente y paramos
+
+        if not chosen_sheet:
+            chosen_sheet = wb.sheetnames[0]
+
+    # ── Parsear la hoja elegida ──────────────────────────────────────────────
+    for sheet_name in [chosen_sheet]:
         ws = wb[sheet_name]
 
         # Buscar fila de cabecera (contiene "ST" o "Destinatario" o "Producto")
@@ -195,6 +247,13 @@ def _parse_nutrien(wb: openpyxl.Workbook) -> list[dict]:
             if not prod and not st:
                 continue
 
+            # ── Filtro de fecha (Nutrien) ────────────────────────────────────
+            if fecha:
+                if date_from and fecha < date_from:
+                    continue
+                if date_to and fecha > date_to:
+                    continue
+
             rows.append({
                 "source_type":    "nutrien",
                 "document_type":  "cupo",
@@ -217,7 +276,11 @@ def _parse_nutrien(wb: openpyxl.Workbook) -> list[dict]:
 
 # ─── Parser CNA ───────────────────────────────────────────────────────────────
 
-def _parse_cna(wb: openpyxl.Workbook) -> list[dict]:
+def _parse_cna(
+    wb: openpyxl.Workbook,
+    date_from: Optional[date] = None,
+    date_to:   Optional[date] = None,
+) -> list[dict]:
     """
     Parsea la hoja 'Despachos' del Excel de CNA.
     Header en fila 1 con columnas fijas.
@@ -269,6 +332,13 @@ def _parse_cna(wb: openpyxl.Workbook) -> list[dict]:
         if not fecha and not prod:
             continue
 
+        # ── Filtro de fecha (CNA) ────────────────────────────────────────────
+        if fecha:
+            if date_from and fecha < date_from:
+                continue
+            if date_to and fecha > date_to:
+                continue
+
         np_fc  = _normalize_str(ws.cell(r, c_np).value if c_np else None)
         trans  = _normalize_str(ws.cell(r, c_trans).value if c_trans else None)
         chasis = _normalize_str(ws.cell(r, c_chasis).value if c_chasis else None)
@@ -317,9 +387,15 @@ def _parse_cna(wb: openpyxl.Workbook) -> list[dict]:
     return rows
 
 
-def _parse_excel(content: bytes, filename: str) -> tuple[str, list[dict], list[str]]:
+def _parse_excel(
+    content:   bytes,
+    filename:  str,
+    date_from: Optional[date] = None,
+    date_to:   Optional[date] = None,
+) -> tuple[str, list[dict], list[str]]:
     """
     Lee el Excel, detecta la fuente y parsea las filas.
+    date_from / date_to: si se pasan, solo se incluyen filas dentro del rango.
     Retorna (source_type, rows, warnings).
     """
     warnings = []
@@ -330,12 +406,15 @@ def _parse_excel(content: bytes, filename: str) -> tuple[str, list[dict], list[s
 
     source = _detect_source(wb)
     if source == "nutrien":
-        rows = _parse_nutrien(wb)
+        rows = _parse_nutrien(wb, date_from=date_from, date_to=date_to)
     else:
-        rows = _parse_cna(wb)
+        rows = _parse_cna(wb, date_from=date_from, date_to=date_to)
 
     if not rows:
-        warnings.append("No se encontraron filas con datos válidos en el archivo.")
+        msg = "No se encontraron filas con datos válidos en el archivo."
+        if date_from or date_to:
+            msg += f" Revisá el rango de fechas ({date_from or '—'} → {date_to or '—'})."
+        warnings.append(msg)
 
     return source, rows, warnings
 
@@ -475,10 +554,27 @@ async def import_preview(
     db: Session = Depends(get_db),
     current_user=Depends(require_role(*_ROLES)),
     file: UploadFile = File(...),
-    source_override: str = Form("auto"),  # 'auto' | 'nutrien' | 'cna'
+    source_override: str = Form("auto"),    # 'auto' | 'nutrien' | 'cna'
+    import_fecha_desde: str = Form(""),     # filtro de fecha en importación
+    import_fecha_hasta: str = Form(""),
 ):
     content = await file.read()
-    source, rows, warnings = _parse_excel(content, file.filename)
+
+    # Parsear fechas de filtro
+    df = None
+    dt = None
+    try:
+        if import_fecha_desde:
+            df = date.fromisoformat(import_fecha_desde)
+    except ValueError:
+        pass
+    try:
+        if import_fecha_hasta:
+            dt = date.fromisoformat(import_fecha_hasta)
+    except ValueError:
+        pass
+
+    source, rows, warnings = _parse_excel(content, file.filename, date_from=df, date_to=dt)
 
     if source_override != "auto":
         source = source_override
@@ -527,18 +623,20 @@ async def import_preview(
         request,
         "despachos/import.html",
         {
-            "current_user":  current_user,
-            "preview":       preview_rows,
-            "all_rows_json": json.dumps(rows_serializable),
-            "source":        source,
-            "filename":      file.filename,
-            "total_rows":    len(rows),
-            "dup_count":     dup_count,
-            "new_count":     new_count,
-            "warnings":      warnings,
-            "error":         None,
-            "estado_css":    ESTADO_CSS,
-            "estado_labels": DESPACHO_ESTADO_LABELS,
+            "current_user":       current_user,
+            "preview":            preview_rows,
+            "all_rows_json":      json.dumps(rows_serializable),
+            "source":             source,
+            "filename":           file.filename,
+            "total_rows":         len(rows),
+            "dup_count":          dup_count,
+            "new_count":          new_count,
+            "warnings":           warnings,
+            "error":              None,
+            "estado_css":         ESTADO_CSS,
+            "estado_labels":      DESPACHO_ESTADO_LABELS,
+            "import_fecha_desde": import_fecha_desde,
+            "import_fecha_hasta": import_fecha_hasta,
         },
     )
 
