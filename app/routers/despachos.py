@@ -15,12 +15,13 @@ Endpoints:
 import io
 import hashlib
 import uuid
+import os
 from datetime import date, datetime
 from typing import Optional
 
 import openpyxl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -49,15 +50,29 @@ def get_db():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _detect_source(wb: openpyxl.Workbook) -> str:
-    """Detecta si el archivo es de Nutrien o CNA basándose en los nombres de hoja."""
+    """
+    Detecta si el archivo es de Nutrien, CNA o Plantilla MTR (combo).
+
+    'combo' = archivo con hoja NUTRIEN + hoja Despachos (la Plantilla_Despachos_MTR.xlsx).
+    """
     names = [s.lower() for s in wb.sheetnames]
-    if "despachos" in names:
+
+    has_nutrien_sheet = any(
+        k in n for n in names
+        for k in ("nutrien", "ganel", "embolsado", "ramallo")
+    ) or "base" in names
+
+    has_cna_sheet = "despachos" in names
+
+    # Plantilla MTR: tiene ambas hojas → "combo"
+    if has_nutrien_sheet and has_cna_sheet:
+        return "combo"
+
+    if has_cna_sheet:
         return "cna"
-    if any("nutrien" in n or "ganel" in n or "embolsado" in n or "ramallo" in n
-           for n in names):
+    if has_nutrien_sheet:
         return "nutrien"
-    if "base" in names:
-        return "nutrien"
+
     # Fallback: si la primera hoja tiene columna IN/OUT → CNA
     ws = wb.active
     row1 = [str(ws.cell(1, c).value or "").strip().upper() for c in range(1, 10)]
@@ -84,6 +99,9 @@ def _normalize_str(v) -> Optional[str]:
     if v is None:
         return None
     s = str(v).strip()
+    # Ignorar filas de ejemplo de la plantilla MTR
+    if s.startswith("←"):
+        return None
     return s if s and s.upper() not in ("NONE", "N/A", "NULL") else None
 
 
@@ -161,7 +179,7 @@ def _parse_nutrien(
         candidates = []
         for name in wb.sheetnames:
             nl = name.lower()
-            if any(k in nl for k in ("ganel", "embolsado", "ramallo",
+            if any(k in nl for k in ("nutrien", "ganel", "embolsado", "ramallo",
                                      "urea espacio", "amsul", "profertil")):
                 candidates.append(name)
 
@@ -405,7 +423,16 @@ def _parse_excel(
         return "unknown", [], [f"Error al abrir el archivo: {e}"]
 
     source = _detect_source(wb)
-    if source == "nutrien":
+    if source == "combo":
+        # Plantilla MTR: parsear ambas hojas y combinar
+        rows_n = _parse_nutrien(wb, date_from=date_from, date_to=date_to)
+        rows_c = _parse_cna(wb, date_from=date_from, date_to=date_to)
+        rows = rows_n + rows_c
+        if not rows_n:
+            warnings.append("Hoja NUTRIEN: sin datos (o fuera del rango de fecha).")
+        if not rows_c:
+            warnings.append("Hoja Despachos: sin datos (o fuera del rango de fecha).")
+    elif source == "nutrien":
         rows = _parse_nutrien(wb, date_from=date_from, date_to=date_to)
     else:
         rows = _parse_cna(wb, date_from=date_from, date_to=date_to)
@@ -529,6 +556,183 @@ async def list_despachos(
             "f_source":      source_type,
             "f_q":           q,
         },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Vista 1b — Descargar plantilla
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Ruta del archivo plantilla (generado con el script de creación)
+_TEMPLATE_PATHS = [
+    os.path.join(os.path.dirname(__file__), "..", "..", "Plantilla_Despachos_MTR.xlsx"),
+    os.path.expanduser("~/Desktop/Plantilla_Despachos_MTR.xlsx"),
+]
+
+def _generate_template_bytes() -> bytes:
+    """Genera el Excel plantilla en memoria (siempre fresco, sin depender de archivo externo)."""
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    GREEN_DARK = "1A5276"; GREEN_MED = "AED6F1"
+    BLUE_DARK  = "154360"; BLUE_MED  = "A9CCE3"
+    GRAY_INST  = "F2F3F4"; EXAMPLE_FG = "ABB2B9"
+
+    def hdr(hex_bg):
+        return {
+            "fill": PatternFill("solid", fgColor=hex_bg),
+            "font": Font(bold=True, color="FFFFFF", size=10),
+            "alignment": Alignment(horizontal="center", vertical="center", wrap_text=True),
+        }
+    def apply(cell, d):
+        for a, v in d.items(): setattr(cell, a, v)
+    def tb():
+        s = Side(style="thin", color="D5D8DC")
+        return Border(left=s, right=s, top=s, bottom=s)
+
+    # ── Hoja NUTRIEN ─────────────────────────────────────────────────────────
+    ws_n = wb.create_sheet("NUTRIEN")
+    ws_n.merge_cells("A1:J1"); c=ws_n["A1"]
+    c.value="PLANILLA OPERATIVA — CUPOS NUTRIEN · MTR"
+    c.fill=PatternFill("solid",fgColor=GREEN_DARK); c.font=Font(bold=True,color="FFFFFF",size=12)
+    c.alignment=Alignment(horizontal="center",vertical="center"); ws_n.row_dimensions[1].height=22
+    ws_n.merge_cells("A2:J2"); c=ws_n["A2"]
+    c.value="Pegá aquí SOLO los cupos del día. Columnas en gris = NO MODIFICAR."
+    c.fill=PatternFill("solid",fgColor=GREEN_MED); c.font=Font(italic=True,color=GREEN_DARK,size=9)
+    c.alignment=Alignment(horizontal="center",vertical="center"); ws_n.row_dimensions[2].height=16
+
+    nutrien_cols = [
+        ("A","Fecha de carga",14),("B","ST / SD / OD",15),("C","Destinatario",22),
+        ("D","Producto",20),("E","Cantidad (MT)",13),("F","Origen",16),
+        ("G","Transporte",18),("H","AC",18),("I","Presentación",14),("J","Notas",22),
+    ]
+    for col,name,w in nutrien_cols:
+        c=ws_n[f"{col}3"]; c.value=name; apply(c,hdr(GREEN_DARK)); c.border=tb()
+        ws_n.column_dimensions[col].width=w
+    ws_n.row_dimensions[3].height=28
+
+    ej_n=["← ej: 02/06/2026","← ej: 26002780","← ej: O'HIGGINS","← ej: SUPERFOSFATO TRIPLE",
+          "← ej: 35","← ej: MTR RAMALLO","← ej: TRANSRUTA","← ej: O'HIGGINS","← ej: GRANEL",""]
+    for i,v in enumerate(ej_n):
+        c=ws_n.cell(row=4,column=i+1); c.value=v
+        c.fill=PatternFill("solid",fgColor="FDFEFE")
+        c.font=Font(color=EXAMPLE_FG,italic=True,size=9)
+        c.alignment=Alignment(horizontal="left",vertical="center"); c.border=tb()
+    ws_n.row_dimensions[4].height=18
+    for r in range(5,2000):
+        ws_n[f"A{r}"].number_format='DD/MM/YYYY'
+        ws_n[f"E{r}"].number_format='0.0'
+    ws_n.auto_filter.ref="A3:J3"; ws_n.freeze_panes="A4"
+
+    # ── Hoja CNA (Despachos) ──────────────────────────────────────────────────
+    ws_c = wb.create_sheet("Despachos")
+    ws_c.merge_cells("A1:S1"); c=ws_c["A1"]
+    c.value="PLANILLA OPERATIVA — DESPACHOS CNA · MTR"
+    c.fill=PatternFill("solid",fgColor=BLUE_DARK); c.font=Font(bold=True,color="FFFFFF",size=12)
+    c.alignment=Alignment(horizontal="center",vertical="center"); ws_c.row_dimensions[1].height=22
+    ws_c.merge_cells("A2:S2"); c=ws_c["A2"]
+    c.value="Pegá aquí SOLO los despachos del día desde el drive de CNA."
+    c.fill=PatternFill("solid",fgColor=BLUE_MED); c.font=Font(italic=True,color=BLUE_DARK,size=9)
+    c.alignment=Alignment(horizontal="center",vertical="center"); ws_c.row_dimensions[2].height=16
+
+    cna_cols = [
+        ("A","Fecha",12),("B","IN/OUT",8),("C","Cliente",22),("D","Cuit Cliente",16),
+        ("E","NP o FC",14),("F","OC",10),("G","Producto",20),("H","KG. OC",12),
+        ("I","Presentacion",14),("J","Destino",22),("K","Transporte",18),
+        ("L","Cuit transporte",16),("M","Chofer",20),("N","Dni chofer",12),
+        ("O","Pat. Chasis",11),("P","Pat. Acoplado",13),("Q","Observaciones",24),
+        ("R","Neto",12),("S","Remito",18),
+    ]
+    for col,name,w in cna_cols:
+        c=ws_c[f"{col}3"]; c.value=name; apply(c,hdr(BLUE_DARK)); c.border=tb()
+        ws_c.column_dimensions[col].width=w
+    ws_c.row_dimensions[3].height=28
+
+    dv=DataValidation(type="list",formula1='"In,Out"',allow_blank=True)
+    ws_c.add_data_validation(dv); dv.sqref="B4:B2000"
+
+    ej_c=["← ej: 03/06/2026","← ej: Out","← ej: BERNER SA","← ej: 30-70793421-9",
+          "← ej: FC-546","","← ej: Urea Perlada","← ej: 22000","← ej: Big Bag",
+          "← ej: Arrecifes","← ej: TRANSRUTA","← ej: 30-70153026-4","← ej: García Juan",
+          "← ej: 28123456","← ej: AB123CD","← ej: EF456GH","← ej: Sin novedades",
+          "← ej: 22060","← ej: 00004-00001500"]
+    for i,v in enumerate(ej_c):
+        c=ws_c.cell(row=4,column=i+1); c.value=v
+        c.fill=PatternFill("solid",fgColor="FDFEFE")
+        c.font=Font(color=EXAMPLE_FG,italic=True,size=9)
+        c.alignment=Alignment(horizontal="left",vertical="center"); c.border=tb()
+    ws_c.row_dimensions[4].height=18
+    for r in range(5,2000):
+        ws_c[f"A{r}"].number_format='DD/MM/YYYY'
+        ws_c[f"H{r}"].number_format='#,##0'
+        ws_c[f"R{r}"].number_format='#,##0'
+    ws_c.auto_filter.ref="A3:S3"; ws_c.freeze_panes="A4"
+
+    # ── Hoja instrucciones (resumida) ─────────────────────────────────────────
+    ws_r = wb.create_sheet("📋 INSTRUCCIONES")
+    ws_r.sheet_properties.tabColor="F39C12"
+    ws_r.column_dimensions["A"].width=4
+    ws_r.column_dimensions["B"].width=26
+    ws_r.column_dimensions["C"].width=50
+    ws_r.merge_cells("A1:C1"); t=ws_r["A1"]
+    t.value="PLANTILLA OPERATIVA DIARIA — MTR · Cupos y Despachos"
+    t.fill=PatternFill("solid",fgColor="2C3E50"); t.font=Font(bold=True,color="FFFFFF",size=13)
+    t.alignment=Alignment(horizontal="center",vertical="center"); ws_r.row_dimensions[1].height=28
+
+    instrucciones=[
+        ("","🟢 HOJA NUTRIEN",""),
+        ("","¿Qué pegar?","Solo los cupos del día siguiente que te mandó Nutrien"),
+        ("","¿De dónde?","Hoja BASE del Excel de Nutrien → copiás los cupos del día"),
+        ("","Columnas clave","Fecha de carga · ST/SD/OD · Destinatario · Producto · Cantidad (MT)"),
+        ("","",""),
+        ("","🔵 HOJA CNA (Despachos)",""),
+        ("","¿Qué pegar?","Los despachos del día desde el drive de CNA"),
+        ("","¿De dónde?","Hoja Despachos del archivo del día"),
+        ("","Columnas clave","Fecha · Cliente · Producto · KG.OC · Transporte · Patentes"),
+        ("","",""),
+        ("","⚠️ REGLAS",""),
+        ("","No borrar fila gris","Es el ejemplo de referencia · no la toques"),
+        ("","Solo el día operativo","No mezcles varios días en la misma hoja"),
+        ("","Guardá una copia","Renombrá: Plantilla_YYYY-MM-DD.xlsx antes de importar"),
+        ("","",""),
+        ("","🔄 FLUJO DIARIO",""),
+        ("","Paso 1","Nutrien → copiás cupos del día → pegás en hoja NUTRIEN"),
+        ("","Paso 2","CNA → copiás despachos → pegás en hoja Despachos"),
+        ("","Paso 3","Sistema → Despachos → Importar → subís este archivo → filtrás por fecha"),
+    ]
+    for i,(_, label, desc) in enumerate(instrucciones):
+        row=i+2; ws_r.row_dimensions[row].height=18
+        b=ws_r.cell(row=row,column=2,value=label)
+        c=ws_r.cell(row=row,column=3,value=desc)
+        if any(label.startswith(x) for x in ("🟢","🔵","⚠️","🔄")):
+            for el in (b,c):
+                el.fill=PatternFill("solid",fgColor="2C3E50"); el.font=Font(bold=True,color="FFFFFF",size=10)
+        elif label:
+            for el in (b,c):
+                el.fill=PatternFill("solid",fgColor=GRAY_INST if i%2==0 else "FDFEFE")
+                el.font=Font(color="2C3E50" if el==b else "34495E",bold=(el==b),size=10)
+        for el in (b,c): el.alignment=Alignment(vertical="center",wrap_text=(el==c))
+    ws_r.freeze_panes="B2"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@router.get("/template")
+async def download_template(
+    current_user=Depends(require_role(*_ROLES)),
+):
+    """Descarga la Plantilla_Despachos_MTR.xlsx directamente desde el sistema."""
+    content = _generate_template_bytes()
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Plantilla_Despachos_MTR.xlsx"},
     )
 
 

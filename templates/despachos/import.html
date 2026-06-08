@@ -28,6 +28,25 @@
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
   <h2 class="text-sm font-bold text-gray-700 mb-4">Seleccioná el archivo Excel</h2>
 
+  <!-- Descarga de plantilla -->
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 flex items-start justify-between gap-4">
+    <div>
+      <p class="text-sm font-bold text-emerald-800">¿Primera vez? Descargá la Plantilla MTR</p>
+      <p class="text-xs text-emerald-600 mt-0.5">
+        Excel con hoja NUTRIEN + hoja CNA lista para copiar y pegar. Importala directamente al sistema.
+      </p>
+    </div>
+    <a href="/despachos/template"
+      class="flex-shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white
+             text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      Descargar plantilla
+    </a>
+  </div>
+
   <form method="post" action="/despachos/import" enctype="multipart/form-data" class="space-y-4">
     <!-- Drag & Drop zone -->
     <label for="file-input"
@@ -121,8 +140,13 @@
       <p class="text-xs text-gray-500 mt-0.5">
         Archivo: <strong>{{ filename }}</strong> ·
         Fuente detectada:
-        <span class="font-semibold {% if source == 'nutrien' %}text-green-700{% else %}text-indigo-700{% endif %}">
-          {{ 'Nutrien (cupos)' if source == 'nutrien' else 'CNA (despachos)' }}
+        <span class="font-semibold
+          {% if source == 'nutrien' %}text-green-700
+          {% elif source == 'cna' %}text-indigo-700
+          {% else %}text-amber-700{% endif %}">
+          {% if source == 'nutrien' %}Nutrien (cupos)
+          {% elif source == 'cna' %}CNA (despachos)
+          {% else %}📋 Plantilla MTR (Nutrien + CNA){% endif %}
         </span>
         {% if import_fecha_desde or import_fecha_hasta %}
         · <span class="text-amber-600 font-medium">
