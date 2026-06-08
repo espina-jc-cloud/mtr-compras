@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel
 from app.routers import operations
 from app.routers import operations_live
+from app.routers import despachos
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ app.include_router(fuel.router)
 # no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
 app.include_router(operations_live.router)
 app.include_router(operations.router)
+app.include_router(despachos.router)
 app.include_router(operations.api_router)
 
 @app.get("/")

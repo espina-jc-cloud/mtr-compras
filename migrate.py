@@ -15,6 +15,7 @@ load_dotenv()
 from sqlalchemy import text
 from app.database import engine, Base, DATABASE_URL, SessionLocal
 from app import models
+from app import models_cupos  # noqa: F401 — registra tablas de Despachos en Base.metadata
 from app.auth import hash_password
 
 

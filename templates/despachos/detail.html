@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Despacho #{{ reg.id }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+
+<!-- Header -->
+<div class="flex items-center gap-3 mb-5">
+  <a href="/despachos" class="text-gray-400 hover:text-gray-600">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </a>
+  <div class="flex-1">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h1 class="text-xl font-semibold text-gray-900">
+        {% if reg.source_type == 'nutrien' %}Cupo{% else %}Despacho{% endif %}
+        #{{ reg.id }}
+      </h1>
+      {% if reg.source_type == 'nutrien' %}
+      <span class="text-xs font-semibold bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-200">Nutrien</span>
+      {% else %}
+      <span class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">CNA</span>
+      {% endif %}
+      {% set css = estado_css.get(reg.status, 'bg-gray-100 text-gray-600') %}
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ css }}">
+        {{ estado_labels.get(reg.status, reg.status) }}
+      </span>
+    </div>
+    <p class="text-xs text-gray-400 mt-0.5">
+      Importado {{ reg.created_at | fmt_ar }} por {{ reg.imported_by or '—' }}
+    </p>
+  </div>
+</div>
+
+<!-- ── Cambio rápido de estado ───────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Cambiar estado</p>
+  <form method="post" action="/despachos/{{ reg.id }}/status" class="space-y-2">
+    <input type="hidden" name="back" value="detail">
+    <div class="flex flex-wrap gap-2">
+      {% for val, label in estados %}
+      <button type="submit" name="status" value="{{ val }}"
+        class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors
+               {% if reg.status == val %}
+               {{ estado_css.get(val, 'bg-gray-100 text-gray-600') }} ring-2 ring-offset-1 ring-indigo-300
+               {% else %}
+               bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100
+               {% endif %}">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </div>
+    <div class="flex gap-2 mt-2">
+      <input type="text" name="notes" placeholder="Agregar nota (opcional)…"
+        class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm
+               focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+  </form>
+</div>
+
+<!-- ── Reprogramación ─────────────────────────────────────────────────────── -->
+{% if reg.status not in ('cargado', 'cancelado') %}
+<div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 mb-4">
+  <p class="text-xs font-bold text-purple-700 mb-2">Reprogramar a otra fecha</p>
+  <form method="post" action="/despachos/{{ reg.id }}/reprogram" class="flex gap-2 items-end flex-wrap">
+    <div class="flex-1 min-w-[160px]">
+      <label class="text-xs text-purple-600 block mb-1">Nueva fecha</label>
+      <input type="date" name="nueva_fecha" required
+        class="w-full border border-purple-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+    </div>
+    <div class="flex-1 min-w-[200px]">
+      <label class="text-xs text-purple-600 block mb-1">Motivo (opcional)</label>
+      <input type="text" name="notes" placeholder="ej. lluvia, camión descompuesto…"
+        class="w-full border border-purple-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+    </div>
+    <button type="submit"
+      class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold
+             px-4 py-2 rounded-lg transition-colors">
+      Reprogramar
+    </button>
+  </form>
+  {% if reg.reprogrammed_to_date %}
+  <p class="text-xs text-purple-600 mt-2">
+    ↳ Reprogramado a: <strong>{{ reg.reprogrammed_to_date | fmt_date }}</strong>
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── Datos del registro ─────────────────────────────────────────────────── -->
+<form method="post" action="/despachos/{{ reg.id }}/edit"
+  class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+  <div class="flex items-center justify-between mb-4">
+    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Datos del registro</p>
+    <button type="submit"
+      class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-1.5
+             rounded-lg transition-colors">
+      Guardar cambios
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
+
+    <!-- Fechas -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Fecha programada</label>
+      <input type="date" value="{{ reg.scheduled_date.isoformat() if reg.scheduled_date else '' }}"
+        class="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+        disabled title="No editable — viene del archivo original">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Fecha real operada</label>
+      <input type="date" name="actual_date"
+        value="{{ reg.actual_date.isoformat() if reg.actual_date else '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+
+    <!-- Cliente -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">
+        Cliente {% if reg.source_type == 'nutrien' %}/ Destinatario{% endif %}
+      </label>
+      <input type="text" name="{{ 'destinatario' if reg.source_type == 'nutrien' else 'cliente' }}"
+        value="{{ (reg.destinatario if reg.source_type == 'nutrien' else reg.cliente) or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    {% if reg.source_type == 'cna' and reg.destino %}
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Destino</label>
+      <input type="text" name="destino" value="{{ reg.destino or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    {% endif %}
+
+    <!-- Producto -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Producto</label>
+      <input type="text" name="producto" value="{{ reg.producto or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">
+        {% if reg.source_type == 'nutrien' %}Cantidad (t){% else %}KG OC{% endif %}
+      </label>
+      <input type="number" step="0.01"
+        name="{{ 'cantidad_mt' if reg.source_type == 'nutrien' else 'kg_oc' }}"
+        value="{{ reg.cantidad_mt or reg.kg_oc or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+
+    <!-- Neto y presentación -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Neto (kg)</label>
+      <input type="number" step="0.01" name="neto" value="{{ reg.neto or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Presentación</label>
+      <input type="text" name="presentacion" value="{{ reg.presentacion or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+
+    <!-- Transporte -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Transporte</label>
+      <input type="text" name="transporte" value="{{ reg.transporte or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Chofer</label>
+      <input type="text" name="chofer" value="{{ reg.chofer or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+
+    <!-- Patentes -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Patente chasis</label>
+      <input type="text" name="patente_chasis" value="{{ reg.patente_chasis or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
+               focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Patente acoplado</label>
+      <input type="text" name="patente_acoplado" value="{{ reg.patente_acoplado or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
+               focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+
+    <!-- Remito / Referencias -->
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Remito</label>
+      <input type="text" name="remito" value="{{ reg.remito or '' }}"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">
+        {% if reg.source_type == 'nutrien' %}ST/SD/OD{% else %}NP o FC{% endif %}
+      </label>
+      <input type="text" value="{{ reg.st_sd_od or reg.external_ref or '' }}"
+        class="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+        disabled>
+    </div>
+
+    <!-- Notas -->
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Observaciones / Notas</label>
+      <textarea name="notes" rows="3"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none">{{ reg.notes or '' }}</textarea>
+    </div>
+
+  </div>
+</form>
+
+<!-- ── Datos de trazabilidad (solo lectura) ───────────────────────────────── -->
+<div class="bg-gray-50 rounded-2xl border border-gray-100 p-4 text-xs text-gray-500 space-y-1">
+  <p class="font-bold text-gray-600 mb-2">Trazabilidad</p>
+  <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+    {% if reg.cuit_cliente %}<p>CUIT cliente: <span class="font-mono text-gray-700">{{ reg.cuit_cliente }}</span></p>{% endif %}
+    {% if reg.cuit_transporte %}<p>CUIT transporte: <span class="font-mono text-gray-700">{{ reg.cuit_transporte }}</span></p>{% endif %}
+    {% if reg.dni_chofer %}<p>DNI chofer: <span class="font-mono text-gray-700">{{ reg.dni_chofer }}</span></p>{% endif %}
+    {% if reg.in_out %}<p>IN/OUT: <strong>{{ reg.in_out }}</strong></p>{% endif %}
+    {% if reg.origen %}<p>Origen: {{ reg.origen }}</p>{% endif %}
+    {% if reg.ac %}<p>Agrocentro: {{ reg.ac }}</p>{% endif %}
+    {% if reg.order_number %}<p>OC: {{ reg.order_number }}</p>{% endif %}
+    {% if reg.document_type %}<p>Tipo doc: {{ reg.document_type }}</p>{% endif %}
+    {% if reg.source_type %}<p>Fuente: {{ reg.source_type.upper() }}</p>{% endif %}
+    {% if reg.reprogrammed_from_id %}<p>Reprog. desde: <a href="/despachos/{{ reg.reprogrammed_from_id }}" class="text-indigo-600">#{{ reg.reprogrammed_from_id }}</a></p>{% endif %}
+    <p>Creado: {{ reg.created_at | fmt_ar }}</p>
+    <p>Actualizado: {{ reg.updated_at | fmt_ar }}</p>
+  </div>
+</div>
+
+</div>
+{% endblock %}
