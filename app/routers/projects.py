@@ -176,7 +176,7 @@ async def create_project(
         name=name.strip(),
         description=description.strip() or None,
         area=area.strip() or None,
-        responsible=responsible.strip() or None,
+        responsible=responsible.strip() or "Sin asignar",
         plant=plant or None,
         status=status,
         priority=priority,
@@ -352,7 +352,7 @@ async def delete_project(
     project.deleted_reason = deleted_reason.strip()
     _add_audit(db, project.id, current_user.id, "eliminado", comment=deleted_reason)
     db.commit()
-    return RedirectResponse(url="/projects", status_code=303)
+    return RedirectResponse(url=f"/projects/{project_id}/entries/{entry.id}", status_code=303)
 
 
 # ── Bitácora: helpers ─────────────────────────────────────────────────────────
@@ -457,7 +457,7 @@ async def create_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    return RedirectResponse(url=f"/projects/{project_id}/entries/{entry.id}", status_code=303)
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
 
 
 # ── Bitácora: detalle de una entrada ─────────────────────────────────────────
@@ -545,7 +545,7 @@ async def update_entry(
     entry.tareas_realizadas = tareas_realizadas.strip() or None
     entry.proximos_pasos    = proximos_pasos.strip() or None
     db.commit()
-    return RedirectResponse(url=f"/projects/{project_id}/entries/{entry_id}", status_code=303)
+    return RedirectResponse(url="/projects", status_code=303)
 
 
 # ── Bitácora: eliminar entrada (soft delete) ──────────────────────────────────
@@ -599,8 +599,8 @@ async def upload_attachment(
     has_economic = any([
         description.strip(), supplier.strip(), usd_dec is not None, rate_dec is not None
     ])
-    if not has_file and not has_economic:
-        # Nada que guardar — redirige sin crear registro
+    if not has_file:
+        # Sin archivo no se crea adjunto. Evita registros vacíos o inválidos.
         return RedirectResponse(
             url=f"/projects/{project_id}/entries/{entry_id}", status_code=303
         )
@@ -609,10 +609,17 @@ async def upload_attachment(
     if has_file:
         contents    = await file.read()
         unique_name = f"{uuid.uuid4()}_{file.filename}"
-        result      = _cloud_upload(contents, unique_name, folder="mtr-compras/proyectos")
-        file_url  = result["url"]
-        public_id = result["public_id"]
-        filename  = file.filename
+
+        try:
+            result = _cloud_upload(contents, unique_name, folder="mtr-compras/proyectos")
+            file_url  = result["url"]
+            public_id = result["public_id"]
+            filename  = file.filename
+        except Exception as e:
+            print(f"[Cloudinary] Error subiendo adjunto: {e}")
+            return RedirectResponse(
+                url=f"/projects/{project_id}/entries/{entry_id}", status_code=303
+            )
     else:
         file_url  = None
         public_id = None
