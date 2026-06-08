@@ -18,6 +18,60 @@ from app import models
 from app.auth import hash_password
 
 
+def _sqlite_make_columns_nullable(conn, table, nullable_cols):
+    """Reconstruye una tabla SQLite para que ciertas columnas pasen de NOT NULL a NULL.
+
+    SQLite no soporta ALTER TABLE ... MODIFY COLUMN, así que el único camino
+    es: crear tabla nueva con la definición correcta, copiar datos, borrar la
+    vieja y renombrar.
+
+    Solo se ejecuta si la DB es SQLite Y alguna columna todavía tiene notnull=1
+    cuando debería ser nullable.  En PostgreSQL se omite completamente (las tablas
+    se crean con la definición correcta desde el modelo desde el principio).
+
+    Parámetros:
+        conn           — conexión SQLAlchemy (raw) con autocommit desactivado
+        table          — nombre de la tabla a reconstruir
+        nullable_cols  — set/lista de columnas que deben quedar sin NOT NULL
+    """
+    # Obtener definición actual de columnas
+    rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+    if not rows:
+        return  # tabla no existe aún
+
+    # Verificar si alguna de las columnas target todavía tiene notnull=1
+    needs_fix = any(
+        row[1] in nullable_cols and row[3] == 1   # row[1]=name, row[3]=notnull
+        for row in rows
+    )
+    if not needs_fix:
+        return  # nada que hacer
+
+    print(f"  ~ reconstruyendo {table} para permitir NULL en {nullable_cols}...")
+
+    # Construir CREATE TABLE para la tabla temporal con la definición corregida
+    col_defs = []
+    for row in rows:
+        cid, name, col_type, notnull, dflt_value, pk = row
+        pk_clause   = " PRIMARY KEY" if pk else ""
+        dflt_clause = f" DEFAULT {dflt_value}" if dflt_value is not None else ""
+        # Si la columna está en nullable_cols, forzar nullable (quitar NOT NULL)
+        notnull_clause = "" if (name in nullable_cols or not notnull) else " NOT NULL"
+        col_defs.append(f"  {name} {col_type}{pk_clause}{notnull_clause}{dflt_clause}")
+
+    tmp = f"{table}__tmp_nullable"
+    col_names = ", ".join(row[1] for row in rows)
+    create_sql = f"CREATE TABLE {tmp} (\n" + ",\n".join(col_defs) + "\n)"
+
+    conn.execute(text(f"DROP TABLE IF EXISTS {tmp}"))
+    conn.execute(text(create_sql))
+    conn.execute(text(f"INSERT INTO {tmp} ({col_names}) SELECT {col_names} FROM {table}"))
+    conn.execute(text(f"DROP TABLE {table}"))
+    conn.execute(text(f"ALTER TABLE {tmp} RENAME TO {table}"))
+    conn.commit()
+    print(f"  + {table} reconstruida: {nullable_cols} ahora aceptan NULL")
+
+
 def _add_column(conn, table, column, col_type):
     """Agrega una columna si no existe. Compatible con SQLite y PostgreSQL.
 
@@ -67,6 +121,15 @@ def run():
         # pero los registros existentes ya tienen valores y los nuevos son opcionales).
         # Módulo Proyectos — Etapa 2B: Adjuntos por entrada diaria
         # project_entry_attachments se crea sola con create_all().
+        _add_column(conn, "project_entry_attachments", "currency", "VARCHAR")
+        # SQLite: file_url y public_id fueron creadas NOT NULL antes de volverse nullable.
+        # En PostgreSQL/Railway la tabla se crea directamente con la definición correcta.
+        if not is_prod:
+            _sqlite_make_columns_nullable(
+                conn,
+                "project_entry_attachments",
+                {"file_url", "public_id"},
+            )
         # Módulo Proyectos — Etapa Tareas
         # project_tasks se crea sola con create_all().
     print("✓ Columnas nuevas verificadas")

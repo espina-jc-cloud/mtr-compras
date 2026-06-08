@@ -1,9 +1,10 @@
+from __future__ import annotations
 import uuid
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from app.database import get_db
 from app.deps import get_current_user, require_role, require_projects_access
@@ -110,7 +111,21 @@ async def list_projects(
             )
         )
 
-    projects = query.order_by(models.Project.created_at.desc()).all()
+    projects = (
+        query
+        .options(joinedload(models.Project.tasks))
+        .order_by(models.Project.created_at.desc())
+        .all()
+    )
+
+    # Resumen de tareas por proyecto (evita N+1 — tasks ya cargadas por joinedload)
+    task_summaries = {}
+    for p in projects:
+        active = [t for t in p.tasks if not t.deleted_at]
+        total  = len(active)
+        fin    = sum(1 for t in active if t.status == "finalizada")
+        avance = round(sum(t.progress_percent for t in active) / total) if total else 0
+        task_summaries[p.id] = {"total": total, "finalizadas": fin, "avance_pct": avance}
 
     params = {
         "q": q, "status": status, "plant": plant,
@@ -118,12 +133,13 @@ async def list_projects(
     }
 
     return templates.TemplateResponse(request, "projects/list.html", {
-        "user": current_user,
-        "projects": projects,
-        "params": params,
-        "statuses": STATUSES,
-        "plants": PLANTS,
-        "priorities": PRIORITIES,
+        "user":           current_user,
+        "projects":       projects,
+        "params":         params,
+        "statuses":       STATUSES,
+        "plants":         PLANTS,
+        "priorities":     PRIORITIES,
+        "task_summaries": task_summaries,
     })
 
 
@@ -210,12 +226,116 @@ async def project_detail(
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
 
+    active_tasks = [t for t in project.tasks if not t.deleted_at]
+    total  = len(active_tasks)
+    task_summary = {
+        "total":       total,
+        "finalizadas": sum(1 for t in active_tasks if t.status == "finalizada"),
+        "en_progreso": sum(1 for t in active_tasks if t.status == "en_progreso"),
+        "bloqueadas":  sum(1 for t in active_tasks if t.status == "bloqueada"),
+        "pendientes":  sum(1 for t in active_tasks if t.status == "pendiente"),
+        "canceladas":  sum(1 for t in active_tasks if t.status == "cancelada"),
+        "avance_pct":  round(sum(t.progress_percent for t in active_tasks) / total)
+                       if total else 0,
+    }
+
     return templates.TemplateResponse(request, "projects/detail.html", {
+        "user":          current_user,
+        "project":       project,
+        "can_edit":      _can_edit(current_user, project),
+        "statuses":      STATUSES,
+        "task_statuses": TASK_STATUSES,
+        "task_summary":  task_summary,
+    })
+
+
+# ── Gantt ─────────────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/gantt", response_class=HTMLResponse)
+async def project_gantt(
+    project_id:   int,
+    request:      Request,
+    db:           Session = Depends(get_db),
+    current_user           = Depends(require_projects_access),
+):
+    project = _get_project_or_404(db, project_id)
+
+    all_tasks = [t for t in project.tasks if not t.deleted_at]
+    dated     = [t for t in all_tasks if t.start_date and t.estimated_end_date]
+    undated   = [t for t in all_tasks if not (t.start_date and t.estimated_end_date)]
+
+    range_start = None
+    range_end   = None
+    total_days  = None
+    today_pct   = None
+    tick_marks  = []
+    gantt_tasks = []
+
+    if dated:
+        range_start = min(t.start_date for t in dated)
+
+        # range_end: si actual_end_date es posterior a estimated_end_date, usarla
+        # para el rango — pero NO para la barra (requisito #3).
+        end_candidates = [t.estimated_end_date for t in dated]
+        for t in dated:
+            if t.actual_end_date and t.actual_end_date > t.estimated_end_date:
+                end_candidates.append(t.actual_end_date)
+        range_end  = max(max(end_candidates), date.today())
+        total_days = max((range_end - range_start).days, 1)
+
+        # Posición de "hoy" en el timeline
+        today = date.today()
+        if range_start <= today <= range_end:
+            today_pct = round((today - range_start).days / total_days * 100, 2)
+
+        # Marcas de escala: máximo 6, distribuidas uniformemente
+        num_ticks = min(6, total_days)
+        step = total_days / num_ticks if num_ticks else total_days
+        for i in range(num_ticks + 1):
+            delta     = round(i * step)
+            tick_date = range_start + timedelta(days=delta)
+            tick_pct  = round(delta / total_days * 100, 1)
+            tick_marks.append({"date": tick_date, "pct": tick_pct})
+
+        # Posición y ancho de cada barra
+        for t in dated:
+            offset_pct = round((t.start_date - range_start).days / total_days * 100, 2)
+
+            # Fecha de fin visual de la barra:
+            # - Finalizada o 100 %: usar actual_end_date si existe, si no estimated_end_date.
+            # - Cualquier otro estado: usar estimated_end_date.
+            if (t.status == "finalizada" or t.progress_percent == 100) and t.actual_end_date:
+                bar_end = t.actual_end_date
+            else:
+                bar_end = t.estimated_end_date
+
+            # Duración mínima 1 día (cubre bar_end < start_date o iguales)
+            duration  = max((bar_end - t.start_date).days, 1)
+            width_pct = round(duration / total_days * 100, 2)
+
+            # Clamp: la barra nunca sale del 100 %
+            offset_pct = max(0.0, min(offset_pct, 99.0))
+            width_pct  = max(0.5, min(width_pct, 100.0 - offset_pct))
+
+            gantt_tasks.append({
+                "task":       t,
+                "offset_pct": offset_pct,
+                "width_pct":  width_pct,
+                "bar_end":    bar_end,   # disponible en template para tooltip futuro
+            })
+
+    return templates.TemplateResponse(request, "projects/gantt.html", {
         "user":         current_user,
         "project":      project,
         "can_edit":     _can_edit(current_user, project),
-        "statuses":     STATUSES,
-        "task_statuses": TASK_STATUSES,
+        "gantt_tasks":  gantt_tasks,
+        "undated_tasks": undated,
+        "range_start":  range_start,
+        "range_end":    range_end,
+        "total_days":   total_days,
+        "today_pct":    today_pct,
+        "tick_marks":   tick_marks,
+        "all_count":    len(all_tasks),
     })
 
 
@@ -581,7 +701,8 @@ async def upload_attachment(
     file_type:     str                  = Form("otro"),
     description:   str                  = Form(""),
     supplier:      str                  = Form(""),
-    amount_usd:    str                  = Form(""),
+    currency:      str                  = Form("USD"),   # "USD" | "ARS"
+    amount:        str                  = Form(""),      # monto en la moneda elegida
     exchange_rate: str                  = Form(""),
     file:          UploadFile           = File(None),
     db:            Session              = Depends(get_db),
@@ -594,15 +715,18 @@ async def upload_attachment(
     if file_type not in FILE_TYPES:
         file_type = "otro"
 
-    # ── Validación mínima: al menos un campo con contenido ───────────────────
-    usd_dec  = _parse_decimal(amount_usd)
-    rate_dec = _parse_decimal(exchange_rate)
-    has_file     = file is not None and file.filename
+    has_file = file is not None and file.filename
+
+    # ── Determinar si hay datos económicos o descriptivos con contenido ───────
+    amount_dec_check = _parse_decimal(amount)
     has_economic = any([
-        description.strip(), supplier.strip(), usd_dec is not None, rate_dec is not None
+        description.strip(),
+        supplier.strip(),
+        amount_dec_check is not None,
     ])
-    if not has_file:
-        # Sin archivo no se crea adjunto. Evita registros vacíos o inválidos.
+
+    # ── Sin archivo y sin datos → nada que guardar, redirigir ─────────────────
+    if not has_file and not has_economic:
         return RedirectResponse(
             url=f"/projects/{project_id}/entries/{entry_id}", status_code=303
         )
@@ -611,9 +735,8 @@ async def upload_attachment(
     if has_file:
         contents    = await file.read()
         unique_name = f"{uuid.uuid4()}_{file.filename}"
-
         try:
-            result = _cloud_upload(contents, unique_name, folder="mtr-compras/proyectos")
+            result    = _cloud_upload(contents, unique_name, folder="mtr-compras/proyectos")
             file_url  = result["url"]
             public_id = result["public_id"]
             filename  = file.filename
@@ -623,15 +746,43 @@ async def upload_attachment(
                 url=f"/projects/{project_id}/entries/{entry_id}", status_code=303
             )
     else:
+        # Registro económico sin archivo
         file_url  = None
         public_id = None
         filename  = None
 
     # ── Campos económicos opcionales ──────────────────────────────────────────
-    if usd_dec is not None and rate_dec is not None:
-        ars_dec = (usd_dec * rate_dec).quantize(Decimal("0.01"))
-    else:
-        ars_dec = None
+    amount_dec = _parse_decimal(amount)
+    rate_dec   = _parse_decimal(exchange_rate)
+
+    # exchange_rate válido: debe ser > 0
+    if rate_dec is not None and rate_dec <= 0:
+        rate_dec = None
+
+    usd_dec  = None
+    ars_dec  = None
+    curr_out = None   # currency que se guarda en DB
+
+    if amount_dec is not None:
+        if currency == "USD":
+            curr_out = "USD"
+            usd_dec  = amount_dec
+            if rate_dec is not None:
+                ars_dec = (usd_dec * rate_dec).quantize(Decimal("0.01"))
+        elif currency == "ARS":
+            curr_out = "ARS"
+            ars_dec  = amount_dec
+            if rate_dec is not None:
+                try:
+                    usd_dec = (ars_dec / rate_dec).quantize(Decimal("0.01"))
+                except Exception:
+                    usd_dec = None
+        # currency desconocido: se ignora el monto
+    # Si amount_dec es None: currency, usd_dec, ars_dec, rate_dec quedan None
+
+    # Si no hubo monto válido, no guardar exchange_rate ni currency
+    if curr_out is None:
+        rate_dec = None
 
     att = models.ProjectEntryAttachment(
         entry_id       = entry_id,
@@ -642,6 +793,7 @@ async def upload_attachment(
         filename       = filename,
         description    = description.strip() or None,
         supplier       = supplier.strip()    or None,
+        currency       = curr_out,
         amount_usd     = usd_dec,
         exchange_rate  = rate_dec,
         amount_ars     = ars_dec,
@@ -711,15 +863,28 @@ def _clamp_progress(value: str) -> int:
         return 0
 
 
-def _apply_task_status_rules(task, new_status: str):
+def _apply_task_status_rules(task, new_status: str, new_progress: int | None = None):
     """
-    Reglas de negocio al cambiar estado:
-    - Si pasa a 'finalizada' y actual_end_date está vacío → poner hoy.
-    - Si sale de 'finalizada' → NO borrar actual_end_date.
+    Reglas de negocio de estado <-> progreso (sincronizacion bidireccional, Opcion A).
+
+    Orden de evaluacion:
+      1. Si new_progress no es None -> asignarlo (ya debe venir clampado 0-100).
+      2. Si new_status == "finalizada" O progress == 100 -> ambos se sincronizan:
+         status = "finalizada", progress = 100, actual_end_date = hoy si estaba vacio.
+      3. En cualquier otro caso -> status = new_status, actual_end_date se preserva.
+
+    Invariante: no puede existir progress=100 con status!="finalizada" ni viceversa.
     """
-    task.status = new_status
-    if new_status == "finalizada" and not task.actual_end_date:
-        task.actual_end_date = date.today()
+    if new_progress is not None:
+        task.progress_percent = new_progress
+
+    if new_status == "finalizada" or task.progress_percent == 100:
+        task.status           = "finalizada"
+        task.progress_percent = 100
+        if not task.actual_end_date:
+            task.actual_end_date = date.today()
+    else:
+        task.status = new_status
 
 
 def _task_form_ctx(project, task=None, error=None):
@@ -786,15 +951,14 @@ async def create_task(
         description        = description.strip() or None,
         responsible        = responsible.strip() or None,
         priority           = priority,
-        status             = status,
+        status             = "pendiente",   # el helper fija el status definitivo
         start_date         = _parse_date(start_date).date() if _parse_date(start_date) else None,
         estimated_end_date = _parse_date(estimated_end_date).date() if _parse_date(estimated_end_date) else None,
         actual_end_date    = _parse_date(actual_end_date).date() if _parse_date(actual_end_date) else None,
-        progress_percent   = _clamp_progress(progress_percent),
+        progress_percent   = 0,             # el helper fija el progreso definitivo
         created_by_id      = current_user.id,
     )
-    # Aplicar reglas de estado (ej: finalizada sin actual_end_date)
-    _apply_task_status_rules(task, status)
+    _apply_task_status_rules(task, status, new_progress=_clamp_progress(progress_percent))
 
     db.add(task)
     db.commit()
@@ -860,15 +1024,13 @@ async def update_task(
     task.priority           = priority
     task.start_date         = _parse_date(start_date).date() if _parse_date(start_date) else None
     task.estimated_end_date = _parse_date(estimated_end_date).date() if _parse_date(estimated_end_date) else None
-    task.progress_percent   = _clamp_progress(progress_percent)
 
-    # Fecha fin real: se respeta lo que venga del form; si está vacío se mantiene el anterior
+    # Fecha fin real: se respeta lo que venga del form; si viene vacío se mantiene la anterior
     parsed_actual = _parse_date(actual_end_date)
     if parsed_actual:
         task.actual_end_date = parsed_actual.date()
-    # (si viene vacío no tocamos actual_end_date — puede haberse seteado automáticamente antes)
 
-    _apply_task_status_rules(task, status)
+    _apply_task_status_rules(task, status, new_progress=_clamp_progress(progress_percent))
 
     db.commit()
     return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
@@ -892,10 +1054,9 @@ async def change_task_status(
     if status not in TASK_STATUSES:
         raise HTTPException(status_code=400, detail="Estado de tarea inválido.")
 
-    if progress_percent.strip():
-        task.progress_percent = _clamp_progress(progress_percent)
-
-    _apply_task_status_rules(task, status)
+    # new_progress: None si el campo viene vacío (se preserva el actual antes de las reglas)
+    new_prog = _clamp_progress(progress_percent) if progress_percent.strip() else None
+    _apply_task_status_rules(task, status, new_progress=new_prog)
     db.commit()
     return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
 

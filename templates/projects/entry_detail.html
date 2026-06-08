@@ -188,18 +188,32 @@
             <!-- Datos económicos -->
             {% if att.amount_usd or att.amount_ars %}
             <div class="flex items-center gap-3 mt-1 flex-wrap">
-              {% if att.amount_usd %}
-              <span class="text-xs text-gray-500">
-                USD {{ att.amount_usd | fmt_num(2) }}
-              </span>
-              {% endif %}
-              {% if att.exchange_rate %}
-              <span class="text-xs text-gray-400">× ${{ att.exchange_rate | fmt_num(2) }}</span>
-              {% endif %}
-              {% if att.amount_ars %}
-              <span class="text-xs font-semibold text-gray-700">
-                = ${{ att.amount_ars | fmt_num(2) }}
-              </span>
+              {% if att.currency == "ARS" %}
+                {# Ingresado en pesos: mostrar ARS primero #}
+                <span class="text-xs font-semibold text-gray-700">
+                  $ {{ att.amount_ars | fmt_num(2) }}
+                </span>
+                {% if att.exchange_rate %}
+                <span class="text-xs text-gray-400">÷ ${{ att.exchange_rate | fmt_num(2) }}</span>
+                {% endif %}
+                {% if att.amount_usd %}
+                <span class="text-xs text-gray-500">= USD {{ att.amount_usd | fmt_num(2) }}</span>
+                {% endif %}
+              {% else %}
+                {# Ingresado en USD o registro viejo (currency NULL): mostrar USD primero #}
+                {% if att.amount_usd %}
+                <span class="text-xs text-gray-500">
+                  USD {{ att.amount_usd | fmt_num(2) }}
+                </span>
+                {% endif %}
+                {% if att.exchange_rate %}
+                <span class="text-xs text-gray-400">× ${{ att.exchange_rate | fmt_num(2) }}</span>
+                {% endif %}
+                {% if att.amount_ars %}
+                <span class="text-xs font-semibold text-gray-700">
+                  = $ {{ att.amount_ars | fmt_num(2) }}
+                </span>
+                {% endif %}
               {% endif %}
             </div>
             {% endif %}
@@ -232,7 +246,7 @@
     <!-- Formulario subir adjunto -->
     {% if can_edit %}
     <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Agregar registro</h2>
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Agregar dato al día</h2>
       <form method="post"
             action="/projects/{{ project.id }}/entries/{{ entry.id }}/attachments"
             enctype="multipart/form-data"
@@ -284,29 +298,41 @@
         <!-- Campos económicos -->
         <div class="border-t border-gray-100 pt-4">
           <p class="text-xs text-gray-400 mb-3">
-            Datos económicos — completar solo si el adjunto tiene importes asociados.
-            Si completás USD y cotización, el importe en ARS se calcula automáticamente.
+            Datos económicos — opcional. Ingresá el monto en la moneda que tengas.
+            <strong>La cotización es opcional.</strong>
+            Si la completás, el sistema calcula la otra moneda automáticamente.
           </p>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1.5">Importe USD</label>
-              <input type="text" name="amount_usd" inputmode="decimal" placeholder="0.00"
-                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Moneda</label>
+              <select name="currency"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50">
+                <option value="USD">USD — Dólares</option>
+                <option value="ARS">ARS — Pesos</option>
+              </select>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1.5">Cotización ($/USD)</label>
-              <input type="text" name="exchange_rate" inputmode="decimal" placeholder="0.00"
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Monto</label>
+              <input type="text" name="amount" inputmode="decimal" placeholder="0.00"
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
             </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">
+                Cotización ($/USD)
+                <span class="text-gray-400 font-normal">— opcional</span>
+              </label>
+              <input type="text" name="exchange_rate" inputmode="decimal" placeholder="Ej: 1150.00"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50 placeholder-gray-400">
+              <p class="text-xs text-gray-400 mt-1">
+                Si ingresás USD + cotización → se calcula ARS automáticamente. Si ingresás ARS + cotización → se calcula USD.
+              </p>
+            </div>
           </div>
-          <p class="text-xs text-gray-400 mt-2">
-            Importe ARS = USD × Cotización — se calcula y guarda automáticamente.
-          </p>
         </div>
 
         <button type="submit"
           class="w-full bg-violet-600 hover:bg-violet-700 text-white font-semibold py-3 rounded-2xl text-sm shadow-sm">
-          Guardar registro
+          Guardar dato económico
         </button>
       </form>
     </div>

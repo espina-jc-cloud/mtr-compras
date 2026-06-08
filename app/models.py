@@ -511,9 +511,10 @@ class ProjectEntryAttachment(Base):
     # ── Campos económicos (todos opcionales) ──────────────────────────────────
     description    = Column(Text,           nullable=True)
     supplier       = Column(String,         nullable=True)
+    currency       = Column(String,         nullable=True)    # "USD" | "ARS" — moneda de ingreso; None si no hay monto
     amount_usd     = Column(Numeric(14, 2), nullable=True)
     exchange_rate  = Column(Numeric(10, 4), nullable=True)
-    amount_ars     = Column(Numeric(14, 2), nullable=True)   # calculado: usd * rate
+    amount_ars     = Column(Numeric(14, 2), nullable=True)   # calculado o ingresado según currency
 
     # ── Metadata ──────────────────────────────────────────────────────────────
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
