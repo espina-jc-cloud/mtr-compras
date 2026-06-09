@@ -270,6 +270,8 @@ def _parse_nutrien(
         c_ac       = col("AC",)
         c_mezcla   = col("MEZCLA",)
         c_bolsa    = col("BOLSA",)
+        c_npk      = col("N-P-K",)
+        c_grado    = col("Grado",)
 
         # Pre-leer todas las filas de datos para:
         # a) consultar fila siguiente (packaging lookahead)
@@ -291,6 +293,11 @@ def _parse_nutrien(
         ]
         cant_unit_is_kg = bool(cantidades) and (sum(cantidades) / len(cantidades)) > 200
 
+        # Acumulador de ingredientes D1/D2 por ST_upper (para mezclas)
+        d1d2_buffer: dict = {}  # st_upper → list of {producto, cant_mt}
+
+        PACKAGING_KEYWORDS = ("EMBOLSADO", "BOLSONES", "BOLSON", "BOLSA DE", "EMBALAJE")
+
         for idx, r in enumerate(data_rows):
             fecha  = _normalize_date(ws.cell(r, c_fecha).value if c_fecha else None)
             st     = _normalize_str(ws.cell(r, c_st).value if c_st else None)
@@ -300,6 +307,8 @@ def _parse_nutrien(
             trans  = _normalize_str(ws.cell(r, c_trans).value if c_trans else None)
             mezcla = _normalize_str(ws.cell(r, c_mezcla).value if c_mezcla else None)
             bolsa  = _normalize_str(ws.cell(r, c_bolsa).value if c_bolsa else None)
+            npk    = _normalize_str(ws.cell(r, c_npk).value if c_npk else None)
+            grado  = _normalize_str(ws.cell(r, c_grado).value if c_grado else None)
 
             # Normalizar "0" string (algunas hojas tienen ceros como placeholder)
             if prod in ("0", "0.0"):
@@ -313,22 +322,28 @@ def _parse_nutrien(
             st_upper   = (st   or "").upper()
 
             # ── Lógica de exclusión de sub-filas ─────────────────────────────
-            # 1. D1 / D2 → ingredientes de mezcla → skip
+            # 1. D1 / D2 → acumular como componentes de la mezcla, luego skip
             if st and (st_upper.startswith("D1 ") or st_upper.startswith("D2 ")
                        or st_upper == "D1" or st_upper == "D2"):
+                # Derivar la clave SM a partir del número de SM que comparten
+                # Ej: "D1 26000194" → guardar bajo la clave del ST para asociar luego
+                d1d2_buffer.setdefault(st_upper, []).append({
+                    "producto": prod,
+                    "cant_mt":  round(cant, 3) if cant else None,
+                    "npk":      npk,
+                })
                 continue
 
-            # 2. "SM XXXXX" (SM con número): el ST se reutiliza para los
-            #    ingredientes y para el total.
-            #    Solo se conserva la fila del TOTAL (Producto contiene "MEZCLADO").
-            #    Las filas de ingredientes y packaging se descartan.
+            # 2. "SM XXXXX" (SM con número): solo conservar la fila MEZCLADO
             if st_upper.startswith("SM ") and len(st_upper) > 3:
                 if "MEZCLADO" not in prod_upper:
-                    continue  # ingrediente o packaging de la mezcla → skip
+                    # Sub-fila de packaging de mezcla numerada → capturar bolsa_kg
+                    if any(kw in prod_upper for kw in PACKAGING_KEYWORDS):
+                        # guardar info de packaging para el SM que ya se procesó
+                        pass
+                    continue
 
-            # 3. Sub-filas de packaging sin cantidad real:
-            #    "EMBOLSADO DE 50 KG", "BOLSONES", "BOLSAS DE", etc.
-            PACKAGING_KEYWORDS = ("EMBOLSADO", "BOLSONES", "BOLSON", "BOLSA DE", "EMBALAJE")
+            # 3. Sub-filas de packaging sin cantidad real
             if cant is None and any(kw in prod_upper for kw in PACKAGING_KEYWORDS):
                 continue
 
@@ -339,30 +354,62 @@ def _parse_nutrien(
                 if date_to and fecha > date_to:
                     continue
 
-            # ── Inferir presentación a partir del contexto ───────────────────
-            # Para embolsados (BOLSA=SI), la fila siguiente describe el envase
+            # ── Inferir presentación y bolsa_kg ─────────────────────────────
             presentacion = None
+            bolsa_kg_val = None
+
             if bolsa and bolsa.upper() == "SI":
-                # Mirar fila siguiente (si existe) para obtener tipo de envase
+                # Lookahead: fila siguiente describe el envase
                 if idx + 1 < len(data_rows):
                     next_r = data_rows[idx + 1]
                     next_prod = _normalize_str(ws.cell(next_r, c_prod).value if c_prod else None)
-                    next_cant = ws.cell(next_r, c_cant).value
                     if next_prod:
                         np_upper = next_prod.upper()
-                        if "BOLSONES" in np_upper or "BOLSON" in np_upper:
+                        if "BOLSONES" in np_upper or "BOLSON" in np_upper or "1000" in np_upper:
                             presentacion = "Bolsones 1000kg"
-                        elif "50 KG" in np_upper or "EMBOLSADO" in np_upper:
+                            bolsa_kg_val = 1000
+                        elif "50 KG" in np_upper or "50KG" in np_upper:
                             presentacion = "Bolsas 50kg"
-                        elif "25 KG" in np_upper:
+                            bolsa_kg_val = 50
+                        elif "25 KG" in np_upper or "25KG" in np_upper:
                             presentacion = "Bolsas 25kg"
+                            bolsa_kg_val = 25
+                        elif "EMBOLSADO" in np_upper:
+                            presentacion = "Embolsado"
                 if not presentacion:
-                    presentacion = "Embolsado"
+                    # Intentar inferir del campo Grado si existe
+                    if grado:
+                        g = grado.upper()
+                        if "50" in g:
+                            presentacion = "Bolsas 50kg"; bolsa_kg_val = 50
+                        elif "1000" in g or "BIG" in g:
+                            presentacion = "Bolsones 1000kg"; bolsa_kg_val = 1000
+                    if not presentacion:
+                        presentacion = "Embolsado"
             elif mezcla and mezcla.upper() == "NO":
                 presentacion = "Granel"
+
             # SM rows = mezcla granel
-            if st and (st.upper() == "SM" or (st.upper().startswith("SM ") and len(st) > 3)):
+            is_sm = st and (st.upper() == "SM" or st_upper.startswith("SM "))
+            if is_sm:
                 presentacion = "Granel Mezcla"
+
+            # ── Componentes de mezcla ────────────────────────────────────────
+            # Para SM puro: los D1/D2 están en filas anteriores con distinto ST.
+            # Buscamos en d1d2_buffer por prefijo de número si hay.
+            componentes_json = None
+            if is_sm:
+                # Recolectar todos los D1/D2 acumulados que aún no se asignaron
+                all_ingredientes = []
+                for buf_key, buf_items in list(d1d2_buffer.items()):
+                    all_ingredientes.extend(buf_items)
+                if all_ingredientes:
+                    import json as _json
+                    componentes_json = _json.dumps(all_ingredientes, ensure_ascii=False)
+                    d1d2_buffer.clear()
+                # NPK de la fila SM tiene la fórmula completa
+                if not npk and grado:
+                    npk = grado
 
             rows.append({
                 "source_type":    "nutrien",
@@ -378,6 +425,9 @@ def _parse_nutrien(
                 "transporte":     trans,
                 "ac":             _normalize_str(ws.cell(r, c_ac).value if c_ac else None),
                 "presentacion":   presentacion,
+                "bolsa_kg":       bolsa_kg_val,
+                "npk":            npk,
+                "componentes_mezcla": componentes_json,
                 "row_hash":       _row_hash("nutrien", fecha, st, prod, trans),
             })
 
@@ -400,10 +450,20 @@ def _parse_cna(
 
     ws = wb["Despachos"]
 
-    # Mapear columnas de la fila 1
+    # Detectar fila de headers: fila 1 (CNA original) o fila 4 (Plantilla MTR)
+    # La plantilla MTR tiene filas 1-3 como título/instrucciones
+    def _find_header_row():
+        for hrow in (1, 4):
+            for c in range(1, ws.max_column + 1):
+                val = str(ws.cell(hrow, c).value or "").strip().upper()
+                if val in ("FECHA", "CLIENTE", "PRODUCTO", "KG. OC"):
+                    return hrow
+        return 1
+
+    hrow = _find_header_row()
     headers = {}
     for c in range(1, ws.max_column + 1):
-        val = str(ws.cell(1, c).value or "").strip()
+        val = str(ws.cell(hrow, c).value or "").strip()
         if val:
             headers[val] = c
 
@@ -436,10 +496,14 @@ def _parse_cna(
     c_remito  = col("Remito")
 
     rows = []
-    for r in range(2, ws.max_row + 1):
+    for r in range(hrow + 1, ws.max_row + 1):
         fecha = _normalize_date(ws.cell(r, c_fecha).value if c_fecha else None)
         prod  = _normalize_str(ws.cell(r, c_prod).value if c_prod else None)
         if not fecha and not prod:
+            continue
+        # Ignorar filas de ejemplo de la plantilla MTR (prefijo ←)
+        raw_fecha = str(ws.cell(r, c_fecha).value or "")
+        if raw_fecha.strip().startswith("←"):
             continue
 
         # ── Filtro de fecha (CNA) ────────────────────────────────────────────
@@ -1133,6 +1197,9 @@ async def import_confirm(
             kg_oc            = r.get("kg_oc"),
             neto             = r.get("neto"),
             presentacion     = r.get("presentacion"),
+            bolsa_kg         = r.get("bolsa_kg"),
+            npk              = r.get("npk"),
+            componentes_mezcla = r.get("componentes_mezcla"),
             origen           = r.get("origen"),
             in_out           = r.get("in_out"),
             modo_transporte  = r.get("modo_transporte"),

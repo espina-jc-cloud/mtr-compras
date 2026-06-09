@@ -104,6 +104,9 @@ class CupoDespacho(Base):
     kg_oc          = Column(Numeric(14, 2))       # kg de la OC (CNA)
     neto           = Column(Numeric(14, 2))       # neto real despachado
     presentacion   = Column(String(100))          # Granel, Big Bag, Bolsas 50kg…
+    bolsa_kg       = Column(Integer, nullable=True)   # 50 | 1000 | None (si no aplica)
+    npk            = Column(String(100), nullable=True)  # fórmula N-P-K ej "24N-0P-24K"
+    componentes_mezcla = Column(Text, nullable=True)     # JSON: D1/D2 ingredientes
 
     # ── Origen / Modo ─────────────────────────────────────────────────────────
     origen         = Column(String(200))
