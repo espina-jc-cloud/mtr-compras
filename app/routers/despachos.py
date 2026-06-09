@@ -662,9 +662,17 @@ _TEMPLATE_PATHS = [
 ]
 
 def _generate_template_bytes() -> bytes:
-    """Genera el Excel plantilla en memoria (siempre fresco, sin depender de archivo externo)."""
+    """
+    Genera el Excel plantilla en memoria.
+
+    Diseño: columnas IDÉNTICAS a los archivos fuente reales para que el
+    usuario pueda hacer copy/paste crudo sin reinterpretar nada.
+    La inteligencia está en el parser, no en la persona que pega.
+
+    Hoja NUTRIEN:  mismos headers que ganel_embolsado_ramallo (fila 10)
+    Hoja Despachos: mismos headers que hoja Despachos de CNA (fila 1)
+    """
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
 
     wb = openpyxl.Workbook()
@@ -672,143 +680,249 @@ def _generate_template_bytes() -> bytes:
 
     GREEN_DARK = "1A5276"; GREEN_MED = "AED6F1"
     BLUE_DARK  = "154360"; BLUE_MED  = "A9CCE3"
-    GRAY_INST  = "F2F3F4"; EXAMPLE_FG = "ABB2B9"
+    GRAY_INST  = "F2F3F4"; EJ_FG = "ABB2B9"; EJ_BG = "FDFEFE"
 
     def hdr(hex_bg):
-        return {
-            "fill": PatternFill("solid", fgColor=hex_bg),
-            "font": Font(bold=True, color="FFFFFF", size=10),
-            "alignment": Alignment(horizontal="center", vertical="center", wrap_text=True),
-        }
+        return dict(
+            fill=PatternFill("solid", fgColor=hex_bg),
+            font=Font(bold=True, color="FFFFFF", size=10),
+            alignment=Alignment(horizontal="center", vertical="center", wrap_text=True),
+        )
     def apply(cell, d):
         for a, v in d.items(): setattr(cell, a, v)
     def tb():
         s = Side(style="thin", color="D5D8DC")
         return Border(left=s, right=s, top=s, bottom=s)
+    def ej_cell(ws, row, col, val):
+        c = ws.cell(row=row, column=col, value=f"← {val}" if val is not None else "")
+        c.fill = PatternFill("solid", fgColor=EJ_BG)
+        c.font = Font(color=EJ_FG, italic=True, size=9)
+        c.alignment = Alignment(horizontal="left", vertical="center")
+        c.border = tb()
 
-    # ── Hoja NUTRIEN ─────────────────────────────────────────────────────────
+    # ── Hoja NUTRIEN ──────────────────────────────────────────────────────────
+    # Headers IDÉNTICOS a ganel_embolsado_ramallo del Excel de Nutrien
+    # El usuario selecciona desde la fila 11 de Nutrien y pega aquí desde la fila 5
     ws_n = wb.create_sheet("NUTRIEN")
-    ws_n.merge_cells("A1:J1"); c=ws_n["A1"]
-    c.value="PLANILLA OPERATIVA — CUPOS NUTRIEN · MTR"
-    c.fill=PatternFill("solid",fgColor=GREEN_DARK); c.font=Font(bold=True,color="FFFFFF",size=12)
-    c.alignment=Alignment(horizontal="center",vertical="center"); ws_n.row_dimensions[1].height=22
-    ws_n.merge_cells("A2:J2"); c=ws_n["A2"]
-    c.value="Pegá aquí SOLO los cupos del día. Columnas en gris = NO MODIFICAR."
-    c.fill=PatternFill("solid",fgColor=GREEN_MED); c.font=Font(italic=True,color=GREEN_DARK,size=9)
-    c.alignment=Alignment(horizontal="center",vertical="center"); ws_n.row_dimensions[2].height=16
+    span_n = "A1:O1"
+    ws_n.merge_cells(span_n); c = ws_n["A1"]
+    c.value = ("PLANILLA OPERATIVA NUTRIEN — MTR  |  "
+               "Copiá y pegá las filas de datos del Excel de Nutrien (fila 11 en adelante)")
+    c.fill = PatternFill("solid", fgColor=GREEN_DARK)
+    c.font = Font(bold=True, color="FFFFFF", size=11)
+    c.alignment = Alignment(horizontal="left", vertical="center")
+    ws_n.row_dimensions[1].height = 20
 
+    ws_n.merge_cells("A2:O2"); i2 = ws_n["A2"]
+    i2.value = ("▶  Abrí el Excel de Nutrien → hoja ganel_embolsado_ramallo → "
+                "seleccioná TODAS las filas de datos (fila 11 hasta el final, incluyendo "
+                "filas D1/D2/SM/EMBOLSADO) → pegá aquí desde la fila 5. "
+                "El importador detecta automáticamente qué es un camión real y qué es sub-fila.")
+    i2.fill = PatternFill("solid", fgColor=GREEN_MED)
+    i2.font = Font(italic=True, color=GREEN_DARK, size=9)
+    i2.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws_n.row_dimensions[2].height = 36
+
+    # Headers exactos del archivo real (fila 10 de ganel_embolsado_ramallo)
     nutrien_cols = [
-        ("A","Fecha de carga",14),("B","ST / SD / OD",15),("C","Destinatario",22),
-        ("D","Producto",20),("E","Cantidad (MT)",13),("F","Origen",16),
-        ("G","Transporte",18),("H","AC",18),("I","Presentación",14),("J","Notas",22),
+        ("A", "Nº",               5),
+        ("B", "ST / SD / OD",    16),
+        ("C", "Destinatario ",   24),   # nota: espacio al final = igual que en el Excel real
+        ("D", "Producto",        22),
+        ("E", "Cantidad 35(MT)", 14),
+        ("F", "%",                7),
+        ("G", "MEZCLA",           8),
+        ("H", "BOLSA",            8),
+        ("I", "N-P-K",           22),
+        ("J", "IA",               8),
+        ("K", "Grado",           10),
+        ("L", "Origen",          18),
+        ("M", "Transporte",      18),
+        ("N", "Fecha de carga",  13),
+        ("O", "AC",              20),
     ]
-    for col,name,w in nutrien_cols:
-        c=ws_n[f"{col}3"]; c.value=name; apply(c,hdr(GREEN_DARK)); c.border=tb()
-        ws_n.column_dimensions[col].width=w
-    ws_n.row_dimensions[3].height=28
+    ws_n.merge_cells("A3:O3"); label_n = ws_n["A3"]
+    label_n.value = "← copiá las filas de Nutrien a partir de aquí (fila 5)"
+    label_n.fill = PatternFill("solid", fgColor="EAF4FC")
+    label_n.font = Font(italic=True, color="5D6D7E", size=9)
+    label_n.alignment = Alignment(horizontal="center", vertical="center")
+    ws_n.row_dimensions[3].height = 14
 
-    ej_n=["← ej: 02/06/2026","← ej: 26002780","← ej: O'HIGGINS","← ej: SUPERFOSFATO TRIPLE",
-          "← ej: 35","← ej: MTR RAMALLO","← ej: TRANSRUTA","← ej: O'HIGGINS","← ej: GRANEL",""]
-    for i,v in enumerate(ej_n):
-        c=ws_n.cell(row=4,column=i+1); c.value=v
-        c.fill=PatternFill("solid",fgColor="FDFEFE")
-        c.font=Font(color=EXAMPLE_FG,italic=True,size=9)
-        c.alignment=Alignment(horizontal="left",vertical="center"); c.border=tb()
-    ws_n.row_dimensions[4].height=18
-    for r in range(5,2000):
-        ws_n[f"A{r}"].number_format='DD/MM/YYYY'
-        ws_n[f"E{r}"].number_format='0.0'
-    ws_n.auto_filter.ref="A3:J3"; ws_n.freeze_panes="A4"
+    h_style_n = hdr(GREEN_DARK)
+    for col, hdr_text, w in nutrien_cols:
+        c = ws_n[f"{col}4"]
+        c.value = hdr_text
+        apply(c, h_style_n)
+        c.border = tb()
+        ws_n.column_dimensions[col].width = w
+    ws_n.row_dimensions[4].height = 28
+
+    # Filas de ejemplo (prefijo ← para que el parser las ignore)
+    ej_rows_n = [
+        [1, "26002780", "O´HIGGINS", "SUPERFOSFATO TRIPLE", 35, None, None, None, None, None, None, "MTR RAMALLO", "TRANSRUTA", "02/06/2026", "O´HIGGINS"],
+        [23, "D1 26000194", "LEDESMA SA", "CLORURO DE POTASIO", 14, 0.4, "SI", "NO", "24N-0P-24K", None, None, "MTR RAMALLO", "LOCAL", "01/06/2026", "PARANÁ"],
+        [24, "D2 26000115", "LEDESMA SA", "UREA", 18.27, 0.522, None, None, None, None, None, "MTR RAMALLO", "LOCAL", "01/06/2026", "PARANÁ"],
+        [25, "D2 26000115", "LEDESMA SA", "AZUFERTIL", 2.73, 0.078, None, None, None, None, None, "MTR RAMALLO", "LOCAL", "01/06/2026", "PARANÁ"],
+        [26, "SM", "LEDESMA SA", "MEZCLADO DE FERTILIZANTE", 35, None, None, None, None, None, None, "MTR RAMALLO", "LOCAL", "01/06/2026", "PARANÁ"],
+    ]
+    for ri, row_vals in enumerate(ej_rows_n):
+        for ci, v in enumerate(row_vals):
+            ej_cell(ws_n, 5 + ri, ci + 1, v)
+        ws_n.row_dimensions[5 + ri].height = 15
+
+    for r in range(10, 3000):
+        ws_n[f"N{r}"].number_format = 'DD/MM/YYYY'
+        ws_n[f"E{r}"].number_format = '#,##0.##'
+
+    ws_n.auto_filter.ref = "A4:O4"
+    ws_n.freeze_panes = "A5"
 
     # ── Hoja CNA (Despachos) ──────────────────────────────────────────────────
+    # Headers IDÉNTICOS a la hoja Despachos del Excel de CNA
     ws_c = wb.create_sheet("Despachos")
-    ws_c.merge_cells("A1:S1"); c=ws_c["A1"]
-    c.value="PLANILLA OPERATIVA — DESPACHOS CNA · MTR"
-    c.fill=PatternFill("solid",fgColor=BLUE_DARK); c.font=Font(bold=True,color="FFFFFF",size=12)
-    c.alignment=Alignment(horizontal="center",vertical="center"); ws_c.row_dimensions[1].height=22
-    ws_c.merge_cells("A2:S2"); c=ws_c["A2"]
-    c.value="Pegá aquí SOLO los despachos del día desde el drive de CNA."
-    c.fill=PatternFill("solid",fgColor=BLUE_MED); c.font=Font(italic=True,color=BLUE_DARK,size=9)
-    c.alignment=Alignment(horizontal="center",vertical="center"); ws_c.row_dimensions[2].height=16
+    span_c = "A1:S1"
+    ws_c.merge_cells(span_c); c2 = ws_c["A1"]
+    c2.value = ("PLANILLA OPERATIVA CNA — MTR  |  "
+                "Copiá y pegá las filas de datos de la hoja Despachos del Excel de CNA")
+    c2.fill = PatternFill("solid", fgColor=BLUE_DARK)
+    c2.font = Font(bold=True, color="FFFFFF", size=11)
+    c2.alignment = Alignment(horizontal="left", vertical="center")
+    ws_c.row_dimensions[1].height = 20
+
+    ws_c.merge_cells("A2:S2"); i3 = ws_c["A2"]
+    i3.value = ("▶  Abrí el drive de CNA → buscá el archivo del día → hoja Despachos → "
+                "seleccioná las filas del período operativo (ej: solo hoy) → pegá aquí desde la fila 5. "
+                "Copiás todo tal cual, sin modificar nada.")
+    i3.fill = PatternFill("solid", fgColor=BLUE_MED)
+    i3.font = Font(italic=True, color=BLUE_DARK, size=9)
+    i3.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws_c.row_dimensions[2].height = 36
+
+    ws_c.merge_cells("A3:S3"); label_c = ws_c["A3"]
+    label_c.value = "← copiá las filas de CNA a partir de aquí (fila 5)"
+    label_c.fill = PatternFill("solid", fgColor="EAF3FB")
+    label_c.font = Font(italic=True, color="5D6D7E", size=9)
+    label_c.alignment = Alignment(horizontal="center", vertical="center")
+    ws_c.row_dimensions[3].height = 14
 
     cna_cols = [
-        ("A","Fecha",12),("B","IN/OUT",8),("C","Cliente",22),("D","Cuit Cliente",16),
-        ("E","NP o FC",14),("F","OC",10),("G","Producto",20),("H","KG. OC",12),
-        ("I","Presentacion",14),("J","Destino",22),("K","Transporte",18),
-        ("L","Cuit transporte",16),("M","Chofer",20),("N","Dni chofer",12),
-        ("O","Pat. Chasis",11),("P","Pat. Acoplado",13),("Q","Observaciones",24),
-        ("R","Neto",12),("S","Remito",18),
+        ("A", "Fecha",           12),
+        ("B", "IN/OUT",           8),
+        ("C", "Cliente",         24),
+        ("D", "Cuit Cliente",    16),
+        ("E", "NP o FC",         14),
+        ("F", "OC",              10),
+        ("G", "Producto",        22),
+        ("H", "KG. OC",          12),
+        ("I", "Presentacion",    14),
+        ("J", "Destino",         24),
+        ("K", "Transporte",      18),
+        ("L", "Cuit transporte", 16),
+        ("M", "Chofer",          22),
+        ("N", "Dni chofer",      12),
+        ("O", "Pat. Chasis",     12),
+        ("P", "Pat. Acoplado",   14),
+        ("Q", "Observaciones",   26),
+        ("R", "Neto",            12),
+        ("S", "Remito",          18),
     ]
-    for col,name,w in cna_cols:
-        c=ws_c[f"{col}3"]; c.value=name; apply(c,hdr(BLUE_DARK)); c.border=tb()
-        ws_c.column_dimensions[col].width=w
-    ws_c.row_dimensions[3].height=28
+    h_style_c = hdr(BLUE_DARK)
+    for col, hdr_text, w in cna_cols:
+        c = ws_c[f"{col}4"]
+        c.value = hdr_text
+        apply(c, h_style_c)
+        c.border = tb()
+        ws_c.column_dimensions[col].width = w
+    ws_c.row_dimensions[4].height = 28
 
-    dv=DataValidation(type="list",formula1='"In,Out"',allow_blank=True)
-    ws_c.add_data_validation(dv); dv.sqref="B4:B2000"
+    dv = DataValidation(type="list", formula1='"In,Out"', allow_blank=True)
+    ws_c.add_data_validation(dv)
+    dv.sqref = "B5:B3000"
 
-    ej_c=["← ej: 03/06/2026","← ej: Out","← ej: BERNER SA","← ej: 30-70793421-9",
-          "← ej: FC-546","","← ej: Urea Perlada","← ej: 22000","← ej: Big Bag",
-          "← ej: Arrecifes","← ej: TRANSRUTA","← ej: 30-70153026-4","← ej: García Juan",
-          "← ej: 28123456","← ej: AB123CD","← ej: EF456GH","← ej: Sin novedades",
-          "← ej: 22060","← ej: 00004-00001500"]
-    for i,v in enumerate(ej_c):
-        c=ws_c.cell(row=4,column=i+1); c.value=v
-        c.fill=PatternFill("solid",fgColor="FDFEFE")
-        c.font=Font(color=EXAMPLE_FG,italic=True,size=9)
-        c.alignment=Alignment(horizontal="left",vertical="center"); c.border=tb()
-    ws_c.row_dimensions[4].height=18
-    for r in range(5,2000):
-        ws_c[f"A{r}"].number_format='DD/MM/YYYY'
-        ws_c[f"H{r}"].number_format='#,##0'
-        ws_c[f"R{r}"].number_format='#,##0'
-    ws_c.auto_filter.ref="A3:S3"; ws_c.freeze_panes="A4"
-
-    # ── Hoja instrucciones (resumida) ─────────────────────────────────────────
-    ws_r = wb.create_sheet("📋 INSTRUCCIONES")
-    ws_r.sheet_properties.tabColor="F39C12"
-    ws_r.column_dimensions["A"].width=4
-    ws_r.column_dimensions["B"].width=26
-    ws_r.column_dimensions["C"].width=50
-    ws_r.merge_cells("A1:C1"); t=ws_r["A1"]
-    t.value="PLANTILLA OPERATIVA DIARIA — MTR · Cupos y Despachos"
-    t.fill=PatternFill("solid",fgColor="2C3E50"); t.font=Font(bold=True,color="FFFFFF",size=13)
-    t.alignment=Alignment(horizontal="center",vertical="center"); ws_r.row_dimensions[1].height=28
-
-    instrucciones=[
-        ("","🟢 HOJA NUTRIEN",""),
-        ("","¿Qué pegar?","Solo los cupos del día siguiente que te mandó Nutrien"),
-        ("","¿De dónde?","Hoja BASE del Excel de Nutrien → copiás los cupos del día"),
-        ("","Columnas clave","Fecha de carga · ST/SD/OD · Destinatario · Producto · Cantidad (MT)"),
-        ("","",""),
-        ("","🔵 HOJA CNA (Despachos)",""),
-        ("","¿Qué pegar?","Los despachos del día desde el drive de CNA"),
-        ("","¿De dónde?","Hoja Despachos del archivo del día"),
-        ("","Columnas clave","Fecha · Cliente · Producto · KG.OC · Transporte · Patentes"),
-        ("","",""),
-        ("","⚠️ REGLAS",""),
-        ("","No borrar fila gris","Es el ejemplo de referencia · no la toques"),
-        ("","Solo el día operativo","No mezcles varios días en la misma hoja"),
-        ("","Guardá una copia","Renombrá: Plantilla_YYYY-MM-DD.xlsx antes de importar"),
-        ("","",""),
-        ("","🔄 FLUJO DIARIO",""),
-        ("","Paso 1","Nutrien → copiás cupos del día → pegás en hoja NUTRIEN"),
-        ("","Paso 2","CNA → copiás despachos → pegás en hoja Despachos"),
-        ("","Paso 3","Sistema → Despachos → Importar → subís este archivo → filtrás por fecha"),
+    ej_c_vals = [
+        "05/06/2026", "Out", "BERNER SA", "30-70793421-9", "546", None,
+        "Urea Perlada Automotor", 22000, "Big Bag", "Arrecifes", "Propio",
+        None, "Rivera Marcos Daniel", "32581817", "KBF 679", "JAP 634",
+        "Bolsones duros", 22060, "00004-00000017"
     ]
-    for i,(_, label, desc) in enumerate(instrucciones):
-        row=i+2; ws_r.row_dimensions[row].height=18
-        b=ws_r.cell(row=row,column=2,value=label)
-        c=ws_r.cell(row=row,column=3,value=desc)
-        if any(label.startswith(x) for x in ("🟢","🔵","⚠️","🔄")):
-            for el in (b,c):
-                el.fill=PatternFill("solid",fgColor="2C3E50"); el.font=Font(bold=True,color="FFFFFF",size=10)
+    for ci, v in enumerate(ej_c_vals):
+        ej_cell(ws_c, 5, ci + 1, v)
+    ws_c.row_dimensions[5].height = 15
+
+    for r in range(6, 3000):
+        ws_c[f"A{r}"].number_format = 'DD/MM/YYYY'
+        ws_c[f"H{r}"].number_format = '#,##0'
+        ws_c[f"R{r}"].number_format = '#,##0'
+
+    ws_c.auto_filter.ref = "A4:S4"
+    ws_c.freeze_panes = "A5"
+
+    # ── Hoja USO ──────────────────────────────────────────────────────────────
+    ws_r = wb.create_sheet("📋 USO")
+    ws_r.sheet_properties.tabColor = "F39C12"
+    ws_r.column_dimensions["A"].width = 4
+    ws_r.column_dimensions["B"].width = 30
+    ws_r.column_dimensions["C"].width = 58
+    ws_r.merge_cells("A1:C1"); t = ws_r["A1"]
+    t.value = "GUÍA DE USO — La inteligencia está en el importador, no en vos"
+    t.fill = PatternFill("solid", fgColor="2C3E50")
+    t.font = Font(bold=True, color="FFFFFF", size=12)
+    t.alignment = Alignment(horizontal="center", vertical="center")
+    ws_r.row_dimensions[1].height = 26
+
+    instrucciones = [
+        ("★ REGLA DE ORO", "Pegá crudo. No filtrés, no limpies, no decidás qué fila vale. Eso lo hace el sistema."),
+        ("", ""),
+        ("🟢 NUTRIEN — PASOS", ""),
+        ("Paso 1", "Abrís el Excel de Nutrien → hoja ganel_embolsado_ramallo"),
+        ("Paso 2", "Seleccionás DESDE LA FILA 11 HASTA EL FINAL — todo crudo"),
+        ("      ↳ incluye", "D1 · D2 · SM · EMBOLSADO · packaging · cualquier sub-fila"),
+        ("      ↳ no excluyas", "Nada. El sistema descarta lo que no es un camión válido"),
+        ("Paso 3", "Ctrl+C → pegás en la fila 5 de la hoja NUTRIEN de esta plantilla"),
+        ("Listo.", "No escribas presentación, no borres filas, no reinterpretés nada"),
+        ("", ""),
+        ("🔵 CNA — PASOS", ""),
+        ("Paso 1", "Abrís el archivo de CNA del drive → hoja Despachos"),
+        ("Paso 2", "Seleccionás las filas del período operativo (ej: solo hoy)"),
+        ("Paso 3", "Ctrl+C → pegás en la fila 5 de la hoja Despachos de esta plantilla"),
+        ("Listo.", "No modifiques nada, no traduzcas columnas, pegá tal cual"),
+        ("", ""),
+        ("⚙️ QUÉ RESUELVE EL IMPORTADOR SOLO", ""),
+        ("D1 / D2", "Ingredientes de mezcla → los ignora automáticamente"),
+        ("SM puro", "Fila total del camión mezcla → la conserva"),
+        ("SM con número", "Conserva solo la fila con MEZCLADO en el producto"),
+        ("Packaging sin qty", "Sub-fila de embolsado/bolsones → la ignora e infiere presentación"),
+        ("Presentación", "Infiere Bolsas 50kg / Bolsones 1000kg / Granel / Granel Mezcla del contexto"),
+        ("kg vs MT", "Si el promedio de cantidades > 200 → divide por 1000 automáticamente"),
+        ("Duplicados", "No importa dos veces el mismo registro (hash único por fila)"),
+        ("", ""),
+        ("⚠️ LO ÚNICO QUE HACÉS VOS", ""),
+        ("Filtro de fecha", "Al importar, elegís la fecha del día para no traer histórico"),
+        ("Guardar copia", "Renombrá antes de importar: Plantilla_YYYY-MM-DD.xlsx"),
+    ]
+    for i, (label, desc) in enumerate(instrucciones):
+        row = i + 2
+        ws_r.row_dimensions[row].height = 18
+        b = ws_r.cell(row=row, column=2, value=label)
+        c = ws_r.cell(row=row, column=3, value=desc)
+        is_regla = label.startswith("★")
+        is_section = any(label.startswith(x) for x in ("🟢", "🔵", "⚙️", "⚠️"))
+        if is_regla:
+            for el in (b, c):
+                el.fill = PatternFill("solid", fgColor="E74C3C")
+                el.font = Font(bold=True, color="FFFFFF", size=11)
+            ws_r.row_dimensions[row].height = 22
+        elif is_section:
+            for el in (b, c):
+                el.fill = PatternFill("solid", fgColor="2C3E50")
+                el.font = Font(bold=True, color="FFFFFF", size=10)
         elif label:
-            for el in (b,c):
-                el.fill=PatternFill("solid",fgColor=GRAY_INST if i%2==0 else "FDFEFE")
-                el.font=Font(color="2C3E50" if el==b else "34495E",bold=(el==b),size=10)
-        for el in (b,c): el.alignment=Alignment(vertical="center",wrap_text=(el==c))
-    ws_r.freeze_panes="B2"
+            bg = "F2F3F4" if i % 2 == 0 else "FDFEFE"
+            b.fill = PatternFill("solid", fgColor=bg); b.font = Font(bold=True, color="2C3E50", size=10)
+            c.fill = PatternFill("solid", fgColor=bg); c.font = Font(color="34495E", size=10)
+        for el in (b, c):
+            el.alignment = Alignment(vertical="center", wrap_text=(el == c))
+    ws_r.freeze_panes = "B2"
 
     buf = io.BytesIO()
     wb.save(buf)
