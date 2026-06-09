@@ -92,7 +92,7 @@
 
 <!-- ── Tabla ─────────────────────────────────────────────────────────────────── -->
 {% if registros %}
-<div class="text-xs text-gray-400 mb-2">{{ registros | length }} registro{% if registros | length != 1 %}s{% endif %}</div>
+<div class="text-xs text-gray-400 mb-2">{{ registros | length }} camión{% if registros | length != 1 %}es{% endif %}</div>
 
 <!-- Desktop table -->
 <div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -135,14 +135,21 @@
         <td class="px-3 py-2.5 max-w-[180px] truncate text-gray-800 font-medium text-xs">
           {{ r.cliente or r.destinatario or '—' }}
         </td>
-        <td class="px-3 py-2.5 text-gray-700 text-xs max-w-[140px] truncate">
-          {{ r.producto or '—' }}
+        <td class="px-3 py-2.5 text-gray-700 text-xs max-w-[200px]">
+          {% if r.multi %}
+            {% for p in r.productos %}
+            <div class="truncate leading-5">
+              <span class="text-gray-800">{{ p.producto or '—' }}</span>
+              <span class="text-gray-400 ml-1">{{ p.cantidad_mt | fmt_num(1) if p.cantidad_mt else '' }} t</span>
+              {% if p.presentacion %}<span class="text-indigo-400 text-[10px] ml-1">· {{ p.presentacion }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+            {{ r.productos[0].producto if r.productos else '—' }}
+          {% endif %}
         </td>
-        <td class="px-3 py-2.5 text-right text-gray-600 text-xs whitespace-nowrap">
-          {% if r.cantidad_mt %}{{ r.cantidad_mt | fmt_num(1) }} t
-          {% elif r.kg_oc %}{{ (r.kg_oc / 1000) | round(1) }} t
-          {% else %}—{% endif %}
-          {% if r.neto %}<br><span class="text-emerald-600">{{ (r.neto / 1000) | round(1) }}t neto</span>{% endif %}
+        <td class="px-3 py-2.5 text-right text-gray-600 text-xs whitespace-nowrap font-semibold">
+          {{ r.total_t }} t
         </td>
         <td class="px-3 py-2.5 text-gray-600 text-xs max-w-[120px] truncate">
           {{ r.transporte or '—' }}
@@ -177,7 +184,13 @@
     <div class="flex items-start justify-between gap-2 mb-2">
       <div class="flex-1 min-w-0">
         <p class="font-semibold text-sm text-gray-900 truncate">{{ r.cliente or r.destinatario or '—' }}</p>
-        <p class="text-xs text-gray-500 truncate">{{ r.producto or '—' }}</p>
+        {% if r.multi %}
+          {% for p in r.productos %}
+          <p class="text-xs text-gray-500 truncate">{{ p.producto }} — {{ p.cantidad_mt | fmt_num(1) if p.cantidad_mt else '' }} t</p>
+          {% endfor %}
+        {% else %}
+          <p class="text-xs text-gray-500 truncate">{{ r.productos[0].producto if r.productos else '—' }} — {{ r.total_t }} t</p>
+        {% endif %}
       </div>
       <div class="flex flex-col items-end gap-1 flex-shrink-0">
         {% set css = estado_css.get(r.status, 'bg-gray-100 text-gray-600') %}

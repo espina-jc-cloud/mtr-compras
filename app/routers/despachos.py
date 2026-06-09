@@ -609,19 +609,87 @@ def _parse_excel(
 # Helpers de KPIs
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _agrupar_camiones(registros: list) -> list:
+    """
+    Agrupa filas Nutrien por camion_grupo en un objeto camión con productos.
+    Filas CNA se pasan como camiones de un solo producto.
+    Devuelve lista de dicts listos para la vista.
+    """
+    from collections import defaultdict
+    grupos: dict = defaultdict(list)
+    orden_grupos: list = []
+
+    for r in registros:
+        if r.source_type == "nutrien" and r.camion_grupo is not None:
+            key = ("nutrien", r.camion_grupo)
+        else:
+            key = ("single", r.id)
+        if key not in grupos:
+            orden_grupos.append(key)
+        grupos[key].append(r)
+
+    camiones = []
+    for key in orden_grupos:
+        filas = grupos[key]
+        rep = filas[0]  # fila representativa para datos del camión
+        total_t = sum(float(f.cantidad_mt or 0) + float(f.kg_oc or 0) / 1000 for f in filas)
+        productos = [
+            {
+                "producto":     f.producto,
+                "cantidad_mt":  f.cantidad_mt,
+                "kg_oc":        f.kg_oc,
+                "presentacion": f.presentacion,
+                "bolsa_kg":     f.bolsa_kg,
+                "npk":          f.npk,
+            }
+            for f in filas
+        ]
+        camiones.append({
+            "id":            rep.id,
+            "ids":           [f.id for f in filas],
+            "source_type":   rep.source_type,
+            "scheduled_date": rep.scheduled_date,
+            "actual_date":   rep.actual_date,
+            "cliente":       rep.cliente or rep.destinatario,
+            "destinatario":  rep.destinatario,
+            "transporte":    rep.transporte,
+            "chofer":        rep.chofer,
+            "patente_chasis": rep.patente_chasis,
+            "patente_acoplado": rep.patente_acoplado,
+            "status":        rep.status,
+            "total_t":       round(total_t, 1),
+            "productos":     productos,
+            "multi":         len(filas) > 1,
+            "camion_grupo":  rep.camion_grupo,
+        })
+    return camiones
+
+
 def _kpis(registros: list) -> dict:
     from collections import Counter
-    counter = Counter(r.status for r in registros)
-    ton_prog = sum(
-        float(r.cantidad_mt or 0) + float(r.kg_oc or 0) / 1000
-        for r in registros
-    )
-    ton_real = sum(
-        float(r.neto or 0) / 1000
-        for r in registros if r.status == "cargado"
-    )
+    # contar camiones únicos (no filas)
+    grupos_vistos: set = set()
+    camiones_count = 0
+    for r in registros:
+        if r.source_type == "nutrien" and r.camion_grupo is not None:
+            if r.camion_grupo not in grupos_vistos:
+                grupos_vistos.add(r.camion_grupo)
+                camiones_count += 1
+        else:
+            camiones_count += 1
+
+    # para status usar el camión representativo (primer registro del grupo)
+    reps: dict = {}
+    for r in registros:
+        key = r.camion_grupo if (r.source_type == "nutrien" and r.camion_grupo is not None) else r.id
+        if key not in reps:
+            reps[key] = r
+    counter = Counter(r.status for r in reps.values())
+
+    ton_prog = sum(float(r.cantidad_mt or 0) + float(r.kg_oc or 0) / 1000 for r in registros)
+    ton_real = sum(float(r.neto or 0) / 1000 for r in registros if r.status == "cargado")
     return {
-        "total":         len(registros),
+        "total":         camiones_count,
         "programado":    counter.get("programado", 0),
         "arribo":        counter.get("arribo", 0),
         "cargado":       counter.get("cargado", 0),
@@ -693,14 +761,15 @@ async def list_despachos(
         CupoDespacho.id.desc()
     ).limit(500).all()
 
-    kpis = _kpis(registros)
+    kpis     = _kpis(registros)
+    camiones = _agrupar_camiones(registros)
 
     return templates.TemplateResponse(
         request,
         "despachos/list.html",
         {
             "current_user":  current_user,
-            "registros":     registros,
+            "registros":     camiones,
             "kpis":          kpis,
             "estados":       DESPACHO_ESTADOS,
             "estado_labels": DESPACHO_ESTADO_LABELS,
@@ -1161,27 +1230,41 @@ async def import_confirm(
     } if all_hashes else set()
 
     # ── Agrupación de camiones (solo Nutrien) ─────────────────────────────────
-    # Mismo destinatario + misma fecha + tonelaje acumulado ~28-40t = 1 camión
-    # Nutrien no da señal explícita de agrupación; se infiere por tonelaje.
-    _TRUCK_MIN = 28.0
-    _grupo = 0
-    _acum  = 0.0
-    _last_key = None
-    for r in rows:
-        if r.get("source_type") != "nutrien":
-            continue
+    # Nutrien no indica qué filas van en el mismo camión.
+    # Algoritmo: agrupar por destinatario+fecha, luego pack greedy por camión de ~35t.
+    # Si el total del grupo cabe en un camión (≤ 40t), van todos juntos.
+    _TRUCK_CAP = 40.0
+    _grupo_counter = 0
+
+    from itertools import groupby as _groupby
+    nutrien_rows = [(i, r) for i, r in enumerate(rows) if r.get("source_type") == "nutrien"]
+
+    # Agrupar por (destinatario, fecha) manteniendo el orden de aparición
+    seen_keys: dict = {}
+    for i, r in nutrien_rows:
         key = (r.get("destinatario") or "", str(r.get("scheduled_date") or ""))
-        if key != _last_key:
-            if _last_key is not None:
-                _grupo += 1
-            _acum = 0.0
-            _last_key = key
-        _acum += float(r.get("cantidad_mt") or 0)
-        r["camion_grupo"] = _grupo
-        if _acum >= _TRUCK_MIN:
-            _grupo += 1
-            _acum = 0.0
-            _last_key = None  # forzar reset en próxima fila
+        seen_keys.setdefault(key, []).append(i)
+
+    for key, indices in seen_keys.items():
+        group_rows = [rows[i] for i in indices]
+        total = sum(float(r.get("cantidad_mt") or 0) for r in group_rows)
+
+        if total <= _TRUCK_CAP:
+            # Todo en un solo camión
+            for r in group_rows:
+                r["camion_grupo"] = _grupo_counter
+            _grupo_counter += 1
+        else:
+            # Pack greedy: llenar camiones de hasta _TRUCK_CAP t
+            acum = 0.0
+            for r in group_rows:
+                cant = float(r.get("cantidad_mt") or 0)
+                if acum > 0 and acum + cant > _TRUCK_CAP:
+                    _grupo_counter += 1
+                    acum = 0.0
+                r["camion_grupo"] = _grupo_counter
+                acum += cant
+            _grupo_counter += 1
 
     inserted = 0
     skipped  = 0
