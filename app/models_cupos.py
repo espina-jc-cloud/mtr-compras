@@ -107,6 +107,7 @@ class CupoDespacho(Base):
     bolsa_kg       = Column(Integer, nullable=True)   # 50 | 1000 | None (si no aplica)
     npk            = Column(String(100), nullable=True)  # fórmula N-P-K ej "24N-0P-24K"
     componentes_mezcla = Column(Text, nullable=True)     # JSON: D1/D2 ingredientes
+    camion_grupo   = Column(Integer, nullable=True, index=True)  # agrupa filas del mismo camión
 
     # ── Origen / Modo ─────────────────────────────────────────────────────────
     origen         = Column(String(200))

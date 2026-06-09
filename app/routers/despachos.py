@@ -1160,6 +1160,29 @@ async def import_confirm(
         ).all()
     } if all_hashes else set()
 
+    # ── Agrupación de camiones (solo Nutrien) ─────────────────────────────────
+    # Mismo destinatario + misma fecha + tonelaje acumulado ~28-40t = 1 camión
+    # Nutrien no da señal explícita de agrupación; se infiere por tonelaje.
+    _TRUCK_MIN = 28.0
+    _grupo = 0
+    _acum  = 0.0
+    _last_key = None
+    for r in rows:
+        if r.get("source_type") != "nutrien":
+            continue
+        key = (r.get("destinatario") or "", str(r.get("scheduled_date") or ""))
+        if key != _last_key:
+            if _last_key is not None:
+                _grupo += 1
+            _acum = 0.0
+            _last_key = key
+        _acum += float(r.get("cantidad_mt") or 0)
+        r["camion_grupo"] = _grupo
+        if _acum >= _TRUCK_MIN:
+            _grupo += 1
+            _acum = 0.0
+            _last_key = None  # forzar reset en próxima fila
+
     inserted = 0
     skipped  = 0
 
@@ -1203,6 +1226,7 @@ async def import_confirm(
             bolsa_kg         = r.get("bolsa_kg"),
             npk              = r.get("npk"),
             componentes_mezcla = r.get("componentes_mezcla"),
+            camion_grupo     = r.get("camion_grupo"),
             origen           = r.get("origen"),
             in_out           = r.get("in_out"),
             modo_transporte  = r.get("modo_transporte"),
