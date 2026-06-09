@@ -43,10 +43,12 @@ def _cloudinary_thumb(url: str, width: int = 400) -> str:
         return url
     return url.replace("/upload/", f"/upload/w_{width},c_limit/", 1)
 
+import json as _json
 _env.filters["fmt_ar"]        = _fmt_ar
 _env.filters["fmt_num"]       = _fmt_num
 _env.filters["fmt_date"]      = _fmt_date
 _env.filters["cl_thumb"]      = _cloudinary_thumb
+_env.filters["fromjson"]      = lambda s: _json.loads(s) if s else []
 
 # ── Globals para el módulo Live (disponibles en todos los templates sin pasarlos) ─
 from app.live_utils import fmt_kg as _fmt_kg, delta_badge as _delta_badge, format_minutes as _format_minutes

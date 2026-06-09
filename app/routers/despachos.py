@@ -272,6 +272,7 @@ def _parse_nutrien(
         c_bolsa    = col("BOLSA",)
         c_npk      = col("N-P-K",)
         c_grado    = col("Grado",)
+        c_pct      = col("%",)
 
         # Pre-leer todas las filas de datos para:
         # a) consultar fila siguiente (packaging lookahead)
@@ -309,6 +310,7 @@ def _parse_nutrien(
             bolsa  = _normalize_str(ws.cell(r, c_bolsa).value if c_bolsa else None)
             npk    = _normalize_str(ws.cell(r, c_npk).value if c_npk else None)
             grado  = _normalize_str(ws.cell(r, c_grado).value if c_grado else None)
+            pct    = _normalize_num(ws.cell(r, c_pct).value if c_pct else None)
 
             # Normalizar "0" string (algunas hojas tienen ceros como placeholder)
             if prod in ("0", "0.0"):
@@ -330,6 +332,7 @@ def _parse_nutrien(
                 d1d2_buffer.setdefault(st_upper, []).append({
                     "producto": prod,
                     "cant_mt":  round(cant, 3) if cant else None,
+                    "pct":      round(float(pct), 1) if pct else None,
                     "npk":      npk,
                 })
                 continue
@@ -453,7 +456,7 @@ def _parse_cna(
     # Detectar fila de headers: fila 1 (CNA original) o fila 4 (Plantilla MTR)
     # La plantilla MTR tiene filas 1-3 como título/instrucciones
     def _find_header_row():
-        for hrow in (1, 4):
+        for hrow in range(1, 8):
             for c in range(1, ws.max_column + 1):
                 val = str(ws.cell(hrow, c).value or "").strip().upper()
                 if val in ("FECHA", "CLIENTE", "PRODUCTO", "KG. OC"):
