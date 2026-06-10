@@ -21,15 +21,77 @@
         action="{% if tarifa %}/tarifario/{{ tarifa.id }}/edit{% else %}/tarifario/new{% endif %}"
         class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
 
-    <!-- Tipo de tarifa -->
+    <!-- Tipo de línea -->
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo de línea</label>
+        <select name="line_type" id="line-type-select" onchange="toggleLineType()"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          {% for val, label in line_types %}
+          <option value="{{ val }}" {% if tarifa and tarifa.line_type == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Nivel de precio</label>
+        <select name="price_tier" id="tier-select" onchange="toggleVisibility()"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          {% for val, label in price_tiers %}
+          {% if val != 'piso' or can_view_internal %}
+          <option value="{{ val }}" {% if tarifa and tarifa.price_tier == val %}selected{% endif %}>{{ label }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Tipo de tarifa (a quién aplica) -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo de tarifa</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Aplica a</label>
       <select name="scope" id="scope-select" onchange="toggleCliente()"
               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
         {% for val, label in scopes %}
         <option value="{{ val }}" {% if tarifa and tarifa.scope == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+    </div>
+
+    <!-- Visibilidad (solo admin/superadmin pueden marcar interna) -->
+    {% if can_view_internal %}
+    <div id="visibility-wrap">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Visibilidad</label>
+      <select name="visibility" id="visibility-select"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        {% for val, label in visibilities %}
+        <option value="{{ val }}" {% if tarifa and tarifa.visibility == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-gray-400 mt-1">Precio piso y benchmarks quedan internos automáticamente. Las internas no las ven los demás roles.</p>
+    </div>
+    {% endif %}
+
+    <!-- Tarifa padre (solo adicionales) -->
+    <div id="parent-wrap" style="display:none">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tarifa padre <span class="text-red-400">*</span></label>
+      <select name="parent_id" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        <option value="">Elegir tarifa padre…</option>
+        {% for p in padres %}
+        {% if not tarifa or p.id != tarifa.id %}
+        <option value="{{ p.id }}" {% if tarifa and tarifa.parent_id == p.id %}selected{% endif %}>
+          #{{ p.id }} — {{ p.service.nombre if p.service else '?' }}{% if p.equipment %} · {{ p.equipment.name }}{% endif %} ({{ tier_labels.get(p.price_tier, p.price_tier) }})
+        </option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <p class="text-xs text-gray-400 mt-1">El adicional (operador, combustible…) cuelga de la tarifa del equipo o servicio.</p>
+    </div>
+
+    <!-- Plaza (solo benchmark) -->
+    <div id="plaza-wrap" style="display:none">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Plaza relevada</label>
+      <input type="text" name="plaza" value="{{ tarifa.plaza or '' if tarifa else '' }}"
+             placeholder="ej: Rosario, San Nicolás"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
     </div>
 
     <!-- Servicio -->
@@ -84,7 +146,7 @@
     </div>
 
     <!-- Equipo (opcional) -->
-    <div>
+    <div id="equipo-wrap">
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Equipo (solo si es alquiler de un equipo concreto)</label>
       <select name="equipment_id" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
         <option value="">— no aplica —</option>
@@ -92,6 +154,35 @@
         <option value="{{ e.id }}" {% if tarifa and tarifa.equipment_id == e.id %}selected{% endif %}>{{ e.name }}</option>
         {% endfor %}
       </select>
+    </div>
+
+    <!-- Flags equipo: operador / combustible (solo equipo y adicional) -->
+    <div id="flags-wrap" class="grid grid-cols-2 gap-3" style="display:none">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">¿Incluye operador?</label>
+        <select name="incluye_operador" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          <option value="" {% if not tarifa or tarifa.incluye_operador is none %}selected{% endif %}>No aplica</option>
+          <option value="si" {% if tarifa and tarifa.incluye_operador == True %}selected{% endif %}>Sí, incluye</option>
+          <option value="no" {% if tarifa and tarifa.incluye_operador == False %}selected{% endif %}>No incluye</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">¿Incluye combustible?</label>
+        <select name="incluye_combustible" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          <option value="" {% if not tarifa or tarifa.incluye_combustible is none %}selected{% endif %}>No aplica</option>
+          <option value="si" {% if tarifa and tarifa.incluye_combustible == True %}selected{% endif %}>Sí, incluye</option>
+          <option value="no" {% if tarifa and tarifa.incluye_combustible == False %}selected{% endif %}>No incluye</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Recargo % -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Recargo % (opcional)</label>
+      <input type="text" name="recargo_pct" inputmode="decimal"
+             value="{{ tarifa.recargo_pct if tarifa and tarifa.recargo_pct is not none else '' }}"
+             placeholder="ej: 15 (combustible paquete completo), 10 (pass-through)"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
     </div>
 
     <!-- Vigencia desde -->
@@ -133,6 +224,31 @@ function toggleCliente() {
   var wrap = document.getElementById('cliente-wrap');
   wrap.style.display = (scope === 'base') ? 'none' : 'block';
 }
+function toggleLineType() {
+  var lt = document.getElementById('line-type-select').value;
+  // Adicional → requiere tarifa padre
+  document.getElementById('parent-wrap').style.display = (lt === 'adicional') ? 'block' : 'none';
+  // Benchmark → pide plaza
+  document.getElementById('plaza-wrap').style.display = (lt === 'benchmark') ? 'block' : 'none';
+  // Equipo concreto solo aplica a línea de equipo
+  document.getElementById('equipo-wrap').style.display = (lt === 'equipo') ? 'block' : 'none';
+  // Flags operador/combustible: equipo y adicional
+  document.getElementById('flags-wrap').style.display = (lt === 'equipo' || lt === 'adicional') ? 'grid' : 'none';
+  toggleVisibility();
+}
+function toggleVisibility() {
+  // Piso y benchmark son SIEMPRE internas: forzar y bloquear el selector
+  var vis = document.getElementById('visibility-select');
+  if (!vis) return;
+  var tier = document.getElementById('tier-select').value;
+  var lt = document.getElementById('line-type-select').value;
+  if (tier === 'piso' || lt === 'benchmark') {
+    vis.value = 'interna';
+    vis.disabled = true;
+  } else {
+    vis.disabled = false;
+  }
+}
 // Auto-completar unidad según servicio elegido (solo en alta)
 document.querySelector('[name=service_id]').addEventListener('change', function(e){
   {% if not tarifa %}
@@ -141,7 +257,13 @@ document.querySelector('[name=service_id]').addEventListener('change', function(
   if (u) document.getElementById('unidad-select').value = u;
   {% endif %}
 });
+// El select de visibility disabled no viaja en el POST: rehabilitarlo al enviar
+document.querySelector('form').addEventListener('submit', function(){
+  var vis = document.getElementById('visibility-select');
+  if (vis) vis.disabled = false;
+});
 toggleCliente();
+toggleLineType();
 </script>
 
 {% endblock %}

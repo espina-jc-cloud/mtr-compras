@@ -34,25 +34,43 @@ from app.models_tariffs import (
     TARIFF_MONEDAS, TARIFF_MONEDA_LABELS,
     TARIFF_UNIDADES, TARIFF_UNIDAD_LABELS,
     TARIFF_CATEGORIAS, SCOPE_CSS,
+    TARIFF_LINE_TYPES, TARIFF_LINE_TYPE_LABELS,
+    TARIFF_PRICE_TIERS, TARIFF_PRICE_TIER_LABELS,
+    TARIFF_VISIBILITIES, TARIFF_VISIBILITY_LABELS,
+    TARIFF_INTERNAL_ROLES, LINE_TYPE_CSS, TIER_CSS,
 )
 from app.templates import templates
 
 router = APIRouter(prefix="/tarifario", tags=["tarifario"])
 
 
+def _can_view_internal(user) -> bool:
+    """Solo admin/superadmin pueden ver tarifas internas (piso, benchmarks)."""
+    return user.role in TARIFF_INTERNAL_ROLES
+
+
 def _ctx(request, current_user, **extra):
     """Contexto base con catálogos siempre disponibles en los templates."""
     base = {
-        "request":        request,
-        "current_user":   current_user,
-        "scopes":         TARIFF_SCOPES,
-        "scope_labels":   TARIFF_SCOPE_LABELS,
-        "monedas":        TARIFF_MONEDAS,
-        "moneda_labels":  TARIFF_MONEDA_LABELS,
-        "unidades":       TARIFF_UNIDADES,
-        "unidad_labels":  TARIFF_UNIDAD_LABELS,
-        "categorias":     TARIFF_CATEGORIAS,
-        "scope_css":      SCOPE_CSS,
+        "request":          request,
+        "current_user":     current_user,
+        "scopes":           TARIFF_SCOPES,
+        "scope_labels":     TARIFF_SCOPE_LABELS,
+        "monedas":          TARIFF_MONEDAS,
+        "moneda_labels":    TARIFF_MONEDA_LABELS,
+        "unidades":         TARIFF_UNIDADES,
+        "unidad_labels":    TARIFF_UNIDAD_LABELS,
+        "categorias":       TARIFF_CATEGORIAS,
+        "scope_css":        SCOPE_CSS,
+        "line_types":       TARIFF_LINE_TYPES,
+        "line_type_labels": TARIFF_LINE_TYPE_LABELS,
+        "price_tiers":      TARIFF_PRICE_TIERS,
+        "tier_labels":      TARIFF_PRICE_TIER_LABELS,
+        "visibilities":     TARIFF_VISIBILITIES,
+        "visibility_labels": TARIFF_VISIBILITY_LABELS,
+        "line_type_css":    LINE_TYPE_CSS,
+        "tier_css":         TIER_CSS,
+        "can_view_internal": _can_view_internal(current_user),
     }
     base.update(extra)
     return base
@@ -91,13 +109,25 @@ async def list_tariffs(
     servicio: str = "",
     scope: str = "",
     moneda: str = "",
+    line_type: str = "",
+    tier: str = "",
     historico: str = "",
+    internas: str = "",
 ):
     q = db.query(Tariff).options(
         joinedload(Tariff.service),
         joinedload(Tariff.client),
         joinedload(Tariff.equipment),
     )
+
+    # ── Visibilidad por rol ───────────────────────────────────────────────────
+    # Las internas (piso, benchmarks) SOLO existen para admin/superadmin, y aun
+    # para ellos quedan ocultas por defecto: aparecen con el toggle "internas".
+    if not _can_view_internal(current_user):
+        q = q.filter(Tariff.visibility == "comercial")
+        internas = ""  # un rol sin permiso jamás puede activar el toggle
+    elif not internas:
+        q = q.filter(Tariff.visibility == "comercial")
 
     if not historico:
         q = q.filter(Tariff.is_active == True)  # noqa: E712
@@ -109,11 +139,16 @@ async def list_tariffs(
         q = q.filter(Tariff.scope == scope)
     if moneda:
         q = q.filter(Tariff.moneda == moneda)
+    if line_type:
+        q = q.filter(Tariff.line_type == line_type)
+    if tier:
+        q = q.filter(Tariff.price_tier == tier)
 
     tarifas = q.order_by(
         Tariff.is_active.desc(),
-        Tariff.scope.asc(),
+        Tariff.line_type.asc(),
         Tariff.service_id.asc(),
+        Tariff.price_tier.asc(),
         Tariff.valid_from.desc(),
     ).all()
 
@@ -121,10 +156,11 @@ async def list_tariffs(
     servicios = db.query(TariffService).filter(TariffService.activo == True).order_by(TariffService.orden).all()  # noqa: E712
 
     kpis = {
-        "total":   len(tarifas),
-        "base":    sum(1 for t in tarifas if t.scope == "base"),
-        "cliente": sum(1 for t in tarifas if t.scope == "cliente"),
-        "spot":    sum(1 for t in tarifas if t.scope == "spot"),
+        "total":     len(tarifas),
+        "servicios": sum(1 for t in tarifas if t.line_type == "servicio"),
+        "equipos":   sum(1 for t in tarifas if t.line_type == "equipo"),
+        "personal":  sum(1 for t in tarifas if t.line_type == "personal"),
+        "spot":      sum(1 for t in tarifas if t.scope == "spot"),
     }
 
     return templates.TemplateResponse(
@@ -132,13 +168,24 @@ async def list_tariffs(
         _ctx(request, current_user,
              tarifas=tarifas, clientes=clientes, servicios=servicios, kpis=kpis,
              f_cliente=cliente, f_servicio=servicio, f_scope=scope,
-             f_moneda=moneda, f_historico=historico),
+             f_moneda=moneda, f_line_type=line_type, f_tier=tier,
+             f_historico=historico, f_internas=internas),
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Alta
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _padres_candidatos(db):
+    """Tarifas que pueden ser padre de un adicional (equipos y servicios vigentes)."""
+    return db.query(Tariff).options(
+        joinedload(Tariff.service), joinedload(Tariff.equipment),
+    ).filter(
+        Tariff.is_active == True,            # noqa: E712
+        Tariff.line_type.in_(("equipo", "servicio")),
+    ).order_by(Tariff.line_type, Tariff.service_id).all()
+
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_tariff_form(
@@ -153,8 +200,46 @@ async def new_tariff_form(
         request, "tarifario/form.html",
         _ctx(request, current_user, tarifa=None,
              clientes=clientes, servicios=servicios, equipos=equipos,
+             padres=_padres_candidatos(db),
              today=date.today().isoformat()),
     )
+
+
+def _tri_bool(v: str):
+    """'si' → True, 'no' → False, '' → None (no aplica)."""
+    v = (v or "").strip().lower()
+    if v == "si":
+        return True
+    if v == "no":
+        return False
+    return None
+
+
+def _extra_fields(line_type, price_tier, visibility, parent_id,
+                  incluye_operador, incluye_combustible, recargo_pct, plaza,
+                  current_user) -> dict:
+    """Normaliza y valida los campos extendidos del form."""
+    # El precio piso y los benchmarks son siempre internos.
+    if price_tier == "piso" or line_type == "benchmark":
+        visibility = "interna"
+    # Solo admin/superadmin pueden crear/editar tarifas internas.
+    if visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos para tarifas internas")
+    pid = int(parent_id) if (parent_id or "").strip() else None
+    if line_type == "adicional" and pid is None:
+        raise HTTPException(status_code=400, detail="Un adicional requiere una tarifa padre")
+    if line_type != "adicional":
+        pid = None
+    return {
+        "line_type":           line_type,
+        "price_tier":          price_tier,
+        "visibility":          visibility,
+        "parent_id":           pid,
+        "incluye_operador":    _tri_bool(incluye_operador),
+        "incluye_combustible": _tri_bool(incluye_combustible),
+        "recargo_pct":         _parse_precio(recargo_pct),
+        "plaza":               (plaza or "").strip() or None,
+    }
 
 
 @router.post("/new")
@@ -172,6 +257,14 @@ async def create_tariff(
     unidad: str = Form("ton"),
     valid_from: str = Form(""),
     observaciones: str = Form(""),
+    line_type: str = Form("servicio"),
+    price_tier: str = Form("unica"),
+    visibility: str = Form("comercial"),
+    parent_id: str = Form(""),
+    incluye_operador: str = Form(""),
+    incluye_combustible: str = Form(""),
+    recargo_pct: str = Form(""),
+    plaza: str = Form(""),
 ):
     precio_val = _parse_precio(precio)
     if precio_val is None:
@@ -182,6 +275,10 @@ async def create_tariff(
         cid = None
     elif scope in ("cliente", "spot") and cid is None:
         raise HTTPException(status_code=400, detail="Este tipo de tarifa requiere un cliente")
+
+    extra = _extra_fields(line_type, price_tier, visibility, parent_id,
+                          incluye_operador, incluye_combustible, recargo_pct, plaza,
+                          current_user)
 
     t = Tariff(
         scope=scope,
@@ -196,6 +293,7 @@ async def create_tariff(
         is_active=True,
         observaciones=observaciones.strip() or None,
         created_by=current_user.name,
+        **extra,
     )
     db.add(t)
     db.commit()
@@ -221,6 +319,10 @@ async def tariff_detail(
     if not t:
         raise HTTPException(status_code=404, detail="Tarifa no encontrada")
 
+    # Tarifas internas: solo admin/superadmin (mismo criterio que el listado)
+    if t.visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver esta tarifa")
+
     # Reconstruir la cadena de versiones (hacia atrás por replaces_id)
     historial = []
     cur = t
@@ -232,10 +334,18 @@ async def tariff_detail(
     # versiones que reemplazaron a esta (hacia adelante)
     posteriores = db.query(Tariff).filter(Tariff.replaces_id == t.id).all()
 
+    # Adicionales que cuelgan de esta tarifa (operador, combustible…)
+    hijos = db.query(Tariff).options(joinedload(Tariff.service)).filter(
+        Tariff.parent_id == t.id,
+        Tariff.is_active == True,  # noqa: E712
+    ).all()
+    if not _can_view_internal(current_user):
+        hijos = [h for h in hijos if h.visibility == "comercial"]
+
     return templates.TemplateResponse(
         request, "tarifario/detail.html",
         _ctx(request, current_user, tarifa=t,
-             historial=historial, posteriores=posteriores),
+             historial=historial, posteriores=posteriores, hijos=hijos),
     )
 
 
@@ -253,6 +363,8 @@ async def edit_tariff_form(
     t = db.query(Tariff).filter(Tariff.id == tid).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    if t.visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar esta tarifa")
     clientes  = db.query(Client).filter(Client.activo == True).order_by(Client.nombre).all()  # noqa: E712
     servicios = db.query(TariffService).filter(TariffService.activo == True).order_by(TariffService.orden).all()  # noqa: E712
     equipos   = db.query(models.Equipment).order_by(models.Equipment.name).all()
@@ -260,6 +372,7 @@ async def edit_tariff_form(
         request, "tarifario/form.html",
         _ctx(request, current_user, tarifa=t,
              clientes=clientes, servicios=servicios, equipos=equipos,
+             padres=_padres_candidatos(db),
              today=date.today().isoformat()),
     )
 
@@ -280,10 +393,20 @@ async def update_tariff(
     unidad: str = Form("ton"),
     valid_from: str = Form(""),
     observaciones: str = Form(""),
+    line_type: str = Form("servicio"),
+    price_tier: str = Form("unica"),
+    visibility: str = Form("comercial"),
+    parent_id: str = Form(""),
+    incluye_operador: str = Form(""),
+    incluye_combustible: str = Form(""),
+    recargo_pct: str = Form(""),
+    plaza: str = Form(""),
 ):
     t = db.query(Tariff).filter(Tariff.id == tid).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    if t.visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar esta tarifa")
 
     precio_val = _parse_precio(precio)
     if precio_val is None:
@@ -297,9 +420,13 @@ async def update_tariff(
 
     eqid = int(equipment_id) if equipment_id.strip() else None
     vfrom = _parse_date(valid_from) or t.valid_from
+    extra = _extra_fields(line_type, price_tier, visibility, parent_id,
+                          incluye_operador, incluye_combustible, recargo_pct, plaza,
+                          current_user)
 
     # ¿Cambió algo que afecte el PRECIO COMERCIAL? → versionar.
     # Cambios de texto (descripción / observaciones) → edición en el lugar.
+    _rp_old = float(t.recargo_pct) if t.recargo_pct is not None else None
     precio_cambio = (
         float(t.precio) != precio_val
         or t.moneda != moneda
@@ -308,6 +435,11 @@ async def update_tariff(
         or t.service_id != int(service_id)
         or t.client_id != cid
         or t.equipment_id != eqid
+        or t.price_tier != extra["price_tier"]
+        or t.line_type != extra["line_type"]
+        or t.incluye_operador != extra["incluye_operador"]
+        or t.incluye_combustible != extra["incluye_combustible"]
+        or _rp_old != extra["recargo_pct"]
     )
 
     if precio_cambio and t.is_active:
@@ -328,6 +460,7 @@ async def update_tariff(
             observaciones=observaciones.strip() or None,
             replaces_id=t.id,
             created_by=current_user.name,
+            **extra,
         )
         db.add(nueva)
         db.commit()
@@ -344,6 +477,8 @@ async def update_tariff(
         t.unidad = unidad
         t.valid_from = vfrom
         t.observaciones = observaciones.strip() or None
+        for k, v in extra.items():
+            setattr(t, k, v)
         db.commit()
         return RedirectResponse(url=f"/tarifario/{t.id}", status_code=303)
 

@@ -7,9 +7,18 @@
     <div class="flex items-center gap-2">
       <a href="/tarifario" class="text-gray-400 hover:text-gray-600">←</a>
       <h1 class="text-xl font-semibold text-gray-900">Tarifa #{{ tarifa.id }}</h1>
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ line_type_css.get(tarifa.line_type, 'bg-gray-100 text-gray-600') }}">
+        {{ line_type_labels.get(tarifa.line_type, tarifa.line_type) }}
+      </span>
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ tier_css.get(tarifa.price_tier, 'bg-gray-100 text-gray-600') }}">
+        {{ tier_labels.get(tarifa.price_tier, tarifa.price_tier) }}
+      </span>
       <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ scope_css.get(tarifa.scope, 'bg-gray-100 text-gray-600') }}">
         {{ scope_labels.get(tarifa.scope, tarifa.scope) }}
       </span>
+      {% if tarifa.visibility == 'interna' %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700">🔒 Interna</span>
+      {% endif %}
       {% if tarifa.is_active %}
       <span class="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Vigente</span>
       {% else %}
@@ -48,6 +57,28 @@
       <dt class="text-gray-500">Equipo</dt>
       <dd class="text-gray-700">🔧 {{ tarifa.equipment.name }}</dd>
       {% endif %}
+      {% if tarifa.incluye_operador is not none %}
+      <dt class="text-gray-500">Operador</dt>
+      <dd class="text-gray-700">{{ "Incluido" if tarifa.incluye_operador else "No incluido" }}</dd>
+      {% endif %}
+      {% if tarifa.incluye_combustible is not none %}
+      <dt class="text-gray-500">Combustible</dt>
+      <dd class="text-gray-700">{{ "Incluido" if tarifa.incluye_combustible else "No incluido" }}</dd>
+      {% endif %}
+      {% if tarifa.recargo_pct %}
+      <dt class="text-gray-500">Recargo</dt>
+      <dd class="text-amber-700 font-semibold">+{{ tarifa.recargo_pct | fmt_num(0) }}%</dd>
+      {% endif %}
+      {% if tarifa.plaza %}
+      <dt class="text-gray-500">Plaza relevada</dt>
+      <dd class="text-gray-700">📍 {{ tarifa.plaza }}</dd>
+      {% endif %}
+      {% if tarifa.parent %}
+      <dt class="text-gray-500">Adicional de</dt>
+      <dd><a href="/tarifario/{{ tarifa.parent.id }}" class="text-indigo-600 hover:text-indigo-800">
+        #{{ tarifa.parent.id }} — {{ tarifa.parent.service.nombre if tarifa.parent.service else '?' }}
+      </a></dd>
+      {% endif %}
       <dt class="text-gray-500">Cargada por</dt>
       <dd class="text-gray-700">{{ tarifa.created_by or "—" }}</dd>
     </dl>
@@ -58,6 +89,26 @@
     </div>
     {% endif %}
   </div>
+
+  <!-- Adicionales que cuelgan de esta tarifa -->
+  {% if hijos %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-4">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Adicionales de esta tarifa</h2>
+    <div class="space-y-2">
+      {% for h in hijos %}
+      <div class="flex items-center justify-between text-sm py-2 px-3 rounded-lg bg-cyan-50/60">
+        <div>
+          <span class="text-gray-800">{{ h.descripcion or (h.service.nombre if h.service else 'Adicional') }}</span>
+          <span class="font-semibold text-gray-800 ml-2">{{ h.moneda }} {{ h.precio | fmt_num(2) }}</span>
+          <span class="text-gray-400 text-xs">/ {{ unidad_labels.get(h.unidad, h.unidad) }}</span>
+          {% if h.recargo_pct %}<span class="text-amber-600 text-xs ml-1">+{{ h.recargo_pct | fmt_num(0) }}%</span>{% endif %}
+        </div>
+        <a href="/tarifario/{{ h.id }}" class="text-indigo-600 text-xs font-medium">ver →</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Historial de versiones -->
   {% if historial | length > 1 or posteriores %}

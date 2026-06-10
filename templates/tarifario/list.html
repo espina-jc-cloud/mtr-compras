@@ -20,11 +20,12 @@
 </div>
 
 <!-- ── KPIs ─────────────────────────────────────────────────────────────────── -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+<div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5">
   {% set kpi_items = [
     ('Total', kpis.total, 'text-gray-700', 'bg-gray-50'),
-    ('Estándar', kpis.base, 'text-gray-700', 'bg-gray-50'),
-    ('Por cliente', kpis.cliente, 'text-indigo-700', 'bg-indigo-50'),
+    ('Servicios', kpis.servicios, 'text-blue-700', 'bg-blue-50'),
+    ('Equipos', kpis.equipos, 'text-emerald-700', 'bg-emerald-50'),
+    ('Personal', kpis.personal, 'text-purple-700', 'bg-purple-50'),
     ('Spot', kpis.spot, 'text-amber-700', 'bg-amber-50'),
   ] %}
   {% for label, val, tc, bg in kpi_items %}
@@ -37,7 +38,7 @@
 
 <!-- ── Filtros ──────────────────────────────────────────────────────────────── -->
 <form method="get" action="/tarifario" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
     <select name="cliente" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
       <option value="">Todos los clientes</option>
       {% for c in clientes %}
@@ -50,8 +51,22 @@
       <option value="{{ s.id }}" {% if f_servicio == s.id|string %}selected{% endif %}>{{ s.nombre }}</option>
       {% endfor %}
     </select>
+    <select name="line_type" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Todas las líneas</option>
+      {% for val, label in line_types %}
+      <option value="{{ val }}" {% if f_line_type == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="tier" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Todos los niveles</option>
+      {% for val, label in price_tiers %}
+      {% if val != 'piso' or can_view_internal %}
+      <option value="{{ val }}" {% if f_tier == val %}selected{% endif %}>{{ label }}</option>
+      {% endif %}
+      {% endfor %}
+    </select>
     <select name="scope" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
-      <option value="">Todos los tipos</option>
+      <option value="">Aplica a: todos</option>
       {% for val, label in scopes %}
       <option value="{{ val }}" {% if f_scope == val %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -67,6 +82,13 @@
              onchange="this.form.submit()" class="rounded">
       Ver histórico
     </label>
+    {% if can_view_internal %}
+    <label class="flex items-center gap-2 text-sm text-red-600 px-2 font-medium">
+      <input type="checkbox" name="internas" value="1" {% if f_internas %}checked{% endif %}
+             onchange="this.form.submit()" class="rounded">
+      🔒 Ver internas (piso / benchmarks)
+    </label>
+    {% endif %}
   </div>
   <div class="flex gap-2 mt-2">
     <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">Filtrar</button>
@@ -81,7 +103,8 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
-        <th class="px-3 py-2.5">Tipo</th>
+        <th class="px-3 py-2.5">Línea</th>
+        <th class="px-3 py-2.5">Nivel</th>
         <th class="px-3 py-2.5">Servicio</th>
         <th class="px-3 py-2.5">Cliente</th>
         <th class="px-3 py-2.5 text-right">Precio</th>
@@ -93,19 +116,36 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {% for t in tarifas %}
-      <tr class="hover:bg-gray-50 transition-colors {% if not t.is_active %}opacity-50{% endif %}">
+      <tr class="hover:bg-gray-50 transition-colors {% if not t.is_active %}opacity-50{% endif %} {% if t.visibility == 'interna' %}bg-red-50/40{% endif %}">
         <td class="px-3 py-2.5">
-          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ scope_css.get(t.scope, 'bg-gray-100 text-gray-600') }}">
-            {{ scope_labels.get(t.scope, t.scope) }}
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ line_type_css.get(t.line_type, 'bg-gray-100 text-gray-600') }}">
+            {{ line_type_labels.get(t.line_type, t.line_type) }}
           </span>
+          {% if t.visibility == 'interna' %}<span class="text-[10px] text-red-500 block mt-0.5">🔒 interna</span>{% endif %}
+        </td>
+        <td class="px-3 py-2.5">
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ tier_css.get(t.price_tier, 'bg-gray-100 text-gray-600') }}">
+            {{ tier_labels.get(t.price_tier, t.price_tier) }}
+          </span>
+          {% if t.scope != 'base' %}
+          <span class="text-[10px] text-gray-400 block mt-0.5">{{ scope_labels.get(t.scope, t.scope) }}</span>
+          {% endif %}
         </td>
         <td class="px-3 py-2.5 text-gray-800 font-medium text-xs">
           {{ t.service.nombre if t.service else '—' }}
           {% if t.equipment %}<span class="text-gray-400 block text-[10px]">🔧 {{ t.equipment.name }}</span>{% endif %}
+          {% if t.descripcion %}<span class="text-gray-400 block text-[10px]">{{ t.descripcion | truncate(50) }}</span>{% endif %}
+          {% if t.incluye_operador is not none or t.incluye_combustible is not none %}
+          <span class="text-[10px] text-gray-500 block">
+            {% if t.incluye_operador == True %}c/op{% elif t.incluye_operador == False %}s/op{% endif %}{% if t.incluye_operador is not none and t.incluye_combustible is not none %} · {% endif %}{% if t.incluye_combustible == True %}c/comb{% elif t.incluye_combustible == False %}s/comb{% endif %}
+          </span>
+          {% endif %}
+          {% if t.plaza %}<span class="text-[10px] text-gray-400 block">📍 {{ t.plaza }}</span>{% endif %}
         </td>
         <td class="px-3 py-2.5 text-gray-600 text-xs">{{ t.client.nombre if t.client else '—' }}</td>
         <td class="px-3 py-2.5 text-right font-semibold text-gray-800 whitespace-nowrap">
           {{ t.moneda }} {{ t.precio | fmt_num(2) }}
+          {% if t.recargo_pct %}<span class="text-amber-600 text-[10px] block">+{{ t.recargo_pct | fmt_num(0) }}%</span>{% endif %}
         </td>
         <td class="px-3 py-2.5 text-gray-500 text-xs">{{ unidad_labels.get(t.unidad, t.unidad) }}</td>
         <td class="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">

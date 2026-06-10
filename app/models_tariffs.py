@@ -31,6 +31,36 @@ TARIFF_SCOPES = [
 ]
 TARIFF_SCOPE_LABELS = dict(TARIFF_SCOPES)
 
+# Tipo de línea: qué clase de concepto se tarifa.
+TARIFF_LINE_TYPES = [
+    ("servicio",  "Servicio"),
+    ("personal",  "Personal"),
+    ("equipo",    "Equipo"),
+    ("adicional", "Adicional"),
+    ("benchmark", "Benchmark mercado"),
+]
+TARIFF_LINE_TYPE_LABELS = dict(TARIFF_LINE_TYPES)
+
+# Nivel comercial del precio (eje separado de scope, que es a-quién-aplica).
+TARIFF_PRICE_TIERS = [
+    ("unica",   "Única"),
+    ("lista",   "Lista"),
+    ("piso",    "Piso (interno)"),
+    ("premium", "Premium"),
+    ("spot",    "Spot negociado"),
+]
+TARIFF_PRICE_TIER_LABELS = dict(TARIFF_PRICE_TIERS)
+
+# Visibilidad: las internas (piso, benchmarks) solo las ven admin/superadmin.
+TARIFF_VISIBILITIES = [
+    ("comercial", "Comercial"),
+    ("interna",   "Interna"),
+]
+TARIFF_VISIBILITY_LABELS = dict(TARIFF_VISIBILITIES)
+
+# Roles que pueden ver tarifas internas (precio piso, benchmarks de mercado)
+TARIFF_INTERNAL_ROLES = ("admin", "superadmin")
+
 TARIFF_MONEDAS = [
     ("ARS", "Pesos (ARS)"),
     ("USD", "Dólares (USD)"),
@@ -66,6 +96,22 @@ SCOPE_CSS = {
     "base":    "bg-gray-100 text-gray-700",
     "cliente": "bg-indigo-50 text-indigo-700",
     "spot":    "bg-amber-50 text-amber-700",
+}
+
+LINE_TYPE_CSS = {
+    "servicio":  "bg-blue-50 text-blue-700",
+    "personal":  "bg-purple-50 text-purple-700",
+    "equipo":    "bg-emerald-50 text-emerald-700",
+    "adicional": "bg-cyan-50 text-cyan-700",
+    "benchmark": "bg-gray-100 text-gray-500",
+}
+
+TIER_CSS = {
+    "unica":   "bg-gray-100 text-gray-600",
+    "lista":   "bg-emerald-50 text-emerald-700",
+    "piso":    "bg-red-50 text-red-700",
+    "premium": "bg-amber-50 text-amber-700",
+    "spot":    "bg-indigo-50 text-indigo-700",
 }
 
 
@@ -127,6 +173,25 @@ class Tariff(Base):
     client_id     = Column(Integer, ForeignKey("clients.id"), nullable=True, index=True)
     # client_id NULL ⇒ scope debe ser 'base'
 
+    # Tipo de línea: servicio | personal | equipo | adicional | benchmark
+    line_type     = Column(String(20), nullable=False, default="servicio", index=True)
+    # Nivel comercial: unica | lista | piso | premium | spot
+    price_tier    = Column(String(20), nullable=False, default="unica", index=True)
+    # comercial | interna — las internas solo las ven admin/superadmin
+    visibility    = Column(String(20), nullable=False, default="comercial", index=True)
+    # Adicionales (operador, combustible) cuelgan de la tarifa del equipo padre
+    parent_id     = Column(Integer, ForeignKey("tariffs.id"), nullable=True, index=True)
+
+    # ── Flags de alquiler de equipos ───────────────────────────────────────────
+    incluye_operador    = Column(Boolean, nullable=True)   # None = no aplica
+    incluye_combustible = Column(Boolean, nullable=True)   # None = no aplica
+
+    # ── Recargo porcentual (combustible +15%, pass-through +10%...) ───────────
+    recargo_pct   = Column(Numeric(6, 2), nullable=True)
+
+    # ── Plaza (solo benchmarks de mercado: Rosario, San Nicolás...) ───────────
+    plaza         = Column(String(120), nullable=True)
+
     # ── Equipo (solo alquiler de equipos) ──────────────────────────────────────
     equipment_id  = Column(Integer, ForeignKey("equipment.id"), nullable=True)
 
@@ -154,7 +219,10 @@ class Tariff(Base):
     service   = relationship("TariffService", back_populates="tariffs")
     client    = relationship("Client", back_populates="tariffs")
     equipment = relationship("Equipment")
-    replaces  = relationship("Tariff", remote_side=[id], backref="replaced_by")
+    replaces  = relationship("Tariff", remote_side=[id], foreign_keys=[replaces_id],
+                             backref="replaced_by")
+    parent    = relationship("Tariff", remote_side=[id], foreign_keys=[parent_id],
+                             backref="adicionales")
 
 
 Index("ix_tariffs_lookup", Tariff.scope, Tariff.service_id, Tariff.client_id, Tariff.is_active)

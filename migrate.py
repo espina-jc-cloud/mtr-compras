@@ -61,6 +61,15 @@ def run():
         # Fase 3: Fotos — ya creada por Base.metadata.create_all() arriba;
         # _add_column aquí solo por si hay DBs viejas sin las columnas opcionales.
         # (La tabla en sí la crea create_all automáticamente.)
+        # Tarifario v2: line_type / price_tier / visibility / adicionales / flags
+        _add_column(conn, "tariffs", "line_type",           "VARCHAR(20) DEFAULT 'servicio'")
+        _add_column(conn, "tariffs", "price_tier",          "VARCHAR(20) DEFAULT 'unica'")
+        _add_column(conn, "tariffs", "visibility",          "VARCHAR(20) DEFAULT 'comercial'")
+        _add_column(conn, "tariffs", "parent_id",           "INTEGER")
+        _add_column(conn, "tariffs", "incluye_operador",    "BOOLEAN")
+        _add_column(conn, "tariffs", "incluye_combustible", "BOOLEAN")
+        _add_column(conn, "tariffs", "recargo_pct",         "NUMERIC(6,2)")
+        _add_column(conn, "tariffs", "plaza",               "VARCHAR(120)")
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")
