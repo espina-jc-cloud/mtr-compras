@@ -88,6 +88,7 @@ TARIFF_CATEGORIAS = [
     "Depósito",
     "Transporte",
     "Equipos",
+    "Personal",
     "Servicios varios",
 ]
 
