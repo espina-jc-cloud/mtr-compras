@@ -225,9 +225,9 @@ def _extra_fields(line_type, price_tier, visibility, parent_id,
     # Solo admin/superadmin pueden crear/editar tarifas internas.
     if visibility == "interna" and not _can_view_internal(current_user):
         raise HTTPException(status_code=403, detail="Sin permisos para tarifas internas")
+    # Adicional con padre = cuelga de un equipo/servicio concreto.
+    # Adicional SIN padre = global de categoría (ej: operador, aplica a varios equipos).
     pid = int(parent_id) if (parent_id or "").strip() else None
-    if line_type == "adicional" and pid is None:
-        raise HTTPException(status_code=400, detail="Un adicional requiere una tarifa padre")
     if line_type != "adicional":
         pid = None
     return {

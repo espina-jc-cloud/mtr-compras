@@ -72,9 +72,9 @@
 
     <!-- Tarifa padre (solo adicionales) -->
     <div id="parent-wrap" style="display:none">
-      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tarifa padre <span class="text-red-400">*</span></label>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tarifa padre (opcional)</label>
       <select name="parent_id" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
-        <option value="">Elegir tarifa padre…</option>
+        <option value="">— global (aplica a toda la categoría) —</option>
         {% for p in padres %}
         {% if not tarifa or p.id != tarifa.id %}
         <option value="{{ p.id }}" {% if tarifa and tarifa.parent_id == p.id %}selected{% endif %}>
@@ -83,7 +83,7 @@
         {% endif %}
         {% endfor %}
       </select>
-      <p class="text-xs text-gray-400 mt-1">El adicional (operador, combustible…) cuelga de la tarifa del equipo o servicio.</p>
+      <p class="text-xs text-gray-400 mt-1">Con padre: cuelga de ese equipo/servicio. Sin padre: adicional global de la categoría (ej: operador). Exclusiones tipo "no aplica a tijera" van en observaciones.</p>
     </div>
 
     <!-- Plaza (solo benchmark) -->
