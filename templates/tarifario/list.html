@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Tarifario — MTR{% endblock %}
+{% block content %}
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<div class="flex items-start justify-between mb-5 gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Tarifario</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Precios de venta por cliente y servicio</p>
+  </div>
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <a href="/tarifario/clientes" class="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2.5">Clientes</a>
+    <a href="/tarifario/servicios" class="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2.5">Servicios</a>
+    <a href="/tarifario/new"
+      class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white
+             text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
+      + Nueva tarifa
+    </a>
+  </div>
+</div>
+
+<!-- ── KPIs ─────────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+  {% set kpi_items = [
+    ('Total', kpis.total, 'text-gray-700', 'bg-gray-50'),
+    ('Estándar', kpis.base, 'text-gray-700', 'bg-gray-50'),
+    ('Por cliente', kpis.cliente, 'text-indigo-700', 'bg-indigo-50'),
+    ('Spot', kpis.spot, 'text-amber-700', 'bg-amber-50'),
+  ] %}
+  {% for label, val, tc, bg in kpi_items %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5 text-center">
+    <p class="text-xs text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }}">{{ val }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Filtros ──────────────────────────────────────────────────────────────── -->
+<form method="get" action="/tarifario" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+    <select name="cliente" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Todos los clientes</option>
+      {% for c in clientes %}
+      <option value="{{ c.id }}" {% if f_cliente == c.id|string %}selected{% endif %}>{{ c.nombre }}</option>
+      {% endfor %}
+    </select>
+    <select name="servicio" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Todos los servicios</option>
+      {% for s in servicios %}
+      <option value="{{ s.id }}" {% if f_servicio == s.id|string %}selected{% endif %}>{{ s.nombre }}</option>
+      {% endfor %}
+    </select>
+    <select name="scope" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Todos los tipos</option>
+      {% for val, label in scopes %}
+      <option value="{{ val }}" {% if f_scope == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="moneda" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Toda moneda</option>
+      {% for val, label in monedas %}
+      <option value="{{ val }}" {% if f_moneda == val %}selected{% endif %}>{{ val }}</option>
+      {% endfor %}
+    </select>
+    <label class="flex items-center gap-2 text-sm text-gray-600 px-2">
+      <input type="checkbox" name="historico" value="1" {% if f_historico %}checked{% endif %}
+             onchange="this.form.submit()" class="rounded">
+      Ver histórico
+    </label>
+  </div>
+  <div class="flex gap-2 mt-2">
+    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">Filtrar</button>
+    <a href="/tarifario" class="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Limpiar</a>
+  </div>
+</form>
+
+{% if tarifas %}
+<div class="text-xs text-gray-400 mb-2">{{ tarifas | length }} tarifa{% if tarifas | length != 1 %}s{% endif %}</div>
+
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-3 py-2.5">Tipo</th>
+        <th class="px-3 py-2.5">Servicio</th>
+        <th class="px-3 py-2.5">Cliente</th>
+        <th class="px-3 py-2.5 text-right">Precio</th>
+        <th class="px-3 py-2.5">Unidad</th>
+        <th class="px-3 py-2.5">Vigencia</th>
+        <th class="px-3 py-2.5">Estado</th>
+        <th class="px-3 py-2.5"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for t in tarifas %}
+      <tr class="hover:bg-gray-50 transition-colors {% if not t.is_active %}opacity-50{% endif %}">
+        <td class="px-3 py-2.5">
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ scope_css.get(t.scope, 'bg-gray-100 text-gray-600') }}">
+            {{ scope_labels.get(t.scope, t.scope) }}
+          </span>
+        </td>
+        <td class="px-3 py-2.5 text-gray-800 font-medium text-xs">
+          {{ t.service.nombre if t.service else '—' }}
+          {% if t.equipment %}<span class="text-gray-400 block text-[10px]">🔧 {{ t.equipment.name }}</span>{% endif %}
+        </td>
+        <td class="px-3 py-2.5 text-gray-600 text-xs">{{ t.client.nombre if t.client else '—' }}</td>
+        <td class="px-3 py-2.5 text-right font-semibold text-gray-800 whitespace-nowrap">
+          {{ t.moneda }} {{ t.precio | fmt_num(2) }}
+        </td>
+        <td class="px-3 py-2.5 text-gray-500 text-xs">{{ unidad_labels.get(t.unidad, t.unidad) }}</td>
+        <td class="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+          {{ t.valid_from | fmt_date("%d/%m/%y") }}
+          {% if t.valid_to %}→ {{ t.valid_to | fmt_date("%d/%m/%y") }}{% endif %}
+        </td>
+        <td class="px-3 py-2.5">
+          {% if t.is_active %}
+          <span class="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Vigente</span>
+          {% else %}
+          <span class="text-[11px] font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Histórica</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2.5">
+          <a href="/tarifario/{{ t.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Ver →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+  <p class="text-gray-400 text-sm mb-3">No hay tarifas con los filtros aplicados.</p>
+  <a href="/tarifario/new" class="text-indigo-600 text-sm font-medium hover:text-indigo-800">Cargar primera tarifa →</a>
+</div>
+{% endif %}
+
+{% endblock %}

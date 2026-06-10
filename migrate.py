@@ -15,7 +15,8 @@ load_dotenv()
 from sqlalchemy import text
 from app.database import engine, Base, DATABASE_URL, SessionLocal
 from app import models
-from app import models_cupos  # noqa: F401 — registra tablas de Despachos en Base.metadata
+from app import models_cupos    # noqa: F401 — registra tablas de Despachos en Base.metadata
+from app import models_tariffs  # noqa: F401 — registra tablas de Tarifario en Base.metadata
 from app.auth import hash_password
 
 
@@ -72,6 +73,32 @@ def run():
         else:
             admin_password = "changeme123"
             print("⚠ Usando contraseña local por defecto: changeme123")
+
+    # ── Seed catálogo de servicios del Tarifario (solo si está vacío) ──────────
+    db_seed = SessionLocal()
+    if db_seed.query(models_tariffs.TariffService).count() == 0:
+        _servicios_seed = [
+            ("Desestiba de buques",        "Movimiento de mercadería", "ton",   10),
+            ("Carga de camiones",          "Movimiento de mercadería", "camion", 20),
+            ("Descarga de camiones",       "Movimiento de mercadería", "camion", 30),
+            ("Pesaje",                     "Servicios varios",          "camion", 40),
+            ("Estiba en depósito",         "Depósito",                  "ton",   50),
+            ("Almacenaje",                 "Depósito",                  "ton",   60),
+            ("Uso exclusivo de depósito",  "Depósito",                  "mes",   70),
+            ("Transporte",                 "Transporte",                "viaje", 80),
+            ("Consolidado",                "Movimiento de mercadería", "contenedor", 90),
+            ("Desconsolidado",             "Movimiento de mercadería", "contenedor", 100),
+            ("Alquiler de equipos",        "Equipos",                   "dia",   110),
+        ]
+        for nombre, cat, unidad, orden in _servicios_seed:
+            db_seed.add(models_tariffs.TariffService(
+                nombre=nombre, categoria=cat, unidad_default=unidad, orden=orden, activo=True
+            ))
+        db_seed.commit()
+        print(f"✓ Tarifario: {len(_servicios_seed)} servicios sembrados")
+    else:
+        print("✓ Tarifario: catálogo de servicios ya existe")
+    db_seed.close()
 
     db = SessionLocal()
     existing = db.query(models.User).filter(models.User.email == admin_email).first()

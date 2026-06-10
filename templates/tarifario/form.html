@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}{% if tarifa %}Editar tarifa{% else %}Nueva tarifa{% endif %} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center gap-2 mb-5">
+    <a href="/tarifario" class="text-gray-400 hover:text-gray-600">←</a>
+    <h1 class="text-xl font-semibold text-gray-900">
+      {% if tarifa %}Editar tarifa{% else %}Nueva tarifa{% endif %}
+    </h1>
+  </div>
+
+  {% if tarifa and tarifa.is_active %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-sm text-amber-800">
+    ⚠ Si cambiás el precio, moneda, unidad, servicio o cliente, se archiva esta versión
+    y se crea una nueva (queda en el historial). Cambios solo de texto se editan en el lugar.
+  </div>
+  {% endif %}
+
+  <form method="post"
+        action="{% if tarifa %}/tarifario/{{ tarifa.id }}/edit{% else %}/tarifario/new{% endif %}"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
+
+    <!-- Tipo de tarifa -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo de tarifa</label>
+      <select name="scope" id="scope-select" onchange="toggleCliente()"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        {% for val, label in scopes %}
+        <option value="{{ val }}" {% if tarifa and tarifa.scope == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Servicio -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Servicio <span class="text-red-400">*</span></label>
+      <select name="service_id" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        <option value="">Elegir servicio…</option>
+        {% for s in servicios %}
+        <option value="{{ s.id }}" {% if tarifa and tarifa.service_id == s.id %}selected{% endif %}
+                data-unidad="{{ s.unidad_default or '' }}">{{ s.nombre }}{% if s.categoria %} · {{ s.categoria }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Cliente (solo cliente/spot) -->
+    <div id="cliente-wrap">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Cliente</label>
+      <select name="client_id" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        <option value="">— sin cliente (estándar) —</option>
+        {% for c in clientes %}
+        <option value="{{ c.id }}" {% if tarifa and tarifa.client_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-gray-400 mt-1">¿No está el cliente? <a href="/tarifario/clientes" class="text-indigo-600">Agregalo acá</a>.</p>
+    </div>
+
+    <!-- Precio + moneda + unidad -->
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Precio <span class="text-red-400">*</span></label>
+        <input type="text" name="precio" required inputmode="decimal"
+               value="{{ tarifa.precio if tarifa else '' }}"
+               placeholder="0,00"
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
+        <select name="moneda" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          {% for val, label in monedas %}
+          <option value="{{ val }}" {% if tarifa and tarifa.moneda == val %}selected{% endif %}>{{ val }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Unidad</label>
+        <select name="unidad" id="unidad-select" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+          {% for val, label in unidades %}
+          <option value="{{ val }}" {% if tarifa and tarifa.unidad == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Equipo (opcional) -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Equipo (solo si es alquiler de un equipo concreto)</label>
+      <select name="equipment_id" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        <option value="">— no aplica —</option>
+        {% for e in equipos %}
+        <option value="{{ e.id }}" {% if tarifa and tarifa.equipment_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Vigencia desde -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Vigente desde</label>
+      <input type="date" name="valid_from"
+             value="{{ tarifa.valid_from | fmt_date('%Y-%m-%d') if tarifa and tarifa.valid_from else today }}"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+    </div>
+
+    <!-- Descripción -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Descripción de la línea</label>
+      <input type="text" name="descripcion" value="{{ tarifa.descripcion or '' if tarifa else '' }}"
+             placeholder="ej: desestiba completa de bodega"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+    </div>
+
+    <!-- Observaciones -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Observaciones / condiciones</label>
+      <textarea name="observaciones" rows="3"
+                placeholder="mínimo de facturación, qué incluye / no incluye, negociación puntual…"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">{{ tarifa.observaciones or '' if tarifa else '' }}</textarea>
+    </div>
+
+    <div class="flex gap-2 pt-2">
+      <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-3 rounded-xl">
+        {% if tarifa %}Guardar cambios{% else %}Crear tarifa{% endif %}
+      </button>
+      <a href="/tarifario" class="px-4 py-3 text-sm font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleCliente() {
+  var scope = document.getElementById('scope-select').value;
+  var wrap = document.getElementById('cliente-wrap');
+  wrap.style.display = (scope === 'base') ? 'none' : 'block';
+}
+// Auto-completar unidad según servicio elegido (solo en alta)
+document.querySelector('[name=service_id]').addEventListener('change', function(e){
+  {% if not tarifa %}
+  var opt = e.target.selectedOptions[0];
+  var u = opt && opt.dataset.unidad;
+  if (u) document.getElementById('unidad-select').value = u;
+  {% endif %}
+});
+toggleCliente();
+</script>
+
+{% endblock %}

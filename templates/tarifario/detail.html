@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Tarifa #{{ tarifa.id }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center justify-between mb-5 gap-2">
+    <div class="flex items-center gap-2">
+      <a href="/tarifario" class="text-gray-400 hover:text-gray-600">←</a>
+      <h1 class="text-xl font-semibold text-gray-900">Tarifa #{{ tarifa.id }}</h1>
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ scope_css.get(tarifa.scope, 'bg-gray-100 text-gray-600') }}">
+        {{ scope_labels.get(tarifa.scope, tarifa.scope) }}
+      </span>
+      {% if tarifa.is_active %}
+      <span class="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Vigente</span>
+      {% else %}
+      <span class="text-[11px] font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Histórica</span>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/tarifario/{{ tarifa.id }}/edit" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-2">Editar</a>
+      {% if tarifa.is_active %}
+      <form method="post" action="/tarifario/{{ tarifa.id }}/deactivate" onsubmit="return confirm('¿Dar de baja esta tarifa?')">
+        <button type="submit" class="text-sm font-semibold text-red-500 hover:text-red-700 px-3 py-2">Dar de baja</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Precio destacado -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-4">
+    <p class="text-sm text-gray-500">{{ tarifa.service.nombre if tarifa.service else '—' }}
+      {% if tarifa.client %}· <span class="text-indigo-600 font-medium">{{ tarifa.client.nombre }}</span>{% endif %}</p>
+    <p class="text-3xl font-bold text-gray-900 mt-1">
+      {{ tarifa.moneda }} {{ tarifa.precio | fmt_num(2) }}
+      <span class="text-base font-normal text-gray-400">/ {{ unidad_labels.get(tarifa.unidad, tarifa.unidad) }}</span>
+    </p>
+    {% if tarifa.descripcion %}<p class="text-sm text-gray-600 mt-2">{{ tarifa.descripcion }}</p>{% endif %}
+  </div>
+
+  <!-- Datos -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-4">
+    <dl class="grid grid-cols-2 gap-y-3 text-sm">
+      <dt class="text-gray-500">Vigente desde</dt>
+      <dd class="text-gray-700">{{ tarifa.valid_from | fmt_date("%d/%m/%Y") }}</dd>
+      <dt class="text-gray-500">Vigente hasta</dt>
+      <dd class="text-gray-700">{{ tarifa.valid_to | fmt_date("%d/%m/%Y") if tarifa.valid_to else "Sin fin" }}</dd>
+      {% if tarifa.equipment %}
+      <dt class="text-gray-500">Equipo</dt>
+      <dd class="text-gray-700">🔧 {{ tarifa.equipment.name }}</dd>
+      {% endif %}
+      <dt class="text-gray-500">Cargada por</dt>
+      <dd class="text-gray-700">{{ tarifa.created_by or "—" }}</dd>
+    </dl>
+    {% if tarifa.observaciones %}
+    <div class="mt-4 pt-4 border-t border-gray-100">
+      <p class="text-xs font-semibold text-gray-500 mb-1">Observaciones / condiciones</p>
+      <p class="text-sm text-gray-700 whitespace-pre-line">{{ tarifa.observaciones }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Historial de versiones -->
+  {% if historial | length > 1 or posteriores %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Historial de precios</h2>
+    <div class="space-y-2">
+      {% for v in historial %}
+      <div class="flex items-center justify-between text-sm py-2 px-3 rounded-lg {% if v.id == tarifa.id %}bg-indigo-50{% else %}bg-gray-50{% endif %}">
+        <div>
+          <span class="font-semibold text-gray-800">{{ v.moneda }} {{ v.precio | fmt_num(2) }}</span>
+          <span class="text-gray-400 text-xs">/ {{ unidad_labels.get(v.unidad, v.unidad) }}</span>
+        </div>
+        <div class="text-xs text-gray-500">
+          {{ v.valid_from | fmt_date("%d/%m/%y") }}
+          {% if v.valid_to %}→ {{ v.valid_to | fmt_date("%d/%m/%y") }}{% else %}→ vigente{% endif %}
+          {% if v.id != tarifa.id %}<a href="/tarifario/{{ v.id }}" class="text-indigo-600 ml-2">ver</a>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% for v in posteriores %}
+      <div class="flex items-center justify-between text-sm py-2 px-3 rounded-lg bg-emerald-50">
+        <div>
+          <span class="font-semibold text-gray-800">{{ v.moneda }} {{ v.precio | fmt_num(2) }}</span>
+          <span class="text-gray-400 text-xs">(versión más nueva)</span>
+        </div>
+        <a href="/tarifario/{{ v.id }}" class="text-indigo-600 text-xs">ver →</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

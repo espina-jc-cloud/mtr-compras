@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Servicios — Tarifario MTR{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-2 mb-5">
+  <a href="/tarifario" class="text-gray-400 hover:text-gray-600">←</a>
+  <h1 class="text-xl font-semibold text-gray-900">Servicios</h1>
+</div>
+
+<!-- Alta rápida -->
+<form method="post" action="/tarifario/servicios/new" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
+  <p class="text-sm font-semibold text-gray-700 mb-3">Nuevo servicio</p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <input type="text" name="nombre" required placeholder="Nombre del servicio *"
+           class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    <input type="text" name="categoria" list="categorias-list" placeholder="Categoría"
+           class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    <select name="unidad_default" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <option value="">Unidad sugerida…</option>
+      {% for val, label in unidades %}
+      <option value="{{ val }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="orden" value="100" placeholder="Orden" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+  </div>
+  <datalist id="categorias-list">
+    {% for cat in categorias %}<option value="{{ cat }}">{% endfor %}
+  </datalist>
+  <button type="submit" class="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ Agregar servicio</button>
+</form>
+
+{% if servicios %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-3 py-2.5">Servicio</th>
+        <th class="px-3 py-2.5">Categoría</th>
+        <th class="px-3 py-2.5">Unidad</th>
+        <th class="px-3 py-2.5">Estado</th>
+        <th class="px-3 py-2.5"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for s in servicios %}
+      <tr class="hover:bg-gray-50 {% if not s.activo %}opacity-50{% endif %}">
+        <td class="px-3 py-2.5 font-medium text-gray-800">{{ s.nombre }}</td>
+        <td class="px-3 py-2.5 text-gray-500 text-xs">{{ s.categoria or '—' }}</td>
+        <td class="px-3 py-2.5 text-gray-500 text-xs">{{ unidad_labels.get(s.unidad_default, s.unidad_default) or '—' }}</td>
+        <td class="px-3 py-2.5">
+          {% if s.activo %}<span class="text-[11px] text-emerald-700">Activo</span>
+          {% else %}<span class="text-[11px] text-gray-400">Inactivo</span>{% endif %}
+        </td>
+        <td class="px-3 py-2.5">
+          <button type="button" onclick="document.getElementById('edit-s-{{ s.id }}').classList.toggle('hidden')"
+                  class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Editar</button>
+        </td>
+      </tr>
+      <tr id="edit-s-{{ s.id }}" class="hidden bg-gray-50">
+        <td colspan="5" class="px-3 py-3">
+          <form method="post" action="/tarifario/servicios/{{ s.id }}/edit" class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input type="text" name="nombre" value="{{ s.nombre }}" required class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
+            <input type="text" name="categoria" value="{{ s.categoria or '' }}" list="categorias-list" placeholder="Categoría" class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
+            <select name="unidad_default" class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
+              <option value="">Unidad…</option>
+              {% for val, label in unidades %}
+              <option value="{{ val }}" {% if s.unidad_default == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" name="orden" value="{{ s.orden }}" class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
+            <label class="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" name="activo" value="1" {% if s.activo %}checked{% endif %}> Activo</label>
+            <button type="submit" class="bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">Guardar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+  <p class="text-gray-400 text-sm">No hay servicios cargados.</p>
+</div>
+{% endif %}
+
+{% endblock %}
