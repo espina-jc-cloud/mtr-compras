@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -49,7 +49,7 @@ class Purchase(Base):
     purchase_order_ref = Column(String)
     notes = Column(Text)
     amount_alert = Column(Boolean, default=False)
-    purchase_date = Column(DateTime, nullable=True)   # fecha real de compra
+    purchase_date = Column(Date, nullable=True)        # fecha real de compra (sin hora)
     deleted_at = Column(DateTime, nullable=True)      # soft delete
     deleted_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

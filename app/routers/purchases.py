@@ -69,12 +69,12 @@ def build_query(db, current_user, params: dict):
     eff_date = _effective_date(models.Purchase.purchase_date, models.Purchase.created_at)
     if params.get("date_from"):
         try:
-            q = q.filter(eff_date >= datetime.strptime(params["date_from"], "%Y-%m-%d"))
+            q = q.filter(eff_date >= date.fromisoformat(params["date_from"]))
         except ValueError:
             pass
     if params.get("date_to"):
         try:
-            q = q.filter(eff_date <= datetime.strptime(params["date_to"] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+            q = q.filter(eff_date <= date.fromisoformat(params["date_to"]))
         except ValueError:
             pass
 
@@ -223,7 +223,7 @@ async def create_purchase(
     pd = None
     if purchase_date.strip():
         try:
-            pd = datetime.strptime(purchase_date.strip(), "%Y-%m-%d")
+            pd = date.fromisoformat(purchase_date.strip())
         except ValueError:
             pass
     purchase = models.Purchase(
@@ -462,7 +462,7 @@ async def edit_purchase(
 
     if purchase_date.strip():
         try:
-            p.purchase_date = datetime.strptime(purchase_date.strip(), "%Y-%m-%d")
+            p.purchase_date = date.fromisoformat(purchase_date.strip())
         except ValueError:
             pass
 

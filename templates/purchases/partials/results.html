@@ -37,7 +37,7 @@
         {% if p.estimated_amount %}
         <span class="text-sm font-semibold text-gray-700">${{ "%.0f"|format(p.estimated_amount) }}</span>
         {% endif %}
-        <span class="text-xs text-gray-400 ml-2">{{ (p.purchase_date or p.created_at) | fmt_ar("%d/%m/%y") }}</span>
+        <span class="text-xs text-gray-400 ml-2">{{ (p.purchase_date or p.created_at) | fmt_date("%d/%m/%y") }}</span>
       </div>
     </div>
   </a>
@@ -116,7 +116,7 @@
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold status-{{ p.status }}">{{ p.status|capitalize }}</span>
           {% if p.deleted_at %}<span class="ml-1 text-xs text-red-400">Anulada</span>{% endif %}
         </td>
-        <td class="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">{{ (p.purchase_date or p.created_at) | fmt_ar("%d/%m/%y") }}</td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">{{ (p.purchase_date or p.created_at) | fmt_date("%d/%m/%y") }}</td>
       </tr>
       {% else %}
       <tr>
