@@ -56,7 +56,7 @@ app.include_router(operations.api_router)
 
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/home")
 
 @app.get("/health")
 async def health():

@@ -25,7 +25,7 @@ async def login(
             "error": "Email o contraseña incorrectos"
         })
     token = create_access_token({"sub": str(user.id), "role": user.role})
-    response = RedirectResponse(url="/dashboard", status_code=303)
+    response = RedirectResponse(url="/home", status_code=303)
     response.set_cookie(
         key="access_token",
         value=token,

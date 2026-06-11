@@ -35,6 +35,15 @@ def _base_maintenance_query(db, current_user):
     return q
 
 
+@router.get("/home", response_class=HTMLResponse)
+async def home(request: Request, current_user=Depends(get_current_user)):
+    """Pantalla inicial post-login: home de módulos (Compras / Mantenimiento / Operaciones)."""
+    # Operador: su única acción es cargar combustible, va directo
+    if current_user.role == "operador":
+        return RedirectResponse(url="/fuel/new", status_code=302)
+    return templates.TemplateResponse(request, "home.html", {"user": current_user})
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # Operador: redirect to primary action

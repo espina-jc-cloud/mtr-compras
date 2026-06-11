@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Inicio — MTR Gestión{% endblock %}
+{% block content %}
+
+<!-- ── Saludo ──────────────────────────────────────────────────────────────── -->
+<div class="mb-8 mt-2">
+  <h1 class="text-2xl font-bold text-gray-900">Hola, {{ user.name.split()[0] }}</h1>
+  <p class="text-sm text-gray-500 mt-1">¿En qué módulo querés trabajar?</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl">
+
+  {% if user.role not in ("tecnico", "operador") %}
+  <!-- ── COMPRAS ──────────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <a href="/purchases" class="flex items-center gap-3 p-5 pb-4 hover:bg-indigo-50/40 group">
+      <span class="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      </span>
+      <div>
+        <p class="font-bold text-gray-900 group-hover:text-indigo-700">Compras</p>
+        <p class="text-xs text-gray-400">Gestión comercial y proveedores</p>
+      </div>
+    </a>
+    <div class="border-t border-gray-50 px-3 py-2 flex-1">
+      <a href="/purchases" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Compras <span class="text-gray-300">→</span></a>
+      <a href="/quotes" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Cotizaciones <span class="text-gray-300">→</span></a>
+      <a href="/tarifario" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Tarifario <span class="text-gray-300">→</span></a>
+      <a href="/suppliers" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Proveedores <span class="text-gray-300">→</span></a>
+      {% if user.role in ("admin", "superadmin") %}
+      <a href="/conciliation" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Conciliación <span class="text-gray-300">→</span></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if user.role != "operador" %}
+  <!-- ── MANTENIMIENTO ────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <a href="/maintenance" class="flex items-center gap-3 p-5 pb-4 hover:bg-amber-50/40 group">
+      <span class="w-11 h-11 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </span>
+      <div>
+        <p class="font-bold text-gray-900 group-hover:text-amber-700">Mantenimiento</p>
+        <p class="text-xs text-gray-400">Equipos, trabajos y combustible</p>
+      </div>
+    </a>
+    <div class="border-t border-gray-50 px-3 py-2 flex-1">
+      <a href="/maintenance" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Mantenimiento <span class="text-gray-300">→</span></a>
+      <a href="/equipment" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Equipos <span class="text-gray-300">→</span></a>
+      <a href="/fuel" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Combustible <span class="text-gray-300">→</span></a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if user.role in ("admin", "superadmin", "planta") %}
+  <!-- ── OPERACIONES ──────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <a href="/operations/live" class="flex items-center gap-3 p-5 pb-4 hover:bg-emerald-50/40 group">
+      <span class="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      </span>
+      <div>
+        <p class="font-bold text-gray-900 group-hover:text-emerald-700">Operaciones</p>
+        <p class="text-xs text-gray-400">Barcos, turnos y camiones</p>
+      </div>
+    </a>
+    <div class="border-t border-gray-50 px-3 py-2 flex-1">
+      <a href="/despachos" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Despachos <span class="text-gray-300">→</span></a>
+      <p class="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Operativos</p>
+      <a href="/operations/live" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+        <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Live</span>
+        <span class="text-gray-300">→</span>
+      </a>
+      <a href="/operations" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Finalizados <span class="text-gray-300">→</span></a>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ── Accesos secundarios ─────────────────────────────────────────────────── -->
+<div class="flex items-center gap-4 mt-8 max-w-5xl">
+  <a href="/dashboard" class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    Indicadores
+  </a>
+  {% if user.role == "superadmin" %}
+  <a href="/admin/users" class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    Usuarios
+  </a>
+  {% endif %}
+</div>
+
+{% endblock %}
