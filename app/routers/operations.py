@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Módulo Operativos portuarios — MTR Gestión
 """

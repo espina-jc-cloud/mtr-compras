@@ -26,8 +26,14 @@ def add_audit(db, purchase_id, user_id, action, old_status, new_status, comment=
     ))
 
 def _effective_date(col_purchase_date, col_created_at):
-    """Fecha efectiva: purchase_date si existe, sino created_at."""
-    return func.coalesce(col_purchase_date, col_created_at)
+    """Fecha efectiva: purchase_date si existe, sino created_at.
+
+    type_=DateTime: la expresión mezcla Date y DateTime; sin el tipo explícito
+    hereda Date y el procesador de SQLite no puede parsear created_at con hora
+    (joinedload+limit la incluye en el SELECT del subquery de orden).
+    """
+    from sqlalchemy import DateTime
+    return func.coalesce(col_purchase_date, col_created_at, type_=DateTime)
 
 
 def build_query(db, current_user, params: dict):

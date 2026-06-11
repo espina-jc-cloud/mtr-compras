@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date as _date
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -415,6 +415,139 @@ class OperationCargoSummary(Base):
             name="uq_cargo_summary",
         ),
     )
+
+
+# ─── Proyectos ────────────────────────────────────────────────────────────────
+
+class Project(Base):
+    __tablename__ = "projects"
+    id                 = Column(Integer, primary_key=True, index=True)
+    name               = Column(String, nullable=False)
+    description        = Column(Text, nullable=True)
+    area               = Column(String, nullable=True)        # cliente / área solicitante
+    responsible        = Column(String, nullable=True)        # texto libre
+    plant              = Column(String, nullable=True)        # MTR1 | MTR2 | ROSARIO | TODAS
+    status             = Column(String, nullable=False, default="pendiente")
+    # status: pendiente | en_progreso | pausado | finalizado | cancelado
+    priority           = Column(String, nullable=False, default="media")
+    # priority: baja | media | alta | urgente
+    start_date         = Column(DateTime, nullable=True)
+    estimated_end_date = Column(DateTime, nullable=True)
+    actual_end_date    = Column(DateTime, nullable=True)
+    estimated_budget   = Column(Numeric(14, 2), nullable=True)
+    actual_cost        = Column(Numeric(14, 2), nullable=True)
+    notes              = Column(Text, nullable=True)
+    created_by_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    deleted_at         = Column(DateTime, nullable=True)
+    deleted_reason     = Column(Text, nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    audit_logs = relationship("ProjectAuditLog", back_populates="project",
+                              cascade="all, delete-orphan")
+    entries    = relationship("ProjectEntry", back_populates="project",
+                              cascade="all, delete-orphan",
+                              order_by="ProjectEntry.entry_date.desc()")
+    tasks      = relationship("ProjectTask", back_populates="project",
+                              order_by="ProjectTask.start_date.asc()")
+
+
+class ProjectAuditLog(Base):
+    __tablename__ = "project_audit_log"
+    id         = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action     = Column(String, nullable=False)
+    # action: creado | editado | estado_cambiado | eliminado
+    old_status = Column(String, nullable=True)
+    new_status = Column(String, nullable=True)
+    comment    = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="audit_logs")
+    user    = relationship("User")
+
+
+class ProjectEntry(Base):
+    """Bitácora diaria del proyecto — una entrada por fecha."""
+    __tablename__ = "project_entries"
+    id                = Column(Integer, primary_key=True, index=True)
+    project_id        = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    entry_date        = Column(Date, nullable=False)
+    avances           = Column(Text, nullable=True)
+    observaciones     = Column(Text, nullable=True)
+    problemas         = Column(Text, nullable=True)
+    tareas_realizadas = Column(Text, nullable=True)
+    proximos_pasos    = Column(Text, nullable=True)
+    created_by_id     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    deleted_at        = Column(DateTime, nullable=True)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+    updated_at        = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project     = relationship("Project", back_populates="entries")
+    created_by  = relationship("User", foreign_keys=[created_by_id])
+    attachments = relationship("ProjectEntryAttachment", back_populates="entry",
+                               cascade="all, delete-orphan",
+                               order_by="ProjectEntryAttachment.uploaded_at.desc()")
+
+
+class ProjectEntryAttachment(Base):
+    """Adjunto asociado a una entrada diaria de proyecto.
+    Soporta archivos simples (fotos) y comprobantes con datos económicos opcionales.
+    """
+    __tablename__ = "project_entry_attachments"
+    id             = Column(Integer, primary_key=True, index=True)
+    entry_id       = Column(Integer, ForeignKey("project_entries.id"), nullable=False)
+    project_id     = Column(Integer, ForeignKey("projects.id"),        nullable=False)
+
+    # ── Archivo (opcional) ───────────────────────────────────────────────────
+    file_type      = Column(String,         nullable=False, default="otro")
+    # foto | factura | remito | cotizacion | documento | otro
+    file_url       = Column(String,         nullable=True)    # Cloudinary secure_url
+    public_id      = Column(String,         nullable=True)    # Cloudinary public_id
+    filename       = Column(String,         nullable=True)    # nombre original
+
+    # ── Campos económicos (todos opcionales) ──────────────────────────────────
+    description    = Column(Text,           nullable=True)
+    supplier       = Column(String,         nullable=True)
+    currency       = Column(String,         nullable=True)    # "USD" | "ARS" — moneda de ingreso; None si no hay monto
+    amount_usd     = Column(Numeric(14, 2), nullable=True)
+    exchange_rate  = Column(Numeric(10, 4), nullable=True)
+    amount_ars     = Column(Numeric(14, 2), nullable=True)   # calculado o ingresado según currency
+
+    # ── Metadata ──────────────────────────────────────────────────────────────
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    deleted_at     = Column(DateTime, nullable=True)
+    uploaded_at    = Column(DateTime, default=datetime.utcnow)
+
+    entry       = relationship("ProjectEntry", back_populates="attachments")
+    uploaded_by = relationship("User", foreign_keys=[uploaded_by_id])
+
+
+class ProjectTask(Base):
+    """Tarea estructurada de un proyecto — base para visualización Gantt."""
+    __tablename__ = "project_tasks"
+    id                 = Column(Integer, primary_key=True, index=True)
+    project_id         = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    title              = Column(String,  nullable=False)
+    description        = Column(Text,    nullable=True)
+    responsible        = Column(String,  nullable=True)
+    priority           = Column(String,  nullable=False, default="media")
+    # baja | media | alta | urgente
+    status             = Column(String,  nullable=False, default="pendiente")
+    # pendiente | en_progreso | bloqueada | finalizada | cancelada
+    start_date         = Column(Date,    nullable=True)
+    estimated_end_date = Column(Date,    nullable=True)
+    actual_end_date    = Column(Date,    nullable=True)
+    progress_percent   = Column(Integer, nullable=False, default=0)  # 0–100
+    created_by_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    deleted_at         = Column(DateTime, nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project    = relationship("Project", back_populates="tasks")
+    created_by = relationship("User", foreign_keys=[created_by_id])
 
 
 # ── Módulo Operativos en Tiempo Real ─────────────────────────────────────────

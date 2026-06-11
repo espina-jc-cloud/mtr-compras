@@ -46,3 +46,10 @@ def require_no_operador(current_user=Depends(get_current_user)):
     if current_user.role == "operador":
         raise HTTPException(status_code=403, detail="Sin acceso a este módulo.")
     return current_user
+
+
+def require_projects_access(current_user=Depends(get_current_user)):
+    """Bloquea operador de ver el módulo proyectos."""
+    if current_user.role == "operador":
+        raise HTTPException(status_code=403, detail="Sin acceso al módulo de proyectos.")
+    return current_user

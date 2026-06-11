@@ -35,6 +35,17 @@
     .status-mant-abierto     { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
     .status-mant-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
     .status-mant-cerrado     { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+    /* status proyectos */
+    .status-proj-pendiente   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+    .status-proj-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+    .status-proj-pausado     { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
+    .status-proj-finalizado  { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+    .status-proj-cancelado   { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
+    /* prioridad proyectos */
+    .priority-baja    { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
+    .priority-media   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+    .priority-alta    { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
+    .priority-urgente { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
     a, button { transition: all .15s ease; }
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:#F9FAFB; }
@@ -100,6 +111,11 @@
         </div>
         {% else %}
         <a href="/fuel" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Combustible</a>
+        {% endif %}
+
+        <!-- Proyectos (oculto a operador) -->
+        {% if user.role not in ("operador",) %}
+        <a href="/projects" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Proyectos</a>
         {% endif %}
 
         <!-- Dropdown OPERACIONES -->
@@ -200,8 +216,8 @@
   </div>
 
   {% elif user.role == "planta" %}
-  <!-- Planta: Inicio | Compras | Mant. | Comb. -->
-  <div class="grid grid-cols-4 h-16">
+  <!-- Planta: Inicio | Compras | Mant. | Proyectos | Comb. -->
+  <div class="grid grid-cols-5 h-16">
     <a href="/home" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
       <span class="text-[10px] font-medium">Inicio</span>
@@ -213,6 +229,10 @@
     <a href="/maintenance" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       <span class="text-[10px] font-medium">Mant.</span>
+    </a>
+    <a href="/projects" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-violet-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+      <span class="text-[10px] font-medium">Proyect.</span>
     </a>
     <a href="/fuel" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-orange-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
@@ -249,8 +269,8 @@
   </div>
 
   {% else %}
-  <!-- Autorizador y otros: Inicio | Compras | Mant. | Comb. (sin Operativos) -->
-  <div class="grid grid-cols-4 h-16">
+  <!-- Autorizador y otros: Inicio | Compras | Mant. | Proyectos | Comb. -->
+  <div class="grid grid-cols-5 h-16">
     <a href="/home" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-indigo-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
       <span class="text-[10px] font-medium">Inicio</span>
@@ -262,6 +282,10 @@
     <a href="/maintenance" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-amber-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       <span class="text-[10px] font-medium">Mant.</span>
+    </a>
+    <a href="/projects" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-violet-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+      <span class="text-[10px] font-medium">Proyect.</span>
     </a>
     <a href="/fuel" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-orange-600">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>

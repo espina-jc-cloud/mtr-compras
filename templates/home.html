@@ -8,7 +8,7 @@
   <p class="text-sm text-gray-500 mt-1">¿En qué módulo querés trabajar?</p>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl">
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 max-w-7xl">
 
   {% if user.role not in ("tecnico", "operador") %}
   <!-- ── COMPRAS ──────────────────────────────────────────────────────────── -->
@@ -50,6 +50,25 @@
       <a href="/maintenance" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Mantenimiento <span class="text-gray-300">→</span></a>
       <a href="/equipment" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Equipos <span class="text-gray-300">→</span></a>
       <a href="/fuel" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Combustible <span class="text-gray-300">→</span></a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if user.role != "operador" %}
+  <!-- ── PROYECTOS ────────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <a href="/projects" class="flex items-center gap-3 p-5 pb-4 hover:bg-violet-50/40 group">
+      <span class="w-11 h-11 rounded-xl bg-violet-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+      </span>
+      <div>
+        <p class="font-bold text-gray-900 group-hover:text-violet-700">Proyectos</p>
+        <p class="text-xs text-gray-400">Obras, tareas y seguimiento</p>
+      </div>
+    </a>
+    <div class="border-t border-gray-50 px-3 py-2 flex-1">
+      <a href="/projects" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Todos los proyectos <span class="text-gray-300">→</span></a>
+      <a href="/projects/new" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Nuevo proyecto <span class="text-gray-300">→</span></a>
     </div>
   </div>
   {% endif %}
