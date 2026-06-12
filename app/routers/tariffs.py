@@ -29,7 +29,9 @@ from app.database import get_db
 from app.deps import require_compras_access
 from app import models
 from app.models_tariffs import (
-    Client, TariffService, Tariff,
+    Client, TariffService, Tariff, TariffComponent, calcular_componentes,
+    TARIFF_OWNERS, TARIFF_OWNER_LABELS,
+    COMPONENT_TIPOS, COMPONENT_TIPO_LABELS,
     TARIFF_SCOPES, TARIFF_SCOPE_LABELS,
     TARIFF_MONEDAS, TARIFF_MONEDA_LABELS,
     TARIFF_UNIDADES, TARIFF_UNIDAD_LABELS,
@@ -70,6 +72,10 @@ def _ctx(request, current_user, **extra):
         "visibility_labels": TARIFF_VISIBILITY_LABELS,
         "line_type_css":    LINE_TYPE_CSS,
         "tier_css":         TIER_CSS,
+        "owners":           TARIFF_OWNERS,
+        "owner_labels":     TARIFF_OWNER_LABELS,
+        "component_tipos":  COMPONENT_TIPOS,
+        "component_tipo_labels": COMPONENT_TIPO_LABELS,
         "can_view_internal": _can_view_internal(current_user),
     }
     base.update(extra)
@@ -113,21 +119,29 @@ async def list_tariffs(
     tier: str = "",
     historico: str = "",
     internas: str = "",
+    owner: str = "propia",
 ):
+    if owner not in ("propia", "tercero"):
+        owner = "propia"
+    # Tarifas de terceros: son costos internos → solo admin/superadmin
+    if owner == "tercero" and not _can_view_internal(current_user):
+        owner = "propia"
+
     q = db.query(Tariff).options(
         joinedload(Tariff.service),
         joinedload(Tariff.client),
         joinedload(Tariff.equipment),
-    )
+    ).filter(Tariff.owner == owner)
 
     # ── Visibilidad por rol ───────────────────────────────────────────────────
-    # Las internas (piso, benchmarks) SOLO existen para admin/superadmin, y aun
-    # para ellos quedan ocultas por defecto: aparecen con el toggle "internas".
-    if not _can_view_internal(current_user):
-        q = q.filter(Tariff.visibility == "comercial")
-        internas = ""  # un rol sin permiso jamás puede activar el toggle
-    elif not internas:
-        q = q.filter(Tariff.visibility == "comercial")
+    # Propias internas (piso, benchmarks): solo admin/superadmin con toggle.
+    # Terceros: el tab entero ya es interno (solo admin), no se filtra de nuevo.
+    if owner == "propia":
+        if not _can_view_internal(current_user):
+            q = q.filter(Tariff.visibility == "comercial")
+            internas = ""  # un rol sin permiso jamás puede activar el toggle
+        elif not internas:
+            q = q.filter(Tariff.visibility == "comercial")
 
     if not historico:
         q = q.filter(Tariff.is_active == True)  # noqa: E712
@@ -169,7 +183,7 @@ async def list_tariffs(
              tarifas=tarifas, clientes=clientes, servicios=servicios, kpis=kpis,
              f_cliente=cliente, f_servicio=servicio, f_scope=scope,
              f_moneda=moneda, f_line_type=line_type, f_tier=tier,
-             f_historico=historico, f_internas=internas),
+             f_historico=historico, f_internas=internas, f_owner=owner),
     )
 
 
@@ -217,10 +231,17 @@ def _tri_bool(v: str):
 
 def _extra_fields(line_type, price_tier, visibility, parent_id,
                   incluye_operador, incluye_combustible, recargo_pct, plaza,
-                  current_user) -> dict:
+                  current_user, owner="propia", tercero="") -> dict:
     """Normaliza y valida los campos extendidos del form."""
-    # El precio piso y los benchmarks son siempre internos.
-    if price_tier == "piso" or line_type == "benchmark":
+    if owner not in ("propia", "tercero"):
+        owner = "propia"
+    tercero = (tercero or "").strip() or None
+    if owner == "tercero" and not tercero:
+        raise HTTPException(status_code=400, detail="Una tarifa de tercero requiere el nombre del tercero")
+    if owner == "propia":
+        tercero = None
+    # El precio piso, los benchmarks y TODAS las de terceros son internas.
+    if price_tier == "piso" or line_type == "benchmark" or owner == "tercero":
         visibility = "interna"
     # Solo admin/superadmin pueden crear/editar tarifas internas.
     if visibility == "interna" and not _can_view_internal(current_user):
@@ -231,6 +252,8 @@ def _extra_fields(line_type, price_tier, visibility, parent_id,
     if line_type != "adicional":
         pid = None
     return {
+        "owner":               owner,
+        "tercero":             tercero,
         "line_type":           line_type,
         "price_tier":          price_tier,
         "visibility":          visibility,
@@ -265,6 +288,8 @@ async def create_tariff(
     incluye_combustible: str = Form(""),
     recargo_pct: str = Form(""),
     plaza: str = Form(""),
+    owner: str = Form("propia"),
+    tercero: str = Form(""),
 ):
     precio_val = _parse_precio(precio)
     if precio_val is None:
@@ -278,7 +303,7 @@ async def create_tariff(
 
     extra = _extra_fields(line_type, price_tier, visibility, parent_id,
                           incluye_operador, incluye_combustible, recargo_pct, plaza,
-                          current_user)
+                          current_user, owner=owner, tercero=tercero)
 
     t = Tariff(
         scope=scope,
@@ -342,11 +367,70 @@ async def tariff_detail(
     if not _can_view_internal(current_user):
         hijos = [h for h in hijos if h.visibility == "comercial"]
 
+    # Componentes de fórmula (tarifas compuestas) con cascada calculada
+    comp_rows = calcular_componentes(t.componentes) if t.componentes else []
+    comp_total = comp_rows[-1][1] if comp_rows else None
+
     return templates.TemplateResponse(
         request, "tarifario/detail.html",
         _ctx(request, current_user, tarifa=t,
-             historial=historial, posteriores=posteriores, hijos=hijos),
+             historial=historial, posteriores=posteriores, hijos=hijos,
+             comp_rows=comp_rows, comp_total=comp_total),
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Componentes de fórmula
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{tid:int}/componentes/new")
+async def add_component(
+    tid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_compras_access),
+    nombre: str = Form(...),
+    tipo: str = Form("base"),
+    valor: str = Form(...),
+    orden: str = Form(""),
+    observaciones: str = Form(""),
+):
+    t = db.query(Tariff).filter(Tariff.id == tid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    if t.visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    v = _parse_precio(valor)
+    if v is None:
+        raise HTTPException(status_code=400, detail="Valor inválido")
+    if tipo not in ("base", "recargo_pct", "monto_fijo"):
+        tipo = "base"
+    max_orden = max([c.orden for c in t.componentes], default=0)
+    db.add(TariffComponent(
+        tariff_id=t.id,
+        orden=int(orden) if orden.strip().isdigit() else max_orden + 10,
+        nombre=nombre.strip(), tipo=tipo, valor=v,
+        observaciones=observaciones.strip() or None,
+    ))
+    db.commit()
+    return RedirectResponse(url=f"/tarifario/{tid}", status_code=303)
+
+
+@router.post("/{tid:int}/componentes/{cid:int}/delete")
+async def delete_component(
+    tid: int,
+    cid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_compras_access),
+):
+    t = db.query(Tariff).filter(Tariff.id == tid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    if t.visibility == "interna" and not _can_view_internal(current_user):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    db.query(TariffComponent).filter(
+        TariffComponent.id == cid, TariffComponent.tariff_id == tid).delete()
+    db.commit()
+    return RedirectResponse(url=f"/tarifario/{tid}", status_code=303)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -401,6 +485,8 @@ async def update_tariff(
     incluye_combustible: str = Form(""),
     recargo_pct: str = Form(""),
     plaza: str = Form(""),
+    owner: str = Form("propia"),
+    tercero: str = Form(""),
 ):
     t = db.query(Tariff).filter(Tariff.id == tid).first()
     if not t:
@@ -422,7 +508,7 @@ async def update_tariff(
     vfrom = _parse_date(valid_from) or t.valid_from
     extra = _extra_fields(line_type, price_tier, visibility, parent_id,
                           incluye_operador, incluye_combustible, recargo_pct, plaza,
-                          current_user)
+                          current_user, owner=owner, tercero=tercero)
 
     # ¿Cambió algo que afecte el PRECIO COMERCIAL? → versionar.
     # Cambios de texto (descripción / observaciones) → edición en el lugar.
@@ -440,6 +526,8 @@ async def update_tariff(
         or t.incluye_operador != extra["incluye_operador"]
         or t.incluye_combustible != extra["incluye_combustible"]
         or _rp_old != extra["recargo_pct"]
+        or t.owner != extra["owner"]
+        or t.tercero != extra["tercero"]
     )
 
     if precio_cambio and t.is_active:

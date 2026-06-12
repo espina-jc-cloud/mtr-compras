@@ -16,6 +16,9 @@
       <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ scope_css.get(tarifa.scope, 'bg-gray-100 text-gray-600') }}">
         {{ scope_labels.get(tarifa.scope, tarifa.scope) }}
       </span>
+      {% if tarifa.owner == 'tercero' %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Tercero: {{ tarifa.tercero }}</span>
+      {% endif %}
       {% if tarifa.visibility == 'interna' %}
       <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700">🔒 Interna</span>
       {% endif %}
@@ -88,6 +91,78 @@
       <p class="text-sm text-gray-700 whitespace-pre-line">{{ tarifa.observaciones }}</p>
     </div>
     {% endif %}
+  </div>
+
+  <!-- Componentes de fórmula (tarifas compuestas) -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-4">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Composición de la tarifa
+      <span class="text-xs font-normal text-gray-400">(fórmula documentada — ej: jornal base + recargos)</span>
+    </h2>
+    {% if comp_rows %}
+    <table class="w-full text-sm mb-3">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
+          <th class="px-3 py-2 rounded-l-lg">Componente</th>
+          <th class="px-3 py-2 text-right">Valor</th>
+          <th class="px-3 py-2 text-right">Subtotal acumulado</th>
+          <th class="px-3 py-2 rounded-r-lg"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for comp, subtotal in comp_rows %}
+        <tr>
+          <td class="px-3 py-2 text-gray-700">
+            {{ comp.nombre }}
+            {% if comp.observaciones %}<span class="text-gray-400 text-xs block">{{ comp.observaciones }}</span>{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right font-mono {% if comp.tipo == 'recargo_pct' %}text-amber-700{% else %}text-gray-800{% endif %}">
+            {% if comp.tipo == 'recargo_pct' %}+{{ comp.valor | fmt_num(1) }}%{% else %}{{ tarifa.moneda }} {{ comp.valor | fmt_num(2) }}{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right font-mono text-gray-600">{{ tarifa.moneda }} {{ subtotal | fmt_num(2) }}</td>
+          <td class="px-3 py-2 text-right">
+            <form method="post" action="/tarifario/{{ tarifa.id }}/componentes/{{ comp.id }}/delete"
+                  onsubmit="return confirm('¿Eliminar componente?')">
+              <button type="submit" class="text-gray-300 hover:text-red-500 text-xs">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="bg-gray-50 font-semibold">
+          <td class="px-3 py-2 text-gray-800 rounded-l-lg">Total calculado</td>
+          <td></td>
+          <td class="px-3 py-2 text-right font-mono text-gray-900">{{ tarifa.moneda }} {{ comp_total | fmt_num(2) }}</td>
+          <td class="rounded-r-lg"></td>
+        </tr>
+      </tbody>
+    </table>
+    {% if comp_total is not none and (comp_total - (tarifa.precio | float)) | abs > 0.01 %}
+    <p class="text-xs text-amber-600 mb-3">⚠ El total calculado ({{ tarifa.moneda }} {{ comp_total | fmt_num(2) }})
+      difiere del precio guardado ({{ tarifa.moneda }} {{ tarifa.precio | fmt_num(2) }}).
+      Editá la tarifa si querés actualizar el precio.</p>
+    {% endif %}
+    {% else %}
+    <p class="text-xs text-gray-400 mb-3">Sin componentes — la tarifa es un precio directo.
+      Agregá componentes si querés documentar cómo se compone (base + recargos).</p>
+    {% endif %}
+
+    <!-- Alta de componente -->
+    <form method="post" action="/tarifario/{{ tarifa.id }}/componentes/new"
+          class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-3 border-t border-gray-50">
+      <input type="text" name="nombre" required placeholder="Nombre (ej: Jornal SUPA base)"
+             class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 sm:col-span-2">
+      <select name="tipo" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+        {% for val, label in component_tipos %}
+        <option value="{{ val }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="valor" required inputmode="decimal" placeholder="Valor (monto o %)"
+             class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <input type="text" name="observaciones" placeholder="Observación (opcional)"
+             class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 sm:col-span-3">
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        + Agregar componente
+      </button>
+    </form>
   </div>
 
   <!-- Adicionales que cuelgan de esta tarifa -->

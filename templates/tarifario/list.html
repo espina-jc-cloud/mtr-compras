@@ -19,6 +19,28 @@
   </div>
 </div>
 
+<!-- ── Tabs Propias / Terceros ─────────────────────────────────────────────── -->
+{% if can_view_internal %}
+<div class="flex items-center gap-1 mb-5 bg-gray-100 rounded-xl p-1 max-w-md">
+  <a href="/tarifario?owner=propia"
+     class="flex-1 text-center text-sm font-semibold px-4 py-2 rounded-lg transition-colors
+            {% if f_owner == 'propia' %}bg-white text-indigo-700 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+    Tarifas propias
+  </a>
+  <a href="/tarifario?owner=tercero"
+     class="flex-1 text-center text-sm font-semibold px-4 py-2 rounded-lg transition-colors
+            {% if f_owner == 'tercero' %}bg-white text-rose-700 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+    🔒 Tarifas de terceros
+  </a>
+</div>
+{% endif %}
+
+{% if f_owner == 'tercero' %}
+<div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-rose-800">
+  Costos que te cobran terceros (cooperativa, prestadores). Sección interna — solo admin.
+</div>
+{% endif %}
+
 <!-- ── KPIs ─────────────────────────────────────────────────────────────────── -->
 <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5">
   {% set kpi_items = [
@@ -38,6 +60,7 @@
 
 <!-- ── Filtros ──────────────────────────────────────────────────────────────── -->
 <form method="get" action="/tarifario" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
+  <input type="hidden" name="owner" value="{{ f_owner }}">
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
     <select name="cliente" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
       <option value="">Todos los clientes</option>
@@ -106,7 +129,7 @@
         <th class="px-3 py-2.5">Línea</th>
         <th class="px-3 py-2.5">Nivel</th>
         <th class="px-3 py-2.5">Servicio</th>
-        <th class="px-3 py-2.5">Cliente</th>
+        <th class="px-3 py-2.5">{% if f_owner == 'tercero' %}Tercero{% else %}Cliente{% endif %}</th>
         <th class="px-3 py-2.5 text-right">Precio</th>
         <th class="px-3 py-2.5">Unidad</th>
         <th class="px-3 py-2.5">Vigencia</th>
@@ -142,7 +165,13 @@
           {% endif %}
           {% if t.plaza %}<span class="text-[10px] text-gray-400 block">📍 {{ t.plaza }}</span>{% endif %}
         </td>
-        <td class="px-3 py-2.5 text-gray-600 text-xs">{{ t.client.nombre if t.client else '—' }}</td>
+        <td class="px-3 py-2.5 text-gray-600 text-xs">
+          {% if f_owner == 'tercero' %}
+          <span class="font-medium text-rose-700">{{ t.tercero or '—' }}</span>
+          {% else %}
+          {{ t.client.nombre if t.client else '—' }}
+          {% endif %}
+        </td>
         <td class="px-3 py-2.5 text-right font-semibold text-gray-800 whitespace-nowrap">
           {{ t.moneda }} {{ t.precio | fmt_num(2) }}
           {% if t.recargo_pct %}<span class="text-amber-600 text-[10px] block">+{{ t.recargo_pct | fmt_num(0) }}%</span>{% endif %}

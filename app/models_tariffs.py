@@ -31,6 +31,21 @@ TARIFF_SCOPES = [
 ]
 TARIFF_SCOPE_LABELS = dict(TARIFF_SCOPES)
 
+# Dueño de la tarifa: lo que cobra MTR vs lo que cobran terceros (costos).
+TARIFF_OWNERS = [
+    ("propia",  "Tarifa propia"),
+    ("tercero", "Tarifa de tercero"),
+]
+TARIFF_OWNER_LABELS = dict(TARIFF_OWNERS)
+
+# Tipos de componente para tarifas compuestas (fórmulas).
+COMPONENT_TIPOS = [
+    ("base",        "Monto base"),
+    ("recargo_pct", "Recargo % (sobre acumulado)"),
+    ("monto_fijo",  "Monto fijo adicional"),
+]
+COMPONENT_TIPO_LABELS = dict(COMPONENT_TIPOS)
+
 # Tipo de línea: qué clase de concepto se tarifa.
 TARIFF_LINE_TYPES = [
     ("servicio",  "Servicio"),
@@ -168,6 +183,10 @@ class Tariff(Base):
 
     id            = Column(Integer, primary_key=True, index=True)
 
+    # ── Dueño: propia (lo que cobra MTR) | tercero (lo que cobran otros) ──────
+    owner         = Column(String(20), nullable=False, default="propia", index=True)
+    tercero       = Column(String(200), nullable=True)   # "Cooperativa", prestador…
+
     # ── Clasificación ─────────────────────────────────────────────────────────
     scope         = Column(String(20), nullable=False, default="base", index=True)
     service_id    = Column(Integer, ForeignKey("tariff_services.id"), nullable=False, index=True)
@@ -227,3 +246,41 @@ class Tariff(Base):
 
 
 Index("ix_tariffs_lookup", Tariff.scope, Tariff.service_id, Tariff.client_id, Tariff.is_active)
+
+
+class TariffComponent(Base):
+    """Componente de una tarifa compuesta (fórmula documentada y auditable).
+
+    El cálculo es en cascada por `orden`:
+      base 100 → recargo_pct 9.5 → 109.50 → recargo_pct 85 → 202.58
+    Ejemplo real: jornal SUPA base + 9,5% acuerdo SUPA + 85% contribución coop.
+    """
+    __tablename__ = "tariff_components"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    tariff_id     = Column(Integer, ForeignKey("tariffs.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    orden         = Column(Integer, nullable=False, default=10)
+    nombre        = Column(String(200), nullable=False)   # "Jornal SUPA base"
+    tipo          = Column(String(20), nullable=False, default="base")
+    # base | recargo_pct | monto_fijo
+    valor         = Column(Numeric(14, 4), nullable=False)
+    # monto si base/monto_fijo · porcentaje si recargo_pct (9.5 = +9,5%)
+    observaciones = Column(Text, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+
+    tariff = relationship("Tariff", foreign_keys=[tariff_id],
+                          backref="componentes")
+
+
+def calcular_componentes(componentes) -> list:
+    """Cascada de componentes → [(componente, subtotal_acumulado), ...]."""
+    filas, acum = [], 0.0
+    for comp in sorted(componentes, key=lambda c: (c.orden, c.id)):
+        v = float(comp.valor)
+        if comp.tipo == "recargo_pct":
+            acum = acum * (1 + v / 100.0)
+        else:  # base | monto_fijo
+            acum += v
+        filas.append((comp, round(acum, 2)))
+    return filas

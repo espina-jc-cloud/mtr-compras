@@ -25,7 +25,6 @@
     <div class="border-t border-gray-50 px-3 py-2 flex-1">
       <a href="/purchases" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Compras <span class="text-gray-300">→</span></a>
       <a href="/quotes" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Cotizaciones <span class="text-gray-300">→</span></a>
-      <a href="/tarifario" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Tarifario <span class="text-gray-300">→</span></a>
       <a href="/suppliers" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Proveedores <span class="text-gray-300">→</span></a>
       {% if user.role in ("admin", "superadmin") %}
       <a href="/conciliation" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Conciliación <span class="text-gray-300">→</span></a>
@@ -93,6 +92,13 @@
         <span class="text-gray-300">→</span>
       </a>
       <a href="/operations" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Finalizados <span class="text-gray-300">→</span></a>
+      <p class="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Tarifas</p>
+      <a href="/tarifario?owner=propia" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Tarifas propias <span class="text-gray-300">→</span></a>
+      {% if user.role in ("admin", "superadmin") %}
+      <a href="/tarifario?owner=tercero" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+        <span>🔒 Tarifas de terceros</span> <span class="text-gray-300">→</span>
+      </a>
+      {% endif %}
     </div>
   </div>
   {% endif %}

@@ -21,6 +21,26 @@
         action="{% if tarifa %}/tarifario/{{ tarifa.id }}/edit{% else %}/tarifario/new{% endif %}"
         class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
 
+    <!-- Dueño: propia vs tercero (solo admin puede crear de terceros) -->
+    {% if can_view_internal %}
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">¿De quién es esta tarifa?</label>
+      <select name="owner" id="owner-select" onchange="toggleOwner()"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
+        {% for val, label in owners %}
+        <option value="{{ val }}" {% if tarifa and tarifa.owner == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div id="tercero-wrap" style="display:none">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tercero / prestador <span class="text-red-400">*</span></label>
+      <input type="text" name="tercero" value="{{ tarifa.tercero or '' if tarifa else '' }}"
+             placeholder="ej: Cooperativa, prestador externo"
+             class="w-full border border-rose-200 rounded-xl px-3 py-2.5 text-sm bg-rose-50/40">
+      <p class="text-xs text-rose-500 mt-1">Las tarifas de terceros quedan internas automáticamente (solo admin las ve).</p>
+    </div>
+    {% endif %}
+
     <!-- Tipo de línea -->
     <div class="grid grid-cols-2 gap-3">
       <div>
@@ -236,13 +256,22 @@ function toggleLineType() {
   document.getElementById('flags-wrap').style.display = (lt === 'equipo' || lt === 'adicional') ? 'grid' : 'none';
   toggleVisibility();
 }
+function toggleOwner() {
+  var sel = document.getElementById('owner-select');
+  if (!sel) return;
+  var wrap = document.getElementById('tercero-wrap');
+  wrap.style.display = (sel.value === 'tercero') ? 'block' : 'none';
+  toggleVisibility();
+}
 function toggleVisibility() {
   // Piso y benchmark son SIEMPRE internas: forzar y bloquear el selector
   var vis = document.getElementById('visibility-select');
   if (!vis) return;
   var tier = document.getElementById('tier-select').value;
   var lt = document.getElementById('line-type-select').value;
-  if (tier === 'piso' || lt === 'benchmark') {
+  var ownerSel = document.getElementById('owner-select');
+  var esTercero = ownerSel && ownerSel.value === 'tercero';
+  if (tier === 'piso' || lt === 'benchmark' || esTercero) {
     vis.value = 'interna';
     vis.disabled = true;
   } else {
@@ -264,6 +293,7 @@ document.querySelector('form').addEventListener('submit', function(){
 });
 toggleCliente();
 toggleLineType();
+toggleOwner();
 </script>
 
 {% endblock %}
