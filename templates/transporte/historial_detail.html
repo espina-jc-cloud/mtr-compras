@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}{{ op.nombre_barco }} — Transporte{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+  <!-- Breadcrumb + Volver -->
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2 text-sm text-gray-400">
+      <a href="/transporte/historial" class="hover:text-gray-600">Historial</a>
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <span class="text-gray-600 font-medium truncate">{{ op.nombre_barco }}</span>
+    </div>
+    <a href="/transporte/historial"
+       class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 rounded-xl transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Volver al historial
+    </a>
+  </div>
+
+  <!-- Encabezado del operativo -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 mb-5">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ op.nombre_barco }}</h1>
+        <div class="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
+          {% if op.producto %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            {{ op.producto }}
+          </span>
+          {% endif %}
+          {% if op.cliente %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            {{ op.cliente }}
+          </span>
+          {% endif %}
+          {% if op.deposito %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            {{ op.deposito }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <!-- Fechas -->
+        <div class="text-right text-sm">
+          {% if op.fecha_inicio %}
+          <p class="text-gray-500">
+            <span class="text-gray-400 text-xs">Inicio:</span>
+            <span class="font-medium text-gray-700 ml-1">{{ op.fecha_inicio | fmt_date }}</span>
+          </p>
+          {% endif %}
+          {% if op.fecha_fin %}
+          <p class="text-gray-500 mt-0.5">
+            <span class="text-gray-400 text-xs">Fin:</span>
+            <span class="font-medium text-gray-700 ml-1">{{ op.fecha_fin | fmt_date }}</span>
+          </p>
+          {% endif %}
+        </div>
+        <!-- Exportar Word -->
+        <a href="/transporte/historial/{{ op.id }}/exportar-word"
+           class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm"
+           title="Descargar lista de transportes en Word">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Exportar Word
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TRANSPORTES ASIGNADOS ─────────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-5">
+    <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Transportes asignados</h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {{ op.asignaciones|length }} transporte{% if op.asignaciones|length != 1 %}s{% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if op.asignaciones %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100">
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Empresa</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Chofer</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">DNI</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden md:table-cell">Marca</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Pat. camión</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden lg:table-cell">Pat. acoplado</th>
+            <th class="px-4 py-3 w-16"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for a in op.asignaciones %}
+          <tr class="hover:bg-gray-50 transition-colors">
+            <td class="px-4 py-3 font-medium text-gray-900">{{ a.empresa_snap }}</td>
+            <td class="px-4 py-3 text-gray-700">{{ a.nombre_chofer_snap }}</td>
+            <td class="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">{{ a.dni_snap or "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 hidden md:table-cell">{{ a.marca_camion_snap or "—" }}</td>
+            <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ a.patente_camion_snap or "—" }}</td>
+            <td class="px-4 py-3 font-mono text-xs text-gray-500 hidden lg:table-cell">{{ a.patente_acoplado_snap or "—" }}</td>
+            <td class="px-4 py-3 text-right">
+              <form method="post"
+                    action="/transporte/historial/{{ op.id }}/desasignar/{{ a.id }}"
+                    onsubmit="return confirm('¿Quitar a {{ a.nombre_chofer_snap }} de este operativo?')">
+                <button type="submit"
+                        class="inline-flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors border border-red-100 hover:border-red-200">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  Quitar
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-10 text-center text-gray-400 text-sm">
+      <svg class="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h7l2-2zm0 0h5a1 1 0 001-1v-5a1 1 0 00-.553-.894L13 8v8z"/>
+      </svg>
+      <p>Aún no hay transportes asignados.</p>
+      <p class="text-xs mt-1 text-gray-300">Agregá transportes desde la tabla de abajo.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── NÓMINA MADRE — TRANSPORTES DISPONIBLES ────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Nómina Madre — Transportes disponibles</h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {% if disponibles %}
+            {{ disponibles|length }} transporte{% if disponibles|length != 1 %}s{% endif %} disponible{% if disponibles|length != 1 %}s{% endif %}
+          {% else %}
+            Sin transportes disponibles
+          {% endif %}
+        </p>
+      </div>
+      <a href="/transporte/nomina"
+         class="text-xs text-sky-600 hover:text-sky-800 font-medium flex items-center gap-1">
+        Gestionar Nómina
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
+    </div>
+
+    {% if disponibles %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100">
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Empresa</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Nombre y apellido</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">DNI</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden md:table-cell">Marca</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Pat. camión</th>
+            <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden lg:table-cell">Pat. acoplado</th>
+            <th class="px-4 py-3 w-20"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for n in disponibles %}
+          <tr class="hover:bg-sky-50 transition-colors">
+            <td class="px-4 py-3 font-medium text-gray-900">{{ n.empresa }}</td>
+            <td class="px-4 py-3 text-gray-700">{{ n.nombre_chofer }}</td>
+            <td class="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">{{ n.dni or "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 hidden md:table-cell">{{ n.marca_camion or "—" }}</td>
+            <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ n.patente_camion or "—" }}</td>
+            <td class="px-4 py-3 font-mono text-xs text-gray-500 hidden lg:table-cell">{{ n.patente_acoplado or "—" }}</td>
+            <td class="px-4 py-3 text-right">
+              <form method="post" action="/transporte/historial/{{ op.id }}/asignar">
+                <input type="hidden" name="nomina_id" value="{{ n.id }}">
+                <button type="submit"
+                        class="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-white hover:bg-sky-600 bg-sky-50 px-2.5 py-1.5 rounded-lg transition-colors border border-sky-200 hover:border-sky-600">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  Agregar
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-10 text-center text-gray-400 text-sm">
+      <svg class="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/>
+      </svg>
+      <p class="font-medium">Todos los transportes ya están asignados.</p>
+      <a href="/transporte/nomina/new"
+         class="inline-block mt-2 text-xs text-sky-600 hover:text-sky-800 font-medium">
+        + Agregar nuevo transporte a la Nómina
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}

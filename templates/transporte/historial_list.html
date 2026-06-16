@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Historial de Operativos — Transporte{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Historial de Operativos</h1>
+      <p class="text-sm text-gray-400 mt-0.5">{{ operativos|length }} operativo{% if operativos|length != 1 %}s{% endif %}</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/transporte/nomina"
+         class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-3 py-2.5 rounded-xl font-medium">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h7l2-2zm0 0h5a1 1 0 001-1v-5a1 1 0 00-.553-.894L13 8v8z"/>
+        </svg>
+        Nómina Madre
+      </a>
+      <a href="/transporte/historial/new"
+         class="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Nuevo operativo
+      </a>
+    </div>
+  </div>
+
+  {% if operativos %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50">
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Operativo (barco)</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">Cliente</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden md:table-cell">Producto</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Fecha inicio</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">Fecha fin</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for op in operativos %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="px-4 py-3">
+            <p class="font-medium text-gray-900">{{ op.nombre_barco }}</p>
+            {% if op.deposito %}
+            <p class="text-xs text-gray-400 mt-0.5">{{ op.deposito }}</p>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-600 hidden sm:table-cell">{{ op.cliente or "—" }}</td>
+          <td class="px-4 py-3 text-gray-600 hidden md:table-cell">{{ op.producto or "—" }}</td>
+          <td class="px-4 py-3 text-gray-600 font-mono text-xs">
+            {{ op.fecha_inicio | fmt_date if op.fecha_inicio else "—" }}
+          </td>
+          <td class="px-4 py-3 text-gray-600 font-mono text-xs hidden sm:table-cell">
+            {{ op.fecha_fin | fmt_date if op.fecha_fin else "—" }}
+          </td>
+          <td class="px-4 py-3 text-right">
+            <a href="/transporte/historial/{{ op.id }}"
+               class="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-800 font-medium">
+              Ver
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-16 text-gray-400">
+    <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+    </svg>
+    <p class="font-medium">Sin operativos registrados</p>
+    <p class="text-xs mt-1">Creá el primer operativo con el botón "Nuevo operativo".</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
