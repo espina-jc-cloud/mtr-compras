@@ -5,3 +5,4 @@ __pycache__/
 mtr_compras.db
 *.sqlite3
 .DS_Store
+.DS_Store
