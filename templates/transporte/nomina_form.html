@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{% if item %}Editar transporte{% else %}Nuevo transporte{% endif %} — MTR{% endblock %}
+{% block content %}
+
+{% set is_edit = item is not none %}
+{% set f = form if form is defined else item %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
+    <a href="/transporte/nomina" class="hover:text-gray-600">Nómina Madre</a>
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    <span class="text-gray-600 font-medium">{% if is_edit %}Editar{% else %}Nuevo transporte{% endif %}</span>
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+    <h1 class="text-lg font-semibold text-gray-900 mb-5">
+      {% if is_edit %}Editar transporte{% else %}Nuevo transporte{% endif %}
+    </h1>
+
+    {% if errors %}
+    <div class="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+      <ul class="text-sm text-red-700 space-y-0.5 list-disc list-inside">
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post"
+          action="{% if is_edit %}/transporte/nomina/{{ item.id }}/edit{% else %}/transporte/nomina/new{% endif %}">
+
+      <div class="space-y-4">
+        <!-- Empresa -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">
+            Empresa <span class="text-red-500">*</span>
+          </label>
+          <input type="text" name="empresa"
+                 value="{{ f.empresa if f else '' }}"
+                 placeholder="Razón social de la transportista"
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50"
+                 required autofocus>
+        </div>
+
+        <!-- Nombre y apellido -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">
+            Nombre y apellido del chofer <span class="text-red-500">*</span>
+          </label>
+          <input type="text" name="nombre_chofer"
+                 value="{{ f.nombre_chofer if f else '' }}"
+                 placeholder="Nombre completo"
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50"
+                 required>
+        </div>
+
+        <!-- DNI -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">DNI</label>
+          <input type="text" name="dni"
+                 value="{{ f.dni if f and f.dni else '' }}"
+                 placeholder="Sin puntos ni guiones"
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
+        </div>
+
+        <!-- Marca del camión -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Marca del camión</label>
+          <input type="text" name="marca_camion"
+                 value="{{ f.marca_camion if f and f.marca_camion else '' }}"
+                 placeholder="Ej: Mercedes-Benz, Scania, Volvo..."
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
+        </div>
+
+        <!-- Patentes -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Patente del camión</label>
+            <input type="text" name="patente_camion"
+                   value="{{ f.patente_camion if f and f.patente_camion else '' }}"
+                   placeholder="Ej: ABC123"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50"
+                   style="text-transform:uppercase">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Patente del acoplado</label>
+            <input type="text" name="patente_acoplado"
+                   value="{{ f.patente_acoplado if f and f.patente_acoplado else '' }}"
+                   placeholder="Ej: XYZ789"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50"
+                   style="text-transform:uppercase">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-6 pt-5 border-t border-gray-100">
+        <a href="/transporte/nomina"
+           class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+          Cancelar
+        </a>
+        <button type="submit"
+                class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+          {% if is_edit %}Guardar cambios{% else %}Crear transporte{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

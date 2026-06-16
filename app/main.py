@@ -9,6 +9,7 @@ from app.routers import operations_live
 from app.routers import despachos
 from app.routers import tariffs
 from app.routers import projects
+from app.routers import transporte
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ app.include_router(equipment.router)
 app.include_router(maintenance.router)
 app.include_router(fuel.router)
 app.include_router(projects.router)
+app.include_router(transporte.router)
 # Live DEBE registrarse antes que operations para que /operations/live
 # no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
 app.include_router(operations_live.router)

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Nómina Madre — Transporte{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-400 mb-1">
+        <a href="/transporte/historial" class="hover:text-gray-600">Transporte</a>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-gray-600 font-medium">Nómina Madre</span>
+      </div>
+      <h1 class="text-xl font-semibold text-gray-900">Nómina Madre</h1>
+      <p class="text-sm text-gray-400 mt-0.5">{{ nomina|length }} registro{% if nomina|length != 1 %}s{% endif %}</p>
+    </div>
+    <a href="/transporte/nomina/new"
+       class="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nuevo transporte
+    </a>
+  </div>
+
+  <!-- Búsqueda -->
+  <form method="get" action="/transporte/nomina" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
+    <div class="flex gap-3">
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por empresa, chofer, DNI, patente..."
+        class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
+      <button type="submit"
+        class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+        Buscar
+      </button>
+      {% if q %}
+      <a href="/transporte/nomina"
+         class="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 px-3 py-2.5 rounded-xl border border-gray-200 bg-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        Limpiar
+      </a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Tabla -->
+  {% if nomina %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50">
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Empresa</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Nombre y apellido</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">DNI</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden md:table-cell">Marca</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Patente camión</th>
+          <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden lg:table-cell">Pat. acoplado</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for item in nomina %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="px-4 py-3 font-medium text-gray-900">{{ item.empresa }}</td>
+          <td class="px-4 py-3 text-gray-700">{{ item.nombre_chofer }}</td>
+          <td class="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">{{ item.dni or "—" }}</td>
+          <td class="px-4 py-3 text-gray-500 hidden md:table-cell">{{ item.marca_camion or "—" }}</td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ item.patente_camion or "—" }}</td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-500 hidden lg:table-cell">{{ item.patente_acoplado or "—" }}</td>
+          <td class="px-4 py-3">
+            <div class="flex items-center justify-end gap-1">
+              <a href="/transporte/nomina/{{ item.id }}/edit"
+                 class="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="Editar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+              </a>
+              {% if user.role in ("admin", "superadmin") %}
+              <form method="post" action="/transporte/nomina/{{ item.id }}/delete"
+                    onsubmit="return confirm('¿Eliminar a {{ item.nombre_chofer }} de {{ item.empresa }}?')">
+                <button type="submit"
+                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-16 text-gray-400">
+    <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h7l2-2zm0 0h5a1 1 0 001-1v-5a1 1 0 00-.553-.894L13 8v8z"/>
+    </svg>
+    <p class="font-medium">Nómina vacía</p>
+    <p class="text-xs mt-1">
+      {% if q %}No se encontraron resultados para "{{ q }}".
+      {% else %}Agregá el primer transporte con el botón "Nuevo transporte".{% endif %}
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

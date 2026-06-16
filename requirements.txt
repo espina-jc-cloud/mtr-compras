@@ -9,3 +9,4 @@ jinja2
 cloudinary
 python-dotenv
 openpyxl
+python-docx
