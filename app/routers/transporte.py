@@ -11,6 +11,7 @@ from app.deps import get_current_user
 from app import models_transporte as mt
 from app.templates import templates
 
+# FORCE REDEPLOY - Railway cache fix
 router = APIRouter(prefix="/transporte")
 
 
@@ -568,3 +569,4 @@ async def historial_exportar_word(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+      
