@@ -268,6 +268,7 @@ async def historial_create(
     producto: str     = Form(""),
     cliente: str      = Form(""),
     deposito: str     = Form(""),
+    mercaderia_a_mover: str = Form(""),
     fecha_inicio: str = Form(""),
     fecha_fin: str    = Form(""),
     db: Session = Depends(get_db),
@@ -287,6 +288,7 @@ async def historial_create(
                 "producto": producto,
                 "cliente": cliente,
                 "deposito": deposito,
+                "mercaderia_a_mover": mercaderia_a_mover,
                 "fecha_inicio": fecha_inicio,
                 "fecha_fin": fecha_fin,
             },
@@ -298,6 +300,7 @@ async def historial_create(
         cliente       = cliente.strip() or None,
         deposito      = deposito.strip() or None,
         fecha_inicio  = _parse_date(fecha_inicio),
+        mercaderia_a_mover = mercaderia_a_mover.strip() or None,
         fecha_fin     = _parse_date(fecha_fin),
         created_by_id = current_user.id,
     )
@@ -351,6 +354,254 @@ async def historial_detail(
         "op": op,
         "disponibles": disponibles,
     })
+
+
+@router.get("/historial/{op_id}/edit", response_class=HTMLResponse)
+async def historial_edit_form(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    return templates.TemplateResponse(request, "transporte/historial_edit.html", {
+        "request": request,
+        "user": current_user,
+        "op": op,
+        "errors": [],
+    })
+
+
+@router.post("/historial/{op_id}/edit", response_class=HTMLResponse)
+async def historial_edit_save(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+    nombre_barco: str = Form(""),
+    producto: str = Form(""),
+    cliente: str = Form(""),
+    deposito: str = Form(""),
+    mercaderia_a_mover: str = Form(""),
+    fecha_inicio: str = Form(""),
+    fecha_fin: str = Form(""),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+    op.nombre_barco = nombre_barco
+    op.producto = producto
+    op.cliente = cliente
+    op.deposito = deposito
+    op.mercaderia_a_mover = mercaderia_a_mover
+    from datetime import date as _date
+    op.fecha_inicio = _date.fromisoformat(fecha_inicio) if fecha_inicio else None
+    op.fecha_fin = _date.fromisoformat(fecha_fin) if fecha_fin else None
+    db.commit()
+    return RedirectResponse(url=f"/transporte/historial/{op_id}", status_code=303)
+
+
+@router.post("/historial/{op_id}/delete", response_class=HTMLResponse)
+async def historial_delete(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+    from datetime import datetime
+    op.deleted_at = datetime.now()
+    db.commit()
+    return RedirectResponse(url="/transporte/historial", status_code=303)
+
+
+@router.get("/historial/{op_id}/exportar-word-puerto")
+async def historial_exportar_word_puerto(
+    op_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    try:
+        from docx import Document
+        from docx.shared import Pt, Cm, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="python-docx no está instalado.",
+        )
+    from pathlib import Path
+
+    op = (
+        db.query(mt.TransporteOperativo)
+        .options(joinedload(mt.TransporteOperativo.asignaciones))
+        .filter(
+            mt.TransporteOperativo.id == op_id,
+            mt.TransporteOperativo.deleted_at == None,
+        )
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    MESES = {
+        1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+        5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+        9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+    }
+    hoy = date.today()
+    fecha_str = (
+        f"San Nicolás de los Arroyos, "
+        f"{hoy.day} de {MESES[hoy.month]} de {hoy.year}"
+    )
+
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2.5)
+
+    if os.path.isfile(_LOGO_PATH):
+        logo_p = doc.add_paragraph()
+        logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_p.paragraph_format.space_after = Pt(6)
+        logo_p.add_run().add_picture(_LOGO_PATH, width=Inches(2.2))
+
+    doc.add_paragraph()
+
+    p_fecha = doc.add_paragraph()
+    p_fecha.paragraph_format.space_after = Pt(2)
+    r_fecha = p_fecha.add_run(fecha_str)
+    r_fecha.font.size = Pt(11)
+
+    doc.add_paragraph()
+
+    p_dest = doc.add_paragraph()
+    p_dest.paragraph_format.space_after = Pt(0)
+    r_dest = p_dest.add_run(
+        "SEÑORES ADMINISTRACIÓN GENERAL DE PUERTOS"
+    )
+    r_dest.bold = True
+    r_dest.font.size = Pt(11)
+
+    p_pres = doc.add_paragraph()
+    p_pres.paragraph_format.space_after = Pt(6)
+    r_pres = p_pres.add_run("PRESENTE")
+    r_pres.bold = True
+    r_pres.font.size = Pt(11)
+
+    doc.add_paragraph()
+
+    mercaderia = op.mercaderia_a_mover or "mercadería"
+    p_cuerpo = doc.add_paragraph()
+    p_cuerpo.paragraph_format.space_after = Pt(4)
+    r_cuerpo = p_cuerpo.add_run(
+        f"Por medio de la presente se informa que con motivo "
+        f"de la operación del buque {op.nombre_barco}, "
+        f"se procederá al movimiento de {mercaderia}."
+    )
+    r_cuerpo.font.size = Pt(11)
+
+    p_detalle = doc.add_paragraph()
+    p_detalle.paragraph_format.space_after = Pt(8)
+    r_detalle = p_detalle.add_run(
+        "A continuación se detalla la nómina de "
+        "transportes afectados a la operación:"
+    )
+    r_detalle.font.size = Pt(11)
+
+    headers = [
+        "Empresa",
+        "Apellido y nombre",
+        "DNI",
+        "Camión",
+        "Patente camión",
+        "Patente acoplado",
+    ]
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    hdr_row = table.rows[0]
+    for i, h in enumerate(headers):
+        cell = hdr_row.cells[i]
+        cell.paragraphs[0].clear()
+        run = cell.paragraphs[0].add_run(h)
+        run.bold = True
+        run.font.size = Pt(10)
+
+    for a in op.asignaciones:
+        row = table.add_row()
+        vals = [
+            a.empresa_snap,
+            a.nombre_chofer_snap,
+            a.dni_snap or "—",
+            a.marca_camion_snap or "—",
+            a.patente_camion_snap or "—",
+            a.patente_acoplado_snap or "—",
+        ]
+        for i, v in enumerate(vals):
+            cell = row.cells[i]
+            cell.paragraphs[0].clear()
+            run = cell.paragraphs[0].add_run(v)
+            run.font.size = Pt(10)
+
+    doc.add_paragraph()
+
+    firma_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "static" / "firmas" / "fernando_martinez.png"
+    )
+    if firma_path.is_file():
+        firma_p = doc.add_paragraph()
+        firma_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        firma_p.add_run().add_picture(
+            str(firma_path), width=Inches(1.8)
+        )
+
+    p_nombre = doc.add_paragraph()
+    p_nombre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_nombre.paragraph_format.space_after = Pt(0)
+    r_nombre = p_nombre.add_run("Fernando Martínez")
+    r_nombre.bold = True
+    r_nombre.font.size = Pt(11)
+
+    p_cargo = doc.add_paragraph()
+    p_cargo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_cargo = p_cargo.add_run("MTR Logística")
+    r_cargo.font.size = Pt(11)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    safe_name = op.nombre_barco.replace(" ", "_").replace("/", "-")
+    filename = f"carta_puerto_{safe_name}_{op_id}.docx"
+
+    WORD_MIME = (
+        "application/vnd.openxmlformats-"
+        "officedocument.wordprocessingml.document"
+    )
+    return StreamingResponse(
+        buf,
+        media_type=WORD_MIME,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
 
 
 @router.post("/historial/{op_id}/asignar", response_class=HTMLResponse)
@@ -556,6 +807,30 @@ async def historial_exportar_word(
             run = cell.paragraphs[0].add_run(v)
             run.font.size = Pt(10)
 
+    doc.add_paragraph()
+
+    from pathlib import Path
+    firma_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "static" / "firmas" / "fernando_martinez.png"
+    )
+    if firma_path.is_file():
+        firma_p = doc.add_paragraph()
+        firma_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        firma_p.add_run().add_picture(str(firma_path), width=Inches(1.8))
+
+    p_nombre = doc.add_paragraph()
+    p_nombre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_nombre.paragraph_format.space_after = Pt(0)
+    r_nombre = p_nombre.add_run("Fernando Martínez")
+    r_nombre.bold = True
+    r_nombre.font.size = Pt(11)
+
+    p_cargo = doc.add_paragraph()
+    p_cargo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_cargo = p_cargo.add_run("MTR Logística")
+    r_cargo.font.size = Pt(11)
+
     # ── Serializar ─────────────────────────────────────────────────────────────
     buf = io.BytesIO()
     doc.save(buf)
@@ -569,4 +844,3 @@ async def historial_exportar_word(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-      
