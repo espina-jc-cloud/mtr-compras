@@ -129,6 +129,8 @@ def run():
         # (tariff_components se crea sola con create_all)
         _add_column(conn, "tariffs", "owner",   "VARCHAR(20) DEFAULT 'propia'")
         _add_column(conn, "tariffs", "tercero", "VARCHAR(200)")
+        # Módulo Transporte: campo mercadería a mover
+        _add_column(conn, "transporte_operativos", "mercaderia_a_mover", "VARCHAR(500)")
         # Módulo Proyectos — Etapa 2A: Bitácora diaria
         # project_entries se crea sola con create_all().
         # Las columnas de projects que pasan a nullable no requieren ALTER en SQLite.
