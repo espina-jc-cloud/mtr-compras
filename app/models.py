@@ -572,3 +572,9 @@ from app.models_live import (  # noqa: E402, F401
     # Fase 3: Fotos
     OperationLivePhoto,
 )
+# ── Módulo Operaciones Diarias ───────────────────────────────────────────────
+from app.models_daily_ops import (  # noqa: E402, F401
+    DailyOpDay,
+    DailyOpImport,
+    DailyOpTrip,
+)
