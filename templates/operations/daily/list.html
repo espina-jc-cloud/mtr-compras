@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="p-6 space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900">Operaciones Diarias</h1>
+      <p class="text-sm text-gray-500">Resumen diario de viajes importados del sistema viejo.</p>
+    </div>
+    <a href="/operations/daily/new" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+      + Nuevo día
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Viajes</div>
+      <div class="text-2xl font-semibold">{{ stats.total_trips }}</div>
+    </div>
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Neto total</div>
+      <div class="text-2xl font-semibold">{{ stats.neto_tn }} tn</div>
+    </div>
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Origen total</div>
+      <div class="text-2xl font-semibold">{{ stats.origen_tn }} tn</div>
+    </div>
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Diferencia</div>
+      <div class="text-2xl font-semibold">{{ stats.diff_tn }} tn</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border p-4 shadow-sm">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+      <input type="date" name="date_from" value="{{ filters.date_from }}" class="border rounded-lg px-3 py-2 text-sm">
+      <input type="date" name="date_to" value="{{ filters.date_to }}" class="border rounded-lg px-3 py-2 text-sm">
+
+      <select name="client" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los clientes</option>
+        {% for c in clients %}
+          <option value="{{ c }}" {% if filters.client == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="product" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los productos</option>
+        {% for p in products %}
+          <option value="{{ p }}" {% if filters.product == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="operativo" class="border rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos los operativos</option>
+        {% for o in operativos %}
+          <option value="{{ o }}" {% if filters.operativo == o %}selected{% endif %}>{{ o }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="rounded-lg bg-gray-900 text-white text-sm px-4 py-2">Filtrar</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div class="p-4 border-b">
+      <h2 class="font-semibold text-gray-900">Días cargados</h2>
+    </div>
+
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500">
+        <tr>
+          <th class="text-left p-3">Fecha</th>
+          <th class="text-right p-3">Viajes</th>
+          <th class="text-right p-3">Neto</th>
+          <th class="text-right p-3">Origen</th>
+          <th class="text-right p-3">Diferencia</th>
+          <th class="text-right p-3">Clientes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in days_rows %}
+        <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/daily/{{ row.id }}'">
+          <td class="p-3 font-medium">{{ row.op_date.strftime("%d/%m/%Y") }}</td>
+          <td class="p-3 text-right">{{ row.trips }}</td>
+          <td class="p-3 text-right">{{ tn(row.neto_kg) }} tn</td>
+          <td class="p-3 text-right">{{ tn(row.origen_kg) }} tn</td>
+          <td class="p-3 text-right">{{ tn(row.diff_kg) }} tn</td>
+          <td class="p-3 text-right">{{ row.clients }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="p-6 text-center text-gray-500">Todavía no hay días cargados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
