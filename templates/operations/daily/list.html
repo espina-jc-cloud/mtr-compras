@@ -18,16 +18,18 @@
       <div class="text-2xl font-semibold">{{ stats.total_trips }}</div>
     </div>
     <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Neto total</div>
-      <div class="text-2xl font-semibold">{{ stats.neto_tn }} tn</div>
+      <div class="text-xs text-gray-500">Cargas</div>
+      <div class="text-2xl font-semibold">{{ stats.cargas_tn }} tn</div>
+      <div class="text-xs text-gray-400">{{ stats.cargas_movimientos }} movimientos</div>
     </div>
     <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Origen total</div>
-      <div class="text-2xl font-semibold">{{ stats.origen_tn }} tn</div>
+      <div class="text-xs text-gray-500">Descargas</div>
+      <div class="text-2xl font-semibold">{{ stats.descargas_tn }} tn</div>
+      <div class="text-xs text-gray-400">{{ stats.descargas_movimientos }} movimientos</div>
     </div>
     <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Diferencia</div>
-      <div class="text-2xl font-semibold">{{ stats.diff_tn }} tn</div>
+      <div class="text-xs text-gray-500">Clientes</div>
+      <div class="text-2xl font-semibold">{{ stats.clients_count }}</div>
     </div>
   </div>
 
@@ -71,9 +73,8 @@
         <tr>
           <th class="text-left p-3">Fecha</th>
           <th class="text-right p-3">Viajes</th>
-          <th class="text-right p-3">Neto</th>
-          <th class="text-right p-3">Origen</th>
-          <th class="text-right p-3">Diferencia</th>
+          <th class="text-right p-3">Cargas</th>
+          <th class="text-right p-3">Descargas</th>
           <th class="text-right p-3">Clientes</th>
         </tr>
       </thead>
@@ -82,14 +83,13 @@
         <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/daily/{{ row.id }}'">
           <td class="p-3 font-medium">{{ row.op_date.strftime("%d/%m/%Y") }}</td>
           <td class="p-3 text-right">{{ row.trips }}</td>
-          <td class="p-3 text-right">{{ tn(row.neto_kg) }} tn</td>
-          <td class="p-3 text-right">{{ tn(row.origen_kg) }} tn</td>
-          <td class="p-3 text-right">{{ tn(row.diff_kg) }} tn</td>
+          <td class="p-3 text-right">{{ row.cargas_movimientos }} mov. / {{ tn(row.cargas_origen_kg) }} tn</td>
+          <td class="p-3 text-right">{{ row.descargas_movimientos }} mov. / {{ tn(row.descargas_origen_kg) }} tn</td>
           <td class="p-3 text-right">{{ row.clients }}</td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" class="p-6 text-center text-gray-500">Todavía no hay días cargados.</td>
+          <td colspan="5" class="p-6 text-center text-gray-500">Todavía no hay días cargados.</td>
         </tr>
         {% endfor %}
       </tbody>

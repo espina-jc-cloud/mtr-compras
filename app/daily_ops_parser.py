@@ -164,6 +164,7 @@ def parse_old_system_html(file_content: bytes) -> dict:
         client = _clean(data.get("client"))
         product = _clean(data.get("product"))
         transporte = _clean(data.get("transporte"))
+        operation = _clean(data.get("operation"))
 
         neto_kg = _to_int(data.get("neto_kg")) or 0
         origen_kg = _to_int(data.get("origen_kg")) or 0
@@ -192,6 +193,7 @@ def parse_old_system_html(file_content: bytes) -> dict:
             "client": client,
             "product": product,
             "transporte": transporte,
+            "operation": operation,
             "operativo": operativo,
             "duration_min": _duration_min(entry_date, entry_time, exit_date, exit_time),
             "shift_number": _shift_from_time(entry_time),

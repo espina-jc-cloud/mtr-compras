@@ -30,6 +30,10 @@ def _qp(request: Request, name: str, default: str = "") -> str:
     return (request.query_params.get(name) or default).strip()
 
 
+def _is_operation(value, expected: str) -> bool:
+    return (value or "").strip().lower() == expected.lower()
+
+
 @router.get("", response_class=HTMLResponse)
 async def list_daily_operations(
     request: Request,
@@ -68,6 +72,16 @@ async def list_daily_operations(
         func.coalesce(func.sum(DailyOpTrip.diff_kg), 0),
     ).first()
 
+    cargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").count()
+    cargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    ).scalar() or 0
+
+    descargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").count()
+    descargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    ).scalar() or 0
+
     clients_count = trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0
     products_count = trips_q.with_entities(func.count(func.distinct(DailyOpTrip.product))).scalar() or 0
     days_count = trips_q.with_entities(func.count(func.distinct(DailyOpTrip.day_id))).scalar() or 0
@@ -85,21 +99,29 @@ async def list_daily_operations(
         .all()
     )
 
-    days_rows = (
-        db.query(
-            DailyOpDay.id,
-            DailyOpDay.op_date,
-            func.count(DailyOpTrip.id).label("trips"),
-            func.coalesce(func.sum(DailyOpTrip.neto_kg), 0).label("neto_kg"),
-            func.coalesce(func.sum(DailyOpTrip.origen_kg), 0).label("origen_kg"),
-            func.coalesce(func.sum(DailyOpTrip.diff_kg), 0).label("diff_kg"),
-            func.count(func.distinct(DailyOpTrip.client)).label("clients"),
-        )
-        .outerjoin(DailyOpTrip, DailyOpTrip.day_id == DailyOpDay.id)
-        .group_by(DailyOpDay.id)
+    all_days = (
+        db.query(DailyOpDay)
         .order_by(DailyOpDay.op_date.desc())
         .all()
     )
+
+    days_rows = []
+    for day in all_days:
+        day_trips_q = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day.id)
+
+        cargas_q = day_trips_q.filter(func.lower(DailyOpTrip.operation) == "carga")
+        descargas_q = day_trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga")
+
+        days_rows.append({
+            "id": day.id,
+            "op_date": day.op_date,
+            "trips": day_trips_q.count(),
+            "cargas_movimientos": cargas_q.count(),
+            "cargas_origen_kg": cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "descargas_movimientos": descargas_q.count(),
+            "descargas_origen_kg": descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "clients": day_trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0,
+        })
 
     clients = [x[0] for x in db.query(DailyOpTrip.client).filter(DailyOpTrip.client.isnot(None)).distinct().order_by(DailyOpTrip.client).all()]
     products = [x[0] for x in db.query(DailyOpTrip.product).filter(DailyOpTrip.product.isnot(None)).distinct().order_by(DailyOpTrip.product).all()]
@@ -110,6 +132,10 @@ async def list_daily_operations(
         "neto_tn": _tn(sums[0] if sums else 0),
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
+        "cargas_movimientos": cargas_movimientos,
+        "cargas_tn": _tn(cargas_origen_kg),
+        "descargas_movimientos": descargas_movimientos,
+        "descargas_tn": _tn(descargas_origen_kg),
         "clients_count": clients_count,
         "products_count": products_count,
         "days_count": days_count,
@@ -239,6 +265,7 @@ async def create_daily_operation(
                     client=item.get("client"),
                     product=item.get("product"),
                     transporte=item.get("transporte"),
+                    operation=item.get("operation"),
                     operativo=item.get("operativo") or operativo,
                     duration_min=item.get("duration_min"),
                     shift_number=item.get("shift_number"),
@@ -321,11 +348,21 @@ async def daily_operation_detail(
     operativos = [x[0] for x in db.query(DailyOpTrip.operativo).filter(DailyOpTrip.day_id == day.id, DailyOpTrip.operativo.isnot(None)).distinct().order_by(DailyOpTrip.operativo).all()]
     transportes = [x[0] for x in db.query(DailyOpTrip.transporte).filter(DailyOpTrip.day_id == day.id, DailyOpTrip.transporte.isnot(None)).distinct().order_by(DailyOpTrip.transporte).all()]
 
+    cargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga")
+    descargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga")
+
+    cargas_origen_kg = cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
+    descargas_origen_kg = descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
+
     stats = {
         "total_trips": trips_q.count(),
         "neto_tn": _tn(sums[0] if sums else 0),
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
+        "cargas_movimientos": cargas_q.count(),
+        "cargas_tn": _tn(cargas_origen_kg),
+        "descargas_movimientos": descargas_q.count(),
+        "descargas_tn": _tn(descargas_origen_kg),
         "clients_count": len(clients),
         "products_count": len(products),
     }

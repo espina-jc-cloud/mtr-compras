@@ -20,16 +20,18 @@
       <div class="text-2xl font-semibold">{{ stats.total_trips }}</div>
     </div>
     <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Neto</div>
+      <div class="text-xs text-gray-500">Cargas</div>
+      <div class="text-2xl font-semibold">{{ stats.cargas_tn }} tn</div>
+      <div class="text-xs text-gray-400">{{ stats.cargas_movimientos }} movimientos</div>
+    </div>
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Descargas</div>
+      <div class="text-2xl font-semibold">{{ stats.descargas_tn }} tn</div>
+      <div class="text-xs text-gray-400">{{ stats.descargas_movimientos }} movimientos</div>
+    </div>
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <div class="text-xs text-gray-500">Neto total</div>
       <div class="text-2xl font-semibold">{{ stats.neto_tn }} tn</div>
-    </div>
-    <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Origen</div>
-      <div class="text-2xl font-semibold">{{ stats.origen_tn }} tn</div>
-    </div>
-    <div class="bg-white rounded-xl border p-4 shadow-sm">
-      <div class="text-xs text-gray-500">Diferencia</div>
-      <div class="text-2xl font-semibold">{{ stats.diff_tn }} tn</div>
     </div>
     <div class="bg-white rounded-xl border p-4 shadow-sm">
       <div class="text-xs text-gray-500">Clientes</div>
@@ -98,6 +100,7 @@
               <th class="text-left p-2">Entrada</th>
               <th class="text-left p-2">Salida</th>
               <th class="text-left p-2">Patente</th>
+              <th class="text-left p-2">Tipo</th>
               <th class="text-right p-2">Tara</th>
               <th class="text-right p-2">Bruto</th>
               <th class="text-right p-2">Neto</th>
@@ -115,6 +118,7 @@
               <td class="p-2">{{ trip.entry_time or "-" }}</td>
               <td class="p-2">{{ trip.exit_time or "-" }}</td>
               <td class="p-2">{{ trip.plate or "-" }}</td>
+              <td class="p-2">{{ trip.operation or "-" }}</td>
               <td class="p-2 text-right">{{ trip.tara_kg or 0 }}</td>
               <td class="p-2 text-right">{{ trip.bruto_kg or 0 }}</td>
               <td class="p-2 text-right">{{ tn(trip.neto_kg) }} tn</td>
