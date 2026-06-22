@@ -56,8 +56,8 @@ async def nomina_list(
     nomina = (
         query
         .order_by(
-            mt.TransporteNomina.empresa.asc(),
             mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
         )
         .all()
     )
@@ -342,8 +342,8 @@ async def historial_detail(
             mt.TransporteNomina.id.notin_(asignados_ids) if asignados_ids else True,
         )
         .order_by(
-            mt.TransporteNomina.empresa.asc(),
             mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
         )
         .all()
     )
@@ -482,8 +482,8 @@ async def historial_exportar_word_puerto(
             mt.TransporteNomina.id.notin_(excluidos_ids) if excluidos_ids else True,
         )
         .order_by(
-            mt.TransporteNomina.empresa.asc(),
             mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
         )
         .all()
     )
@@ -928,7 +928,7 @@ async def historial_puerto(
     nomina = (
         db.query(mt.TransporteNomina)
         .filter(mt.TransporteNomina.deleted_at == None)
-        .order_by(mt.TransporteNomina.empresa.asc(), mt.TransporteNomina.nombre_chofer.asc())
+        .order_by(mt.TransporteNomina.nombre_chofer.asc(), mt.TransporteNomina.empresa.asc())
         .all()
     )
 
