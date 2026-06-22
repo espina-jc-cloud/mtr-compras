@@ -116,6 +116,7 @@ async def list_daily_operations(
     }
 
     return templates.TemplateResponse(
+        request,
         "operations/daily/list.html",
         {
             "request": request,
@@ -329,6 +330,7 @@ async def daily_operation_detail(
     }
 
     return templates.TemplateResponse(
+        request,
         "operations/daily/detail.html",
         {
             "request": request,
