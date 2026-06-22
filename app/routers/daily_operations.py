@@ -145,6 +145,7 @@ async def new_daily_operation(
     current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
 ):
     return templates.TemplateResponse(
+        request,
         "operations/daily/new.html",
         {"request": request, "current_user": current_user},
     )
