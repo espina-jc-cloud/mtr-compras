@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="p-6 max-w-3xl mx-auto space-y-6">
+  <div>
+    <a href="/operations/daily" class="text-sm text-blue-600 hover:underline">← Volver</a>
+    <h1 class="text-2xl font-semibold text-gray-900 mt-2">Importar operaciones diarias</h1>
+    <p class="text-sm text-gray-500">Subí uno o varios archivos exportados del sistema viejo. La fecha se detecta automáticamente desde cada Excel.</p>
+  </div>
+
+  <div class="bg-white rounded-xl border shadow-sm p-6">
+    <form method="post" action="/operations/daily/new" enctype="multipart/form-data" class="space-y-5">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Archivos HTML / Excel</label>
+        <input type="file" name="files" multiple required class="w-full border rounded-lg px-3 py-2 text-sm">
+        <p class="text-xs text-gray-500 mt-1">El sistema lee la fecha de los movimientos y los agrupa automáticamente por día.</p>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <a href="/operations/daily" class="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">Cancelar</a>
+        <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+          Importar archivos
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
