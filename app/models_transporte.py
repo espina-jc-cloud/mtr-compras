@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -66,3 +66,23 @@ class TransporteOperativoAsignacion(Base):
     operativo   = relationship("TransporteOperativo", back_populates="asignaciones")
     nomina      = relationship("TransporteNomina",    back_populates="asignaciones")
     assigned_by = relationship("User", foreign_keys=[assigned_by_id])
+
+
+class TransportePuertoExclusion(Base):
+    """Transportes quitados de la nómina para puerto en un operativo."""
+    __tablename__ = "transporte_puerto_exclusiones"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    operativo_id = Column(Integer, ForeignKey("transporte_operativos.id"), nullable=False, index=True)
+    nomina_id    = Column(Integer, ForeignKey("transporte_nomina.id"), nullable=False, index=True)
+
+    removed_at    = Column(DateTime, default=datetime.utcnow)
+    removed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    operativo  = relationship("TransporteOperativo")
+    nomina     = relationship("TransporteNomina")
+    removed_by = relationship("User", foreign_keys=[removed_by_id])
+
+    __table_args__ = (
+        UniqueConstraint("operativo_id", "nomina_id", name="uq_transporte_puerto_exclusion"),
+    )
