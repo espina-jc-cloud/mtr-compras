@@ -459,7 +459,6 @@ async def historial_exportar_word_puerto(
 
     op = (
         db.query(mt.TransporteOperativo)
-        .options(joinedload(mt.TransporteOperativo.asignaciones))
         .filter(
             mt.TransporteOperativo.id == op_id,
             mt.TransporteOperativo.deleted_at == None,
@@ -468,6 +467,26 @@ async def historial_exportar_word_puerto(
     )
     if not op:
         raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    excluidos_ids = {
+        x.nomina_id
+        for x in db.query(mt.TransportePuertoExclusion)
+        .filter(mt.TransportePuertoExclusion.operativo_id == op_id)
+        .all()
+    }
+
+    nomina_puerto = (
+        db.query(mt.TransporteNomina)
+        .filter(
+            mt.TransporteNomina.deleted_at == None,
+            mt.TransporteNomina.id.notin_(excluidos_ids) if excluidos_ids else True,
+        )
+        .order_by(
+            mt.TransporteNomina.empresa.asc(),
+            mt.TransporteNomina.nombre_chofer.asc(),
+        )
+        .all()
+    )
 
     MESES = {
         1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -581,15 +600,15 @@ async def historial_exportar_word_puerto(
         run.bold = True
         run.font.size = Pt(10)
 
-    for a in op.asignaciones:
+    for n in nomina_puerto:
         row = table.add_row()
         vals = [
-            a.empresa_snap,
-            a.nombre_chofer_snap,
-            a.dni_snap or "—",
-            a.marca_camion_snap or "—",
-            a.patente_camion_snap or "—",
-            a.patente_acoplado_snap or "—",
+            n.empresa,
+            n.nombre_chofer,
+            n.dni or "—",
+            n.marca_camion or "—",
+            n.patente_camion or "—",
+            n.patente_acoplado or "—",
         ]
         for i, v in enumerate(vals):
             cell = row.cells[i]
