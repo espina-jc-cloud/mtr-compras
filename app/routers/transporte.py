@@ -307,7 +307,7 @@ async def historial_create(
     db.add(op)
     db.commit()
     db.refresh(op)
-    return RedirectResponse(f"/transporte/historial/{op.id}", status_code=303)
+    return RedirectResponse(f"/transporte/historial/{op.id}/puerto", status_code=303)
 
 
 @router.get("/historial/{op_id}", response_class=HTMLResponse)
@@ -354,6 +354,17 @@ async def historial_detail(
         "op": op,
         "disponibles": disponibles,
     })
+
+
+
+@router.get("/historial/{op_id}/balanza", response_class=HTMLResponse)
+async def historial_balanza(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    return await historial_detail(op_id, request, db, current_user)
 
 
 @router.get("/historial/{op_id}/edit", response_class=HTMLResponse)
@@ -493,35 +504,62 @@ async def historial_exportar_word_puerto(
 
     p_dest = doc.add_paragraph()
     p_dest.paragraph_format.space_after = Pt(0)
-    r_dest = p_dest.add_run(
-        "SEÑORES ADMINISTRACIÓN GENERAL DE PUERTOS"
-    )
-    r_dest.bold = True
+    r_dest = p_dest.add_run("Al señor /es,")
     r_dest.font.size = Pt(11)
 
-    p_pres = doc.add_paragraph()
-    p_pres.paragraph_format.space_after = Pt(6)
-    r_pres = p_pres.add_run("PRESENTE")
-    r_pres.bold = True
-    r_pres.font.size = Pt(11)
+    p_consorcio = doc.add_paragraph()
+    p_consorcio.paragraph_format.space_after = Pt(0)
+    r_consorcio = p_consorcio.add_run("CONSORCIO DE GESTION DEL PUERTO SAN NICOLAS")
+    r_consorcio.bold = True
+    r_consorcio.font.size = Pt(11)
 
-    doc.add_paragraph()
+    p_aduana = doc.add_paragraph()
+    p_aduana.paragraph_format.space_after = Pt(0)
+    r_aduana = p_aduana.add_run("ADUANA SAN NICOLAS")
+    r_aduana.bold = True
+    r_aduana.font.size = Pt(11)
+
+    p_sd = doc.add_paragraph()
+    p_sd.paragraph_format.space_after = Pt(2)
+    r_sd = p_sd.add_run("S / D")
+    r_sd.font.size = Pt(11)
+
+    p_ref = doc.add_paragraph()
+    p_ref.paragraph_format.space_after = Pt(0)
+    r_ref = p_ref.add_run("Ref. Solicitud de ingreso")
+    r_ref.bold = True
+    r_ref.font.size = Pt(11)
+
+    p_buque = doc.add_paragraph()
+    p_buque.paragraph_format.space_after = Pt(8)
+    r_buque_label = p_buque.add_run("Buque: ")
+    r_buque_label.bold = True
+    r_buque_label.font.size = Pt(11)
+    r_buque = p_buque.add_run(op.nombre_barco or "—")
+    r_buque.bold = True
+    r_buque.font.size = Pt(11)
+
+    p_consideracion = doc.add_paragraph()
+    p_consideracion.paragraph_format.space_after = Pt(4)
+    r_consideracion = p_consideracion.add_run("De nuestra consideración.")
+    r_consideracion.font.size = Pt(11)
 
     mercaderia = op.mercaderia_a_mover or "mercadería"
+
     p_cuerpo = doc.add_paragraph()
-    p_cuerpo.paragraph_format.space_after = Pt(4)
+    p_cuerpo.paragraph_format.space_after = Pt(8)
     r_cuerpo = p_cuerpo.add_run(
-        f"Por medio de la presente se informa que con motivo "
-        f"de la operación del buque {op.nombre_barco}, "
-        f"se procederá al movimiento de {mercaderia}."
+        f"Por la presente y a fin de cumplimentar con las resoluciones vigentes, "
+        f"solicitamos tengan a bien autorizar el ingreso de choferes y vehículos, "
+        f"con el motivo de realizar el movimiento de {mercaderia} de la zona de balanza "
+        f"y muelle de puerto SAN NICOLAS con destino a Deposito MTR S.A."
     )
     r_cuerpo.font.size = Pt(11)
 
     p_detalle = doc.add_paragraph()
     p_detalle.paragraph_format.space_after = Pt(8)
     r_detalle = p_detalle.add_run(
-        "A continuación se detalla la nómina de "
-        "transportes afectados a la operación:"
+        "A continuación, detallo las unidades y el personal a ingresar:"
     )
     r_detalle.font.size = Pt(11)
 
@@ -844,3 +882,86 @@ async def historial_exportar_word(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+# ── NÓMINA PARA PUERTO ───────────────────────────────────────────────────────
+
+@router.get("/historial/{op_id}/puerto", response_class=HTMLResponse)
+async def historial_puerto(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    excluidos_ids = {
+        x.nomina_id
+        for x in db.query(mt.TransportePuertoExclusion)
+        .filter(mt.TransportePuertoExclusion.operativo_id == op_id)
+        .all()
+    }
+
+    nomina = (
+        db.query(mt.TransporteNomina)
+        .filter(mt.TransporteNomina.deleted_at == None)
+        .order_by(mt.TransporteNomina.empresa.asc(), mt.TransporteNomina.nombre_chofer.asc())
+        .all()
+    )
+
+    incluidos = [n for n in nomina if n.id not in excluidos_ids]
+    excluidos = [n for n in nomina if n.id in excluidos_ids]
+
+    return templates.TemplateResponse(request, "transporte/historial_puerto.html", {
+        "request": request,
+        "user": current_user,
+        "op": op,
+        "incluidos": incluidos,
+        "excluidos": excluidos,
+    })
+
+
+@router.post("/historial/{op_id}/puerto/quitar/{nomina_id}")
+async def historial_puerto_quitar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    existe = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if not existe:
+        db.add(mt.TransportePuertoExclusion(
+            operativo_id=op_id,
+            nomina_id=nomina_id,
+            removed_by_id=current_user.id,
+        ))
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
+
+
+@router.post("/historial/{op_id}/puerto/restaurar/{nomina_id}")
+async def historial_puerto_restaurar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    excl = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if excl:
+        db.delete(excl)
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
