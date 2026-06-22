@@ -307,7 +307,7 @@ async def historial_create(
     db.add(op)
     db.commit()
     db.refresh(op)
-    return RedirectResponse(f"/transporte/historial/{op.id}", status_code=303)
+    return RedirectResponse(f"/transporte/historial/{op.id}/puerto", status_code=303)
 
 
 @router.get("/historial/{op_id}", response_class=HTMLResponse)
@@ -354,6 +354,17 @@ async def historial_detail(
         "op": op,
         "disponibles": disponibles,
     })
+
+
+
+@router.get("/historial/{op_id}/balanza", response_class=HTMLResponse)
+async def historial_balanza(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    return await historial_detail(op_id, request, db, current_user)
 
 
 @router.get("/historial/{op_id}/edit", response_class=HTMLResponse)
@@ -844,3 +855,86 @@ async def historial_exportar_word(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+# ── NÓMINA PARA PUERTO ───────────────────────────────────────────────────────
+
+@router.get("/historial/{op_id}/puerto", response_class=HTMLResponse)
+async def historial_puerto(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    excluidos_ids = {
+        x.nomina_id
+        for x in db.query(mt.TransportePuertoExclusion)
+        .filter(mt.TransportePuertoExclusion.operativo_id == op_id)
+        .all()
+    }
+
+    nomina = (
+        db.query(mt.TransporteNomina)
+        .filter(mt.TransporteNomina.deleted_at == None)
+        .order_by(mt.TransporteNomina.empresa.asc(), mt.TransporteNomina.nombre_chofer.asc())
+        .all()
+    )
+
+    incluidos = [n for n in nomina if n.id not in excluidos_ids]
+    excluidos = [n for n in nomina if n.id in excluidos_ids]
+
+    return templates.TemplateResponse(request, "transporte/historial_puerto.html", {
+        "request": request,
+        "user": current_user,
+        "op": op,
+        "incluidos": incluidos,
+        "excluidos": excluidos,
+    })
+
+
+@router.post("/historial/{op_id}/puerto/quitar/{nomina_id}")
+async def historial_puerto_quitar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    existe = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if not existe:
+        db.add(mt.TransportePuertoExclusion(
+            operativo_id=op_id,
+            nomina_id=nomina_id,
+            removed_by_id=current_user.id,
+        ))
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
+
+
+@router.post("/historial/{op_id}/puerto/restaurar/{nomina_id}")
+async def historial_puerto_restaurar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    excl = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if excl:
+        db.delete(excl)
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
