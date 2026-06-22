@@ -10,3 +10,4 @@ cloudinary
 python-dotenv
 openpyxl
 python-docx
+beautifulsoup4
