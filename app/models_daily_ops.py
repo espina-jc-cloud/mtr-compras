@@ -85,6 +85,7 @@ class DailyOpTrip(Base):
     client = Column(String, nullable=True, index=True)
     product = Column(String, nullable=True, index=True)
     transporte = Column(String, nullable=True, index=True)
+    operation = Column(String, nullable=True, index=True)
     operativo = Column(String, nullable=True, index=True)
 
     duration_min = Column(Numeric(8, 2), nullable=True)
