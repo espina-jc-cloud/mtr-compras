@@ -504,35 +504,62 @@ async def historial_exportar_word_puerto(
 
     p_dest = doc.add_paragraph()
     p_dest.paragraph_format.space_after = Pt(0)
-    r_dest = p_dest.add_run(
-        "SEÑORES ADMINISTRACIÓN GENERAL DE PUERTOS"
-    )
-    r_dest.bold = True
+    r_dest = p_dest.add_run("Al señor /es,")
     r_dest.font.size = Pt(11)
 
-    p_pres = doc.add_paragraph()
-    p_pres.paragraph_format.space_after = Pt(6)
-    r_pres = p_pres.add_run("PRESENTE")
-    r_pres.bold = True
-    r_pres.font.size = Pt(11)
+    p_consorcio = doc.add_paragraph()
+    p_consorcio.paragraph_format.space_after = Pt(0)
+    r_consorcio = p_consorcio.add_run("CONSORCIO DE GESTION DEL PUERTO SAN NICOLAS")
+    r_consorcio.bold = True
+    r_consorcio.font.size = Pt(11)
 
-    doc.add_paragraph()
+    p_aduana = doc.add_paragraph()
+    p_aduana.paragraph_format.space_after = Pt(0)
+    r_aduana = p_aduana.add_run("ADUANA SAN NICOLAS")
+    r_aduana.bold = True
+    r_aduana.font.size = Pt(11)
+
+    p_sd = doc.add_paragraph()
+    p_sd.paragraph_format.space_after = Pt(2)
+    r_sd = p_sd.add_run("S / D")
+    r_sd.font.size = Pt(11)
+
+    p_ref = doc.add_paragraph()
+    p_ref.paragraph_format.space_after = Pt(0)
+    r_ref = p_ref.add_run("Ref. Solicitud de ingreso")
+    r_ref.bold = True
+    r_ref.font.size = Pt(11)
+
+    p_buque = doc.add_paragraph()
+    p_buque.paragraph_format.space_after = Pt(8)
+    r_buque_label = p_buque.add_run("Buque: ")
+    r_buque_label.bold = True
+    r_buque_label.font.size = Pt(11)
+    r_buque = p_buque.add_run(op.nombre_barco or "—")
+    r_buque.bold = True
+    r_buque.font.size = Pt(11)
+
+    p_consideracion = doc.add_paragraph()
+    p_consideracion.paragraph_format.space_after = Pt(4)
+    r_consideracion = p_consideracion.add_run("De nuestra consideración.")
+    r_consideracion.font.size = Pt(11)
 
     mercaderia = op.mercaderia_a_mover or "mercadería"
+
     p_cuerpo = doc.add_paragraph()
-    p_cuerpo.paragraph_format.space_after = Pt(4)
+    p_cuerpo.paragraph_format.space_after = Pt(8)
     r_cuerpo = p_cuerpo.add_run(
-        f"Por medio de la presente se informa que con motivo "
-        f"de la operación del buque {op.nombre_barco}, "
-        f"se procederá al movimiento de {mercaderia}."
+        f"Por la presente y a fin de cumplimentar con las resoluciones vigentes, "
+        f"solicitamos tengan a bien autorizar el ingreso de choferes y vehículos, "
+        f"con el motivo de realizar el movimiento de {mercaderia} de la zona de balanza "
+        f"y muelle de puerto SAN NICOLAS con destino a Deposito MTR S.A."
     )
     r_cuerpo.font.size = Pt(11)
 
     p_detalle = doc.add_paragraph()
     p_detalle.paragraph_format.space_after = Pt(8)
     r_detalle = p_detalle.add_run(
-        "A continuación se detalla la nómina de "
-        "transportes afectados a la operación:"
+        "A continuación, detallo las unidades y el personal a ingresar:"
     )
     r_detalle.font.size = Pt(11)
 
