@@ -46,6 +46,7 @@ class DailyOpImport(Base):
     id = Column(Integer, primary_key=True, index=True)
     day_id = Column(Integer, ForeignKey("daily_op_days.id"), nullable=False, index=True)
     filename = Column(String, nullable=False)
+    upload_group_id = Column(String, nullable=True, index=True)
     operativo = Column(String, nullable=True, index=True)
     row_count = Column(Integer, nullable=False, default=0)
     imported_at = Column(DateTime, default=datetime.utcnow)
