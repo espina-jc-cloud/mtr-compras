@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -206,6 +207,7 @@ async def create_daily_operation(
         parsed = parse_old_system_html(content)
         trips = parsed.get("trips", [])
         operativo = parsed.get("operativo") or "Sin operativo"
+        upload_group_id = str(uuid4())
 
         # Agrupar los viajes del archivo por fecha real detectada en el Excel.
         trips_by_date = defaultdict(list)
@@ -239,6 +241,7 @@ async def create_daily_operation(
             imp = DailyOpImport(
                 day_id=day.id,
                 filename=filename,
+                upload_group_id=upload_group_id,
                 operativo=operativo,
                 row_count=len(day_trips),
                 imported_by=imported_by,
@@ -300,13 +303,35 @@ async def list_daily_imports(
         .all()
     )
 
+    grouped = {}
+    for imp in imports:
+        key = imp.upload_group_id or f"legacy-{imp.filename}-{imp.imported_at.strftime('%Y%m%d%H%M') if imp.imported_at else imp.id}"
+
+        if key not in grouped:
+            grouped[key] = {
+                "group_id": imp.upload_group_id,
+                "legacy_key": key if not imp.upload_group_id else None,
+                "filename": imp.filename,
+                "imported_at": imp.imported_at,
+                "operativo": imp.operativo,
+                "row_count": 0,
+                "days_count": 0,
+                "import_ids": [],
+            }
+
+        grouped[key]["row_count"] += imp.row_count or 0
+        grouped[key]["days_count"] += 1
+        grouped[key]["import_ids"].append(imp.id)
+
+    import_groups = list(grouped.values())
+
     return templates.TemplateResponse(
         request,
         "operations/daily/imports.html",
         {
             "request": request,
             "current_user": current_user,
-            "imports": imports,
+            "import_groups": import_groups,
         },
     )
 
@@ -419,6 +444,43 @@ async def daily_operation_detail(
             "tn": _tn,
         },
     )
+
+
+@router.post("/imports/{group_id}/delete")
+async def delete_daily_import_group(
+    group_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    imports = (
+        db.query(DailyOpImport)
+        .filter(DailyOpImport.upload_group_id == group_id)
+        .all()
+    )
+
+    if not imports:
+        raise HTTPException(status_code=404, detail="Archivo importado no encontrado.")
+
+    affected_day_ids = list({imp.day_id for imp in imports})
+
+    for imp in imports:
+        db.delete(imp)
+
+    db.commit()
+
+    for day_id in affected_day_ids:
+        remaining_trips = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day_id).count()
+        remaining_imports = db.query(DailyOpImport).filter(DailyOpImport.day_id == day_id).count()
+
+        if remaining_trips == 0 and remaining_imports == 0:
+            day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
+            if day:
+                db.delete(day)
+
+    db.commit()
+
+    return RedirectResponse(url="/operations/daily/imports", status_code=303)
+
 
 
 @router.post("/{day_id}/trips/{trip_id}/delete")

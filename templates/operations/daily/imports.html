@@ -7,7 +7,7 @@
     <div>
       <a href="/operations/daily" class="text-sm text-blue-600 hover:underline">← Volver</a>
       <h1 class="text-2xl font-semibold text-gray-900 mt-2">Archivos importados</h1>
-      <p class="text-sm text-gray-500">Historial completo de archivos cargados.</p>
+      <p class="text-sm text-gray-500">Un archivo aparece una sola vez, aunque haya generado varios días.</p>
     </div>
   </div>
 
@@ -16,38 +16,40 @@
       <thead class="bg-gray-50">
         <tr>
           <th class="text-left p-3">Archivo</th>
-          <th class="text-left p-3">Fecha</th>
+          <th class="text-left p-3">Fecha de carga</th>
           <th class="text-left p-3">Operativo</th>
+          <th class="text-right p-3">Días</th>
           <th class="text-right p-3">Registros</th>
           <th class="text-right p-3">Acciones</th>
         </tr>
       </thead>
 
       <tbody>
-        {% for imp in imports %}
+        {% for imp in import_groups %}
         <tr class="border-t">
-          <td class="p-3">{{ imp.filename }}</td>
-          <td class="p-3">
-            {{ imp.imported_at.strftime("%d/%m/%Y %H:%M") if imp.imported_at else "-" }}
-          </td>
+          <td class="p-3 font-medium">{{ imp.filename }}</td>
+          <td class="p-3">{{ imp.imported_at.strftime("%d/%m/%Y %H:%M") if imp.imported_at else "-" }}</td>
           <td class="p-3">{{ imp.operativo or "Sin operativo" }}</td>
+          <td class="p-3 text-right">{{ imp.days_count }}</td>
           <td class="p-3 text-right">{{ imp.row_count }}</td>
 
           <td class="p-3 text-right">
+            {% if imp.group_id %}
             <form method="post"
-                  action="/operations/daily/{{ imp.day_id }}/imports/{{ imp.id }}/delete"
-                  onsubmit="return confirm('¿Eliminar este archivo y todos sus datos?')">
+                  action="/operations/daily/imports/{{ imp.group_id }}/delete"
+                  onsubmit="return confirm('¿Eliminar este archivo completo? Se borrarán todos los días y viajes generados por este Excel.')">
               <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700">
-                Eliminar
+                Eliminar archivo
               </button>
             </form>
+            {% else %}
+            <span class="text-xs text-gray-400">Archivo viejo</span>
+            {% endif %}
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="5" class="p-6 text-center text-gray-500">
-            No hay archivos cargados.
-          </td>
+          <td colspan="6" class="p-6 text-center text-gray-500">No hay archivos cargados.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -56,4 +58,3 @@
 
 </div>
 {% endblock %}
-
