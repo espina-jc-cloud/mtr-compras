@@ -39,6 +39,37 @@
     </div>
   </div>
 
+  <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div class="p-4 border-b">
+      <h2 class="font-semibold text-gray-900">Archivos importados</h2>
+      <p class="text-xs text-gray-500">Desde acá podés eliminar un Excel cargado por error. Se borran también sus viajes asociados.</p>
+    </div>
+
+    <div class="divide-y">
+      {% for imp in imports %}
+      <div class="p-4 flex items-center justify-between gap-4">
+        <div>
+          <div class="font-medium text-gray-900">{{ imp.filename }}</div>
+          <div class="text-xs text-gray-500">
+            {{ imp.row_count }} registros ·
+            {{ imp.operativo or "Sin operativo" }} ·
+            {{ imp.imported_at.strftime("%d/%m/%Y %H:%M") if imp.imported_at else "-" }}
+          </div>
+        </div>
+
+        <form method="post" action="/operations/daily/{{ day.id }}/imports/{{ imp.id }}/delete"
+              onsubmit="return confirm('¿Eliminar este archivo importado? También se eliminarán todos sus viajes asociados.')">
+          <button class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700">
+            Eliminar archivo
+          </button>
+        </form>
+      </div>
+      {% else %}
+      <div class="p-4 text-sm text-gray-500">No hay archivos importados para este día.</div>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="bg-white rounded-xl border p-4 shadow-sm">
     <form method="get" class="grid grid-cols-1 md:grid-cols-5 gap-3">
       <select name="client" class="border rounded-lg px-3 py-2 text-sm">
@@ -93,40 +124,93 @@
       </button>
 
       <div id="client-{{ loop.index }}" class="hidden border-t overflow-x-auto">
+        <div class="p-3 border-b bg-gray-50 text-xs flex flex-wrap gap-3">
+          {% for col, label in [
+            ('col-fecha-ent', 'Fecha Ent.'),
+            ('col-hora-ent', 'H. Ent.'),
+            ('col-fecha-sal', 'Fecha Sal.'),
+            ('col-hora-sal', 'H. Sal.'),
+            ('col-nro', 'Nro'),
+            ('col-pat-cam', 'Pat. Cam.'),
+            ('col-pat-acop', 'Pat. Acop'),
+            ('col-tara', 'Tara'),
+            ('col-bruto', 'Bruto'),
+            ('col-neto', 'Neto'),
+            ('col-origen', 'Neto Origen'),
+            ('col-dif', 'Dif.'),
+            ('col-chofer', 'Chofer'),
+            ('col-transporte', 'Transporte'),
+            ('col-producto', 'Producto'),
+            ('col-cliente', 'Cliente'),
+            ('col-operacion', 'Operación'),
+            ('col-remito', 'OC/Remito'),
+            ('col-operativo', 'Operativo'),
+            ('col-planta', 'Planta')
+          ] %}
+          <label class="inline-flex items-center gap-1">
+            <input type="checkbox" checked onchange="toggleColumn('{{ col }}', this.checked)">
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+
         <table class="w-full text-xs">
           <thead class="bg-gray-50 text-gray-500">
             <tr>
-              <th class="text-left p-2">Nro</th>
-              <th class="text-left p-2">Entrada</th>
-              <th class="text-left p-2">Salida</th>
-              <th class="text-left p-2">Patente</th>
-              <th class="text-left p-2">Tipo</th>
-              <th class="text-right p-2">Tara</th>
-              <th class="text-right p-2">Bruto</th>
-              <th class="text-right p-2">Neto</th>
-              <th class="text-right p-2">Origen</th>
-              <th class="text-right p-2">Dif.</th>
-              <th class="text-left p-2">Producto</th>
-              <th class="text-left p-2">Transporte</th>
-              <th class="text-left p-2">Operativo</th>
+              <th class="col-nro text-left p-2">Nro</th>
+              <th class="col-fecha-ent text-left p-2">Fecha Ent.</th>
+              <th class="col-hora-ent text-left p-2">H. Ent.</th>
+              <th class="col-fecha-sal text-left p-2">Fecha Sal.</th>
+              <th class="col-hora-sal text-left p-2">H. Sal.</th>
+              <th class="col-pat-cam text-left p-2">Pat. Cam.</th>
+              <th class="col-pat-acop text-left p-2">Pat. Acop</th>
+              <th class="col-operacion text-left p-2">Operación</th>
+              <th class="col-tara text-right p-2">Tara</th>
+              <th class="col-bruto text-right p-2">Bruto</th>
+              <th class="col-neto text-right p-2">Neto</th>
+              <th class="col-origen text-right p-2">Neto Origen</th>
+              <th class="col-dif text-right p-2">Dif.</th>
+              <th class="col-chofer text-left p-2">Chofer</th>
+              <th class="col-producto text-left p-2">Producto</th>
+              <th class="col-cliente text-left p-2">Cliente</th>
+              <th class="col-transporte text-left p-2">Transporte</th>
+              <th class="col-remito text-left p-2">OC/Remito</th>
+              <th class="col-operativo text-left p-2">Operativo</th>
+              <th class="col-planta text-left p-2">Planta</th>
+              <th class="text-right p-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {% for trip in group.trips %}
             <tr class="border-t hover:bg-gray-50">
-              <td class="p-2">{{ trip.trip_code or "-" }}</td>
-              <td class="p-2">{{ trip.entry_time or "-" }}</td>
-              <td class="p-2">{{ trip.exit_time or "-" }}</td>
-              <td class="p-2">{{ trip.plate or "-" }}</td>
-              <td class="p-2">{{ trip.operation or "-" }}</td>
-              <td class="p-2 text-right">{{ trip.tara_kg or 0 }}</td>
-              <td class="p-2 text-right">{{ trip.bruto_kg or 0 }}</td>
-              <td class="p-2 text-right">{{ tn(trip.neto_kg) }} tn</td>
-              <td class="p-2 text-right">{{ tn(trip.origen_kg) }} tn</td>
-              <td class="p-2 text-right">{{ tn(trip.diff_kg) }} tn</td>
-              <td class="p-2">{{ trip.product or "-" }}</td>
-              <td class="p-2">{{ trip.transporte or "-" }}</td>
-              <td class="p-2">{{ trip.operativo or "-" }}</td>
+              <td class="col-nro p-2">{{ trip.trip_code or "-" }}</td>
+              <td class="col-fecha-ent p-2">{{ trip.entry_date.strftime("%d/%m/%Y") if trip.entry_date else "-" }}</td>
+              <td class="col-hora-ent p-2">{{ trip.entry_time or "-" }}</td>
+              <td class="col-fecha-sal p-2">{{ trip.exit_date.strftime("%d/%m/%Y") if trip.exit_date else "-" }}</td>
+              <td class="col-hora-sal p-2">{{ trip.exit_time or "-" }}</td>
+              <td class="col-pat-cam p-2">{{ trip.plate or "-" }}</td>
+              <td class="col-pat-acop p-2">{{ trip.trailer_plate or "-" }}</td>
+              <td class="col-operacion p-2">{{ trip.operation or "-" }}</td>
+              <td class="col-tara p-2 text-right">{{ trip.tara_kg or 0 }}</td>
+              <td class="col-bruto p-2 text-right">{{ trip.bruto_kg or 0 }}</td>
+              <td class="col-neto p-2 text-right">{{ tn(trip.neto_kg) }} tn</td>
+              <td class="col-origen p-2 text-right">{{ tn(trip.origen_kg) }} tn</td>
+              <td class="col-dif p-2 text-right">{{ tn(trip.diff_kg) }} tn</td>
+              <td class="col-chofer p-2">{{ trip.driver or "-" }}</td>
+              <td class="col-producto p-2">{{ trip.product or "-" }}</td>
+              <td class="col-cliente p-2">{{ trip.client or "-" }}</td>
+              <td class="col-transporte p-2">{{ trip.transporte or "-" }}</td>
+              <td class="col-remito p-2">{{ trip.remito or "-" }}</td>
+              <td class="col-operativo p-2">{{ trip.operativo or "-" }}</td>
+              <td class="col-planta p-2">{{ trip.planta or "-" }}</td>
+              <td class="p-2 text-right">
+                <form method="post" action="/operations/daily/{{ day.id }}/trips/{{ trip.id }}/delete"
+                      onsubmit="return confirm('¿Eliminar este viaje?')">
+                  <button class="px-2 py-1 rounded bg-red-600 text-white text-[11px] hover:bg-red-700">
+                    Eliminar
+                  </button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -145,6 +229,12 @@
 function toggleClient(id) {
   const el = document.getElementById(id);
   if (el) el.classList.toggle('hidden');
+}
+
+function toggleColumn(className, visible) {
+  document.querySelectorAll('.' + className).forEach(el => {
+    el.style.display = visible ? '' : 'none';
+  });
 }
 </script>
 {% endblock %}

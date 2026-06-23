@@ -73,13 +73,13 @@ async def list_daily_operations(
     ).first()
 
     cargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").count()
-    cargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").with_entities(
-        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    cargas_neto_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)
     ).scalar() or 0
 
     descargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").count()
-    descargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").with_entities(
-        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    descargas_neto_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)
     ).scalar() or 0
 
     clients_count = trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0
@@ -117,9 +117,9 @@ async def list_daily_operations(
             "op_date": day.op_date,
             "trips": day_trips_q.count(),
             "cargas_movimientos": cargas_q.count(),
-            "cargas_origen_kg": cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "cargas_neto_kg": cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0,
             "descargas_movimientos": descargas_q.count(),
-            "descargas_origen_kg": descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "descargas_neto_kg": descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0,
             "clients": day_trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0,
         })
 
@@ -133,9 +133,9 @@ async def list_daily_operations(
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
         "cargas_movimientos": cargas_movimientos,
-        "cargas_tn": _tn(cargas_origen_kg),
+        "cargas_tn": _tn(cargas_neto_kg),
         "descargas_movimientos": descargas_movimientos,
-        "descargas_tn": _tn(descargas_origen_kg),
+        "descargas_tn": _tn(descargas_neto_kg),
         "clients_count": clients_count,
         "products_count": products_count,
         "days_count": days_count,
@@ -257,16 +257,20 @@ async def create_daily_operation(
                     exit_date=item.get("exit_date"),
                     exit_time=item.get("exit_time"),
                     plate=item.get("plate"),
+                    trailer_plate=item.get("trailer_plate"),
                     tara_kg=item.get("tara_kg"),
                     bruto_kg=item.get("bruto_kg"),
                     neto_kg=item.get("neto_kg"),
                     origen_kg=item.get("origen_kg"),
                     diff_kg=item.get("diff_kg"),
+                    driver=item.get("driver"),
                     client=item.get("client"),
                     product=item.get("product"),
                     transporte=item.get("transporte"),
                     operation=item.get("operation"),
+                    remito=item.get("remito"),
                     operativo=item.get("operativo") or operativo,
+                    planta=item.get("planta"),
                     duration_min=item.get("duration_min"),
                     shift_number=item.get("shift_number"),
                 )
@@ -351,8 +355,8 @@ async def daily_operation_detail(
     cargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga")
     descargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga")
 
-    cargas_origen_kg = cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
-    descargas_origen_kg = descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
+    cargas_neto_kg = cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0
+    descargas_neto_kg = descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0
 
     stats = {
         "total_trips": trips_q.count(),
@@ -360,9 +364,9 @@ async def daily_operation_detail(
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
         "cargas_movimientos": cargas_q.count(),
-        "cargas_tn": _tn(cargas_origen_kg),
+        "cargas_tn": _tn(cargas_neto_kg),
         "descargas_movimientos": descargas_q.count(),
-        "descargas_tn": _tn(descargas_origen_kg),
+        "descargas_tn": _tn(descargas_neto_kg),
         "clients_count": len(clients),
         "products_count": len(products),
     }
@@ -390,6 +394,65 @@ async def daily_operation_detail(
             "tn": _tn,
         },
     )
+
+
+@router.post("/{day_id}/trips/{trip_id}/delete")
+async def delete_daily_trip(
+    day_id: int,
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    trip = (
+        db.query(DailyOpTrip)
+        .filter(DailyOpTrip.id == trip_id, DailyOpTrip.day_id == day_id)
+        .first()
+    )
+
+    if not trip:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    db.delete(trip)
+    db.commit()
+
+    return RedirectResponse(url=f"/operations/daily/{day_id}", status_code=303)
+
+
+
+@router.post("/{day_id}/imports/{import_id}/delete")
+async def delete_daily_import(
+    day_id: int,
+    import_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    imp = (
+        db.query(DailyOpImport)
+        .filter(
+            DailyOpImport.id == import_id,
+            DailyOpImport.day_id == day_id,
+        )
+        .first()
+    )
+
+    if not imp:
+        raise HTTPException(status_code=404, detail="Archivo importado no encontrado.")
+
+    db.delete(imp)
+    db.commit()
+
+    remaining_trips = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day_id).count()
+    remaining_imports = db.query(DailyOpImport).filter(DailyOpImport.day_id == day_id).count()
+
+    if remaining_trips == 0 and remaining_imports == 0:
+        day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
+        if day:
+            db.delete(day)
+            db.commit()
+        return RedirectResponse(url="/operations/daily", status_code=303)
+
+    return RedirectResponse(url=f"/operations/daily/{day_id}", status_code=303)
+
 
 
 @router.post("/{day_id}/delete")

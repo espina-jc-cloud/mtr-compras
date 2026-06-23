@@ -75,6 +75,7 @@ class DailyOpTrip(Base):
     exit_time = Column(String, nullable=True)
 
     plate = Column(String, nullable=True, index=True)
+    trailer_plate = Column(String, nullable=True, index=True)
 
     tara_kg = Column(Integer, nullable=True)
     bruto_kg = Column(Integer, nullable=True)
@@ -82,11 +83,14 @@ class DailyOpTrip(Base):
     origen_kg = Column(Integer, nullable=True, default=0)
     diff_kg = Column(Integer, nullable=True, default=0)
 
+    driver = Column(String, nullable=True, index=True)
     client = Column(String, nullable=True, index=True)
     product = Column(String, nullable=True, index=True)
     transporte = Column(String, nullable=True, index=True)
     operation = Column(String, nullable=True, index=True)
+    remito = Column(String, nullable=True, index=True)
     operativo = Column(String, nullable=True, index=True)
+    planta = Column(String, nullable=True, index=True)
 
     duration_min = Column(Numeric(8, 2), nullable=True)
     shift_number = Column(Integer, nullable=True)
