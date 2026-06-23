@@ -316,6 +316,7 @@ async def list_daily_imports(
                 "operativo": imp.operativo,
                 "row_count": 0,
                 "days_count": 0,
+                "day_id": imp.day_id,
                 "import_ids": [],
             }
 
