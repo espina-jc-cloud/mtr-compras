@@ -447,6 +447,46 @@ async def daily_operation_detail(
     )
 
 
+@router.post("/imports/legacy/{filename}/delete")
+async def delete_legacy_daily_import_file(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    imports = (
+        db.query(DailyOpImport)
+        .filter(
+            DailyOpImport.filename == filename,
+            DailyOpImport.upload_group_id.is_(None),
+        )
+        .all()
+    )
+
+    if not imports:
+        raise HTTPException(status_code=404, detail="Archivo viejo no encontrado.")
+
+    affected_day_ids = list({imp.day_id for imp in imports})
+
+    for imp in imports:
+        db.delete(imp)
+
+    db.commit()
+
+    for day_id in affected_day_ids:
+        remaining_trips = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day_id).count()
+        remaining_imports = db.query(DailyOpImport).filter(DailyOpImport.day_id == day_id).count()
+
+        if remaining_trips == 0 and remaining_imports == 0:
+            day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
+            if day:
+                db.delete(day)
+
+    db.commit()
+
+    return RedirectResponse(url="/operations/daily/imports", status_code=303)
+
+
+
 @router.post("/imports/{group_id}/delete")
 async def delete_daily_import_group(
     group_id: str,

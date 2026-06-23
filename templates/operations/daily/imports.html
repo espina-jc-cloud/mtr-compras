@@ -44,8 +44,8 @@
             </form>
             {% else %}
             <form method="post"
-                  action="/operations/daily/{{ imp.day_id }}/imports/{{ imp.import_ids[0] }}/delete"
-                  onsubmit="return confirm('¿Eliminar este archivo viejo? Se borrarán sus viajes asociados.')">
+                  action="/operations/daily/imports/legacy/{{ imp.filename }}/delete"
+                  onsubmit="return confirm('¿Eliminar este archivo viejo completo? Se borrarán todos los días y viajes generados por este archivo.')">
               <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700">
                 Eliminar archivo viejo
               </button>
