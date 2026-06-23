@@ -73,13 +73,13 @@ async def list_daily_operations(
     ).first()
 
     cargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").count()
-    cargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").with_entities(
-        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    cargas_neto_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)
     ).scalar() or 0
 
     descargas_movimientos = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").count()
-    descargas_origen_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").with_entities(
-        func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)
+    descargas_neto_kg = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga").with_entities(
+        func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)
     ).scalar() or 0
 
     clients_count = trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0
@@ -117,9 +117,9 @@ async def list_daily_operations(
             "op_date": day.op_date,
             "trips": day_trips_q.count(),
             "cargas_movimientos": cargas_q.count(),
-            "cargas_origen_kg": cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "cargas_neto_kg": cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0,
             "descargas_movimientos": descargas_q.count(),
-            "descargas_origen_kg": descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0,
+            "descargas_neto_kg": descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0,
             "clients": day_trips_q.with_entities(func.count(func.distinct(DailyOpTrip.client))).scalar() or 0,
         })
 
@@ -133,9 +133,9 @@ async def list_daily_operations(
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
         "cargas_movimientos": cargas_movimientos,
-        "cargas_tn": _tn(cargas_origen_kg),
+        "cargas_tn": _tn(cargas_neto_kg),
         "descargas_movimientos": descargas_movimientos,
-        "descargas_tn": _tn(descargas_origen_kg),
+        "descargas_tn": _tn(descargas_neto_kg),
         "clients_count": clients_count,
         "products_count": products_count,
         "days_count": days_count,
@@ -257,16 +257,20 @@ async def create_daily_operation(
                     exit_date=item.get("exit_date"),
                     exit_time=item.get("exit_time"),
                     plate=item.get("plate"),
+                    trailer_plate=item.get("trailer_plate"),
                     tara_kg=item.get("tara_kg"),
                     bruto_kg=item.get("bruto_kg"),
                     neto_kg=item.get("neto_kg"),
                     origen_kg=item.get("origen_kg"),
                     diff_kg=item.get("diff_kg"),
+                    driver=item.get("driver"),
                     client=item.get("client"),
                     product=item.get("product"),
                     transporte=item.get("transporte"),
                     operation=item.get("operation"),
+                    remito=item.get("remito"),
                     operativo=item.get("operativo") or operativo,
+                    planta=item.get("planta"),
                     duration_min=item.get("duration_min"),
                     shift_number=item.get("shift_number"),
                 )
@@ -351,8 +355,8 @@ async def daily_operation_detail(
     cargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "carga")
     descargas_q = trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga")
 
-    cargas_origen_kg = cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
-    descargas_origen_kg = descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.origen_kg), 0)).scalar() or 0
+    cargas_neto_kg = cargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0
+    descargas_neto_kg = descargas_q.with_entities(func.coalesce(func.sum(DailyOpTrip.neto_kg), 0)).scalar() or 0
 
     stats = {
         "total_trips": trips_q.count(),
@@ -360,9 +364,9 @@ async def daily_operation_detail(
         "origen_tn": _tn(sums[1] if sums else 0),
         "diff_tn": _tn(sums[2] if sums else 0),
         "cargas_movimientos": cargas_q.count(),
-        "cargas_tn": _tn(cargas_origen_kg),
+        "cargas_tn": _tn(cargas_neto_kg),
         "descargas_movimientos": descargas_q.count(),
-        "descargas_tn": _tn(descargas_origen_kg),
+        "descargas_tn": _tn(descargas_neto_kg),
         "clients_count": len(clients),
         "products_count": len(products),
     }

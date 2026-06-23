@@ -83,8 +83,8 @@
         <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="window.location='/operations/daily/{{ row.id }}'">
           <td class="p-3 font-medium">{{ row.op_date.strftime("%d/%m/%Y") }}</td>
           <td class="p-3 text-right">{{ row.trips }}</td>
-          <td class="p-3 text-right">{{ row.cargas_movimientos }} mov. / {{ tn(row.cargas_origen_kg) }} tn</td>
-          <td class="p-3 text-right">{{ row.descargas_movimientos }} mov. / {{ tn(row.descargas_origen_kg) }} tn</td>
+          <td class="p-3 text-right">{{ row.cargas_movimientos }} mov. / {{ tn(row.cargas_neto_kg) }} tn</td>
+          <td class="p-3 text-right">{{ row.descargas_movimientos }} mov. / {{ tn(row.descargas_neto_kg) }} tn</td>
           <td class="p-3 text-right">{{ row.clients }}</td>
         </tr>
         {% else %}

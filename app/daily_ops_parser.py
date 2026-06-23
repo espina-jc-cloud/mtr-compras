@@ -12,6 +12,7 @@ HEADERS = {
     "h. sal.": "exit_time",
     "nro.": "trip_code",
     "pat. cam.": "plate",
+    "pat. acop": "trailer_plate",
     "tara": "tara_kg",
     "bruto": "bruto_kg",
     "neto": "neto_kg",
@@ -21,7 +22,9 @@ HEADERS = {
     "producto": "product",
     "cliente": "client",
     "operacion": "operation",
+    "oc/remito": "remito",
     "operativo": "operativo",
+    "planta": "planta",
 }
 
 
@@ -161,10 +164,13 @@ def parse_old_system_html(file_content: bytes) -> dict:
         exit_time = _clean(data.get("exit_time"))
 
         operativo = _clean(data.get("operativo")) or operativo_header or "Sin operativo"
+        driver = _clean(data.get("driver"))
         client = _clean(data.get("client"))
         product = _clean(data.get("product"))
         transporte = _clean(data.get("transporte"))
         operation = _clean(data.get("operation"))
+        remito = _clean(data.get("remito"))
+        planta = _clean(data.get("planta"))
 
         neto_kg = _to_int(data.get("neto_kg")) or 0
         origen_kg = _to_int(data.get("origen_kg")) or 0
@@ -185,16 +191,20 @@ def parse_old_system_html(file_content: bytes) -> dict:
             "exit_date": exit_date,
             "exit_time": exit_time,
             "plate": _clean(data.get("plate")),
+            "trailer_plate": _clean(data.get("trailer_plate")),
             "tara_kg": _to_int(data.get("tara_kg")),
             "bruto_kg": _to_int(data.get("bruto_kg")),
             "neto_kg": neto_kg,
             "origen_kg": origen_kg,
             "diff_kg": diff_kg,
+            "driver": driver,
             "client": client,
             "product": product,
             "transporte": transporte,
             "operation": operation,
+            "remito": remito,
             "operativo": operativo,
+            "planta": planta,
             "duration_min": _duration_min(entry_date, entry_time, exit_date, exit_time),
             "shift_number": _shift_from_time(entry_time),
         })
