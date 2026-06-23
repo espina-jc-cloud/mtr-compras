@@ -43,7 +43,13 @@
               </button>
             </form>
             {% else %}
-            <span class="text-xs text-gray-400">Archivo viejo</span>
+            <form method="post"
+                  action="/operations/daily/{{ imp.day_id }}/imports/{{ imp.import_ids[0] }}/delete"
+                  onsubmit="return confirm('¿Eliminar este archivo viejo? Se borrarán sus viajes asociados.')">
+              <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700">
+                Eliminar archivo viejo
+              </button>
+            </form>
             {% endif %}
           </td>
         </tr>
