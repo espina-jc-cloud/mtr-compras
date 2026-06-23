@@ -287,6 +287,31 @@ async def create_daily_operation(
     return RedirectResponse(url="/operations/daily", status_code=303)
 
 
+@router.get("/imports", response_class=HTMLResponse)
+async def list_daily_imports(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    imports = (
+        db.query(DailyOpImport)
+        .join(DailyOpDay)
+        .order_by(DailyOpImport.imported_at.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "operations/daily/imports.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "imports": imports,
+        },
+    )
+
+
+
 @router.get("/{day_id}", response_class=HTMLResponse)
 async def daily_operation_detail(
     day_id: int,
