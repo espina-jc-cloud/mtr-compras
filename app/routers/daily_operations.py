@@ -396,6 +396,65 @@ async def daily_operation_detail(
     )
 
 
+@router.post("/{day_id}/trips/{trip_id}/delete")
+async def delete_daily_trip(
+    day_id: int,
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    trip = (
+        db.query(DailyOpTrip)
+        .filter(DailyOpTrip.id == trip_id, DailyOpTrip.day_id == day_id)
+        .first()
+    )
+
+    if not trip:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    db.delete(trip)
+    db.commit()
+
+    return RedirectResponse(url=f"/operations/daily/{day_id}", status_code=303)
+
+
+
+@router.post("/{day_id}/imports/{import_id}/delete")
+async def delete_daily_import(
+    day_id: int,
+    import_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+):
+    imp = (
+        db.query(DailyOpImport)
+        .filter(
+            DailyOpImport.id == import_id,
+            DailyOpImport.day_id == day_id,
+        )
+        .first()
+    )
+
+    if not imp:
+        raise HTTPException(status_code=404, detail="Archivo importado no encontrado.")
+
+    db.delete(imp)
+    db.commit()
+
+    remaining_trips = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day_id).count()
+    remaining_imports = db.query(DailyOpImport).filter(DailyOpImport.day_id == day_id).count()
+
+    if remaining_trips == 0 and remaining_imports == 0:
+        day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
+        if day:
+            db.delete(day)
+            db.commit()
+        return RedirectResponse(url="/operations/daily", status_code=303)
+
+    return RedirectResponse(url=f"/operations/daily/{day_id}", status_code=303)
+
+
+
 @router.post("/{day_id}/delete")
 async def delete_daily_operation(
     day_id: int,

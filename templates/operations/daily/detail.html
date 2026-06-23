@@ -39,6 +39,37 @@
     </div>
   </div>
 
+  <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div class="p-4 border-b">
+      <h2 class="font-semibold text-gray-900">Archivos importados</h2>
+      <p class="text-xs text-gray-500">Desde acá podés eliminar un Excel cargado por error. Se borran también sus viajes asociados.</p>
+    </div>
+
+    <div class="divide-y">
+      {% for imp in imports %}
+      <div class="p-4 flex items-center justify-between gap-4">
+        <div>
+          <div class="font-medium text-gray-900">{{ imp.filename }}</div>
+          <div class="text-xs text-gray-500">
+            {{ imp.row_count }} registros ·
+            {{ imp.operativo or "Sin operativo" }} ·
+            {{ imp.imported_at.strftime("%d/%m/%Y %H:%M") if imp.imported_at else "-" }}
+          </div>
+        </div>
+
+        <form method="post" action="/operations/daily/{{ day.id }}/imports/{{ imp.id }}/delete"
+              onsubmit="return confirm('¿Eliminar este archivo importado? También se eliminarán todos sus viajes asociados.')">
+          <button class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700">
+            Eliminar archivo
+          </button>
+        </form>
+      </div>
+      {% else %}
+      <div class="p-4 text-sm text-gray-500">No hay archivos importados para este día.</div>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="bg-white rounded-xl border p-4 shadow-sm">
     <form method="get" class="grid grid-cols-1 md:grid-cols-5 gap-3">
       <select name="client" class="border rounded-lg px-3 py-2 text-sm">
@@ -146,6 +177,7 @@
               <th class="col-remito text-left p-2">OC/Remito</th>
               <th class="col-operativo text-left p-2">Operativo</th>
               <th class="col-planta text-left p-2">Planta</th>
+              <th class="text-right p-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -171,6 +203,14 @@
               <td class="col-remito p-2">{{ trip.remito or "-" }}</td>
               <td class="col-operativo p-2">{{ trip.operativo or "-" }}</td>
               <td class="col-planta p-2">{{ trip.planta or "-" }}</td>
+              <td class="p-2 text-right">
+                <form method="post" action="/operations/daily/{{ day.id }}/trips/{{ trip.id }}/delete"
+                      onsubmit="return confirm('¿Eliminar este viaje?')">
+                  <button class="px-2 py-1 rounded bg-red-600 text-white text-[11px] hover:bg-red-700">
+                    Eliminar
+                  </button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
