@@ -384,3 +384,71 @@ async def desvincular_remito(
     db.commit()
 
     return HTMLResponse("")
+
+import csv
+import io
+from datetime import date as _date
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/exportar-csv")
+async def exportar_facturas_csv(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    proveedor_id: Optional[str] = None,
+    busqueda: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    invoices = _invoice_query(db, fecha_desde, fecha_hasta, proveedor_id, busqueda).all()
+
+    output = io.StringIO()
+    output.write("\ufeff")
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Nro. Factura",
+        "Proveedor",
+        "CUIT",
+        "Tipo Comprobante",
+        "Fecha Emisión",
+        "Monto Total",
+        "Cant. Remitos",
+        "Total Remitos",
+        "Estado",
+        "Observaciones",
+    ])
+
+    for inv in invoices:
+        total_remitos = sum(float(r.invoice_amount or 0) for r in (inv.remitos or []))
+        cant_remitos = len(inv.remitos or [])
+        monto_total = float(inv.monto_total or 0)
+
+        if not inv.monto_total or cant_remitos == 0:
+            estado = "Pendiente"
+        elif round(monto_total, 2) == round(total_remitos, 2):
+            estado = "Conciliada"
+        else:
+            estado = "Diferencia"
+
+        writer.writerow([
+            inv.numero_factura or "",
+            inv.supplier.name if inv.supplier else "",
+            inv.cuit_proveedor or (inv.supplier.cuit if inv.supplier else ""),
+            inv.tipo_comprobante or "",
+            inv.fecha_emision.isoformat() if inv.fecha_emision else "",
+            monto_total,
+            cant_remitos,
+            total_remitos,
+            estado,
+            inv.observaciones or "",
+        ])
+
+    output.seek(0)
+    filename = f"facturas_{_date.today().isoformat()}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
