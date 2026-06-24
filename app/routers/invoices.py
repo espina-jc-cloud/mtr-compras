@@ -1,4 +1,3 @@
-import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Optional, List
@@ -12,7 +11,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app import models
 from app.templates import templates
-from app.cloudinary_upload import upload_file, delete_file
+from app.cloudinary_upload import upload_factura_file, delete_factura_file
 
 
 router = APIRouter(prefix="/compras/facturas")
@@ -44,32 +43,6 @@ def _parse_amount(value: Optional[str]):
         return Decimal(str(value).replace(",", "."))
     except Exception:
         return None
-
-
-async def _upload_invoice_file(file: Optional[UploadFile]):
-    if not file or not file.filename:
-        return None
-
-    contents = await file.read()
-    if not contents:
-        return None
-
-    max_size = 10 * 1024 * 1024
-    if len(contents) > max_size:
-        raise HTTPException(status_code=400, detail="El archivo supera los 10MB.")
-
-    filename_lower = file.filename.lower()
-    allowed = (".pdf", ".jpg", ".jpeg", ".png")
-    if not filename_lower.endswith(allowed):
-        raise HTTPException(status_code=400, detail="Solo se permiten PDF, JPG o PNG.")
-
-    unique_name = f"{uuid.uuid4()}_{file.filename}"
-    result = upload_file(contents, unique_name, folder="facturas")
-    return {
-        "url": result["url"],
-        "public_id": result.get("public_id"),
-        "filename": file.filename,
-    }
 
 
 def _invoice_query(db: Session, fecha_desde=None, fecha_hasta=None, proveedor_id=None, busqueda=None):
@@ -206,7 +179,7 @@ async def crear_factura(
     if not supplier:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado.")
 
-    uploaded = await _upload_invoice_file(archivo)
+    uploaded = await upload_factura_file(archivo)
 
     invoice = models.Invoice(
         numero_factura=numero_factura.strip() or None,
@@ -308,15 +281,15 @@ async def editar_factura(
     invoice.observaciones = observaciones.strip() or None
 
     if quitar_archivo and invoice.archivo_public_id:
-        delete_file(invoice.archivo_public_id)
+        delete_factura_file(invoice.archivo_public_id)
         invoice.archivo_url = None
         invoice.archivo_nombre = None
         invoice.archivo_public_id = None
 
-    uploaded = await _upload_invoice_file(archivo)
+    uploaded = await upload_factura_file(archivo)
     if uploaded:
         if invoice.archivo_public_id:
-            delete_file(invoice.archivo_public_id)
+            delete_factura_file(invoice.archivo_public_id)
         invoice.archivo_url = uploaded["url"]
         invoice.archivo_nombre = uploaded["filename"]
         invoice.archivo_public_id = uploaded["public_id"]
@@ -353,7 +326,7 @@ async def eliminar_factura(
     )
 
     if invoice.archivo_public_id:
-        delete_file(invoice.archivo_public_id)
+        delete_factura_file(invoice.archivo_public_id)
 
     db.delete(invoice)
     db.commit()
