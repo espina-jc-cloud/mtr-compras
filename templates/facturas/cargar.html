@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Nueva factura — MTR{% endblock %}
+{% block content %}
+
+<div class="mb-5">
+  <a href="/compras/facturas" class="text-sm text-gray-500 hover:text-gray-900">← Volver</a>
+  <h1 class="text-xl font-semibold mt-2">Nueva factura</h1>
+</div>
+
+<form method="post" action="/compras/facturas/nueva" enctype="multipart/form-data" class="bg-white border rounded-2xl p-5 space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="text-xs text-gray-500">Proveedor</label>
+      <select name="proveedor_id" required class="w-full border rounded-lg px-3 py-2 text-sm">
+        <option value="">Seleccionar proveedor</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}">{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500">Tipo comprobante</label>
+      <select name="tipo_comprobante" class="w-full border rounded-lg px-3 py-2 text-sm">
+        {% for t in tipos_comprobante %}
+        <option value="{{ t }}">{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500">N° factura</label>
+      <input name="numero_factura" class="w-full border rounded-lg px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500">Fecha emisión</label>
+      <input type="date" name="fecha_emision" class="w-full border rounded-lg px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500">Monto total</label>
+      <input name="monto_total" inputmode="decimal" class="w-full border rounded-lg px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500">CUIT proveedor</label>
+      <input name="cuit_proveedor" class="w-full border rounded-lg px-3 py-2 text-sm">
+    </div>
+  </div>
+
+  <div>
+    <label class="text-xs text-gray-500">Archivo factura</label>
+    <input type="file" name="archivo" accept="image/*,application/pdf" class="w-full border rounded-lg px-3 py-2 text-sm">
+  </div>
+
+  <div>
+    <label class="text-xs text-gray-500">Observaciones</label>
+    <textarea name="observaciones" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
+  </div>
+
+  <div>
+    <p class="text-sm font-semibold mb-2">Remitos sin factura</p>
+    <div class="border rounded-xl max-h-64 overflow-auto divide-y">
+      {% for r in remitos %}
+      <label class="flex items-center gap-3 px-3 py-2 text-sm">
+        <input type="checkbox" name="remito_ids" value="{{ r.id }}">
+        <span>#{{ r.id }} — {{ r.invoice_number or "Sin número" }} — {{ r.purchase.supplier.name if r.purchase and r.purchase.supplier else "" }}</span>
+      </label>
+      {% else %}
+      <p class="p-4 text-sm text-gray-400">No hay remitos libres.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-3 rounded-xl">Guardar factura</button>
+</form>
+
+{% endblock %}
