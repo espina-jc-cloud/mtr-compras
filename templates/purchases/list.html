@@ -7,6 +7,9 @@
     <h1 class="text-xl font-semibold text-gray-900">Compras</h1>
     <p class="text-sm text-gray-400 mt-0.5" id="result-count">{{ purchases|length }} resultado{% if purchases|length != 1 %}s{% endif %}</p>
   </div>
+  <a href="/compras/facturas" class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-violet-700 border border-violet-200 text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+    Dashboard facturas
+  </a>
   <a href="/compras/facturas/nueva" class="inline-flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
     Cargar factura
   </a>
