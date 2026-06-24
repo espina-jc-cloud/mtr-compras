@@ -61,7 +61,15 @@ app.include_router(despachos.router)
 app.include_router(tariffs.router)
 app.include_router(operations.api_router)
 
-@app.get("/")
+
+@app.on_event("startup")
+async def run_db_migrations_on_startup():
+    try:
+        import migrate
+        migrate.run()
+    except Exception as e:
+        print(f"[startup migrate] ERROR: {e}")
+\n@app.get("/")
 async def root():
     return RedirectResponse(url="/home")
 
