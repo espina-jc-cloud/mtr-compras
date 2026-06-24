@@ -95,6 +95,7 @@ class Invoice(Base):
     observaciones = Column(Text, nullable=True)
     archivo_url = Column(String(500), nullable=True)
     archivo_nombre = Column(String(200), nullable=True)
+    archivo_public_id = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

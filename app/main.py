@@ -3,7 +3,7 @@ import sys
 import subprocess
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
-from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel
+from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel, invoices
 from app.routers import operations
 from app.routers import operations_live
 from app.routers import daily_operations
@@ -49,6 +49,7 @@ app.include_router(quotes.router)
 app.include_router(equipment.router)
 app.include_router(maintenance.router)
 app.include_router(fuel.router)
+app.include_router(invoices.router)
 app.include_router(projects.router)
 app.include_router(transporte.router)
 # Live DEBE registrarse antes que operations para que /operations/live

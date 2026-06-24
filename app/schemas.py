@@ -45,6 +45,7 @@ class FacturaResponse(BaseModel):
     observaciones: Optional[str] = None
     archivo_url: Optional[str] = None
     archivo_nombre: Optional[str] = None
+    archivo_public_id: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     remitos: List[FacturaRemitoResponse] = []
