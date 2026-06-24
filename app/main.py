@@ -73,7 +73,29 @@ async def run_db_migrations_on_startup():
 async def root():
     return RedirectResponse(url="/home")
 
-@app.get("/health")
+
+@app.get("/debug/invoices-check")
+async def debug_invoices_check():
+    from app.database import SessionLocal
+    from app import models
+    import traceback
+
+    db = SessionLocal()
+    try:
+        return {
+            "ok": True,
+            "invoice_count": db.query(models.Invoice).count(),
+            "remito_count": db.query(models.Document).filter(models.Document.doc_type == "remito").count(),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+    finally:
+        db.close()
+\n@app.get("/health")
 async def health():
     return {"status": "ok"}
 
