@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Dashboard de facturas — MTR{% endblock %}
+{% block content %}
+
+<div class="mb-5">
+  <div class="text-xs text-gray-400 mb-2">
+    <a href="/purchases" class="hover:text-gray-600">Compras</a>
+    <span class="mx-1">›</span>
+    <span>Dashboard facturas</span>
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <span class="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">📊</span>
+        Dashboard de facturas
+      </h1>
+      <p class="text-sm text-gray-400 mt-1">Control de facturas y remitos vinculados</p>
+    </div>
+
+    <div class="flex gap-2">
+      <a href="/compras/facturas/exportar?fecha_desde={{ params.fecha_desde }}&fecha_hasta={{ params.fecha_hasta }}&proveedor_id={{ params.proveedor_id }}&busqueda={{ params.busqueda }}"
+         class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2 rounded-xl">
+        Exportar
+      </a>
+      <a href="/compras/facturas/nueva"
+         class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+        Cargar factura
+      </a>
+    </div>
+  </div>
+</div>
+
+<form id="facturas-filtros"
+      hx-get="/compras/facturas"
+      hx-target="#resultados"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      class="bg-white border border-gray-100 rounded-2xl shadow-sm p-3 mb-5">
+
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Fecha desde</label>
+      <input type="date" name="fecha_desde" value="{{ params.fecha_desde }}"
+             hx-trigger="change"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Fecha hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ params.fecha_hasta }}"
+             hx-trigger="change"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+      <select name="proveedor_id" hx-trigger="change"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+        <option value="">Todos</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" {% if params.proveedor_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Búsqueda</label>
+      <input type="text" name="busqueda" value="{{ params.busqueda }}"
+             placeholder="Nro, proveedor..."
+             hx-trigger="keyup changed delay:300ms"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    </div>
+
+    <div>
+      <a href="/compras/facturas"
+         class="flex justify-center items-center w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+        Limpiar
+      </a>
+    </div>
+  </div>
+</form>
+
+<div id="resultados">
+  {% include "facturas/_resultados.html" %}
+</div>
+
+<script>
+document.body.addEventListener('click', function(e) {
+  const btn = e.target.closest('[data-toggle-invoice]');
+  if (!btn) return;
+
+  const id = btn.getAttribute('data-toggle-invoice');
+  const row = document.getElementById('invoice-detail-' + id);
+  const icon = document.getElementById('chevron-' + id);
+
+  if (row) row.classList.toggle('hidden');
+  if (icon) icon.classList.toggle('rotate-90');
+});
+</script>
+
+{% endblock %}
