@@ -7,6 +7,9 @@
     <h1 class="text-xl font-semibold text-gray-900">Compras</h1>
     <p class="text-sm text-gray-400 mt-0.5" id="result-count">{{ purchases|length }} resultado{% if purchases|length != 1 %}s{% endif %}</p>
   </div>
+  <a href="/compras/facturas/nueva" class="inline-flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+    Cargar factura
+  </a>
   <a href="/purchases/new" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
     <span class="hidden sm:inline">Nueva compra</span>
