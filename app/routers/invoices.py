@@ -135,9 +135,9 @@ async def dashboard_facturas(
     }
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(request, "facturas/_resultados.html", context)
+        return templates.TemplateResponse("facturas/_resultados.html", context)
 
-    return templates.TemplateResponse(request, "facturas/dashboard.html", context)
+    return templates.TemplateResponse("facturas/dashboard.html", context)
 
 
 @router.get("/nueva", response_class=HTMLResponse)
@@ -150,7 +150,6 @@ async def nueva_factura_form(
     remitos = _free_remitos_query(db).all()
 
     return templates.TemplateResponse(
-        request,
         "facturas/cargar.html",
         {
             "request": request,
@@ -237,7 +236,6 @@ async def editar_factura_form(
     remitos_libres = _free_remitos_query(db).all()
 
     return templates.TemplateResponse(
-        request,
         "facturas/editar.html",
         {
             "request": request,
