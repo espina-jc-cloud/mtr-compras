@@ -329,11 +329,14 @@ def _read_operativos_html(file_bytes: bytes):
     soup = BeautifulSoup(html, "html.parser")
     warnings: list[str] = []
 
-    # Nombre del operativo desde el texto 'Operativo: NN) NOMBRE (fecha)'
+    # Nombre del operativo desde 'Operativo: NN) NOMBRE [(fecha)] Fecha Inicio: ...'.
+    # El nombre termina en el '(' de la fecha o en la etiqueta 'Fecha' (lo que venga
+    # primero). Sin este corte, el nombre se tragaría todo el texto del documento.
     full_text = soup.get_text(" ", strip=True)
-    m = re.search(r"Operativo:\s*(?:\d+\)\s*)?(.+?)\s*\(\d", full_text)
-    if not m:
-        m = re.search(r"Operativo:\s*(?:\d+\)\s*)?([^\n]+)", full_text)
+    m = re.search(r"Operativo:\s*(?:\d+\)\s*)?(.+?)\s*(?:\(\d|\bFecha\b|\bCliente:|\bProducto:|\bTurno:)",
+                  full_text)
+    if not m:  # respaldo acotado (máx 60 chars) para no arrastrar la tabla entera
+        m = re.search(r"Operativo:\s*(?:\d+\)\s*)?(.{1,60}?)\s{2,}", full_text)
     raw_name = (m.group(1).strip() if m else "Operativo importado")
 
     # Localizar la tabla de viajes (la que tiene el header con 'Neto').
