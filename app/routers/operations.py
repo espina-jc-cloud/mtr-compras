@@ -6,8 +6,8 @@ from datetime import datetime, date as _date, time as _time, timedelta
 from collections import defaultdict
 from urllib.parse import quote as _url_quote
 
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, exists
 
@@ -600,6 +600,122 @@ async def operations_dashboard(
         "all_products":       all_products,
         "all_clients":        all_clients,
     })
+
+
+# ── IMPORTAR EXCEL ─────────────────────────────────────────────────────────────
+# DEBE declararse antes de /{op_id} para que "/import" no se interprete como op_id.
+
+@router.get("/import", response_class=HTMLResponse)
+async def import_form(
+    request: Request,
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    return templates.TemplateResponse(request, "operations/import.html", {
+        "user": current_user, "preview": None, "error": None,
+    })
+
+
+@router.post("/import", response_class=HTMLResponse)
+async def import_preview(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    import json
+    from app.operations_parser import parse_operations_workbook
+
+    def _err(msg):
+        return templates.TemplateResponse(request, "operations/import.html", {
+            "user": current_user, "preview": None, "error": msg,
+        })
+
+    if not file or not file.filename:
+        return _err("Tenés que seleccionar un archivo Excel (.xlsx).")
+    content = await file.read()
+    if not content:
+        return _err("El archivo está vacío.")
+
+    try:
+        operations, warnings = parse_operations_workbook(content)
+    except ValueError as e:
+        return _err(str(e))
+
+    if not operations:
+        return _err("No se detectó ningún operativo con viajes en el archivo. "
+                    "Revisá que tenga el formato de la planilla de balanza.")
+
+    # Avisos de duplicados: viajes con trip_code ya existente y operativos ya cargados.
+    incoming_codes = [t["trip_code"] for op in operations for t in op["trips"]]
+    existing_codes = set()
+    if incoming_codes:
+        rows = (db.query(models.OperationTrip.trip_code)
+                .filter(models.OperationTrip.trip_code.in_(incoming_codes)).all())
+        existing_codes = {r[0] for r in rows}
+
+    preview = []
+    total_dup = 0
+    for op in operations:
+        dup = sum(1 for t in op["trips"] if t["trip_code"] in existing_codes)
+        total_dup += dup
+        # ¿ya existe un operativo con mismo barco + fecha de inicio?
+        already = False
+        if op.get("start_date"):
+            already = db.query(
+                exists().where(
+                    (models.Operation.ship_name == op["ship_name"]) &
+                    (models.Operation.start_date == datetime.fromisoformat(op["start_date"]))
+                )
+            ).scalar()
+        preview.append({
+            "ship_name":   op["ship_name"],
+            "product":     op.get("product"),
+            "client":      op.get("client"),
+            "trip_count":  op["actual_trips"],
+            "dup_count":   dup,
+            "total_t":     (op.get("total_neto_kg") or 0) / 1000,
+            "start_date":  op.get("start_date"),
+            "end_date":    op.get("end_date"),
+            "already":     bool(already),
+        })
+
+    return templates.TemplateResponse(request, "operations/import.html", {
+        "user":          current_user,
+        "preview":       preview,
+        "ops_json":      json.dumps(operations),
+        "filename":      file.filename,
+        "total_ops":     len(operations),
+        "total_trips":   len(incoming_codes),
+        "total_dup":     total_dup,
+        "warnings":      warnings,
+        "error":         None,
+    })
+
+
+@router.post("/import/confirm")
+async def import_confirm(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    import json
+    from app.operations_parser import insert_operations
+
+    form = await request.form()
+    try:
+        operations = json.loads(form.get("ops_json", "[]"))
+    except Exception:
+        raise HTTPException(400, "Datos de importación inválidos.")
+    if not operations:
+        raise HTTPException(400, "No hay operativos para importar.")
+
+    filename = str(form.get("filename", "import_web.xlsx"))
+    stats = insert_operations(db, operations, source_file=filename)
+
+    msg = (f"{stats['ops_created']} operativo(s) · {stats['trips_inserted']} viajes importados"
+           + (f" · {stats['trips_dup']} viajes duplicados saltados" if stats["trips_dup"] else ""))
+    from urllib.parse import quote as _q
+    return RedirectResponse(url=f"/operations?imported={_q(msg)}", status_code=303)
 
 
 @router.get("/{op_id}", response_class=HTMLResponse)
