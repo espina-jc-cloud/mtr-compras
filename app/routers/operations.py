@@ -6,7 +6,7 @@ from datetime import datetime, date as _date, time as _time, timedelta
 from collections import defaultdict
 from urllib.parse import quote as _url_quote
 
-from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, exists
@@ -886,6 +886,81 @@ async def operation_detail(
         "rhythm_first_dt":       rhythm_first_dt,
         "rhythm_last_dt":        rhythm_last_dt,
     })
+
+
+# ── EDITAR / ELIMINAR operativo ────────────────────────────────────────────────
+
+@router.get("/{op_id}/edit", response_class=HTMLResponse)
+async def edit_operation_form(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "operations/edit.html", {
+        "user": current_user, "op": op,
+    })
+
+
+@router.post("/{op_id}/edit")
+async def update_operation(
+    op_id: int,
+    request: Request,
+    ship_name: str = Form(...),
+    operation_type: str = Form("vessel"),
+    client: str = Form(""),
+    product: str = Form(""),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+
+    def _d(s):
+        try:
+            return datetime.fromisoformat(s) if s else None
+        except ValueError:
+            return None
+
+    if not ship_name.strip():
+        raise HTTPException(status_code=422, detail="El nombre del barco es obligatorio.")
+
+    op.ship_name      = ship_name.strip()
+    op.operation_type = operation_type if operation_type in ("vessel", "special") else "vessel"
+    op.client         = client.strip() or None
+    op.product        = product.strip() or None
+    if start_date:
+        op.start_date = _d(start_date)
+    if end_date:
+        op.end_date = _d(end_date)
+    db.commit()
+    return RedirectResponse(url=f"/operations/{op_id}", status_code=303)
+
+
+@router.post("/{op_id}/delete")
+async def delete_operation(
+    op_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+    ship = op.ship_name  # capturar antes de borrar
+    # Romper el vínculo de cargo summaries (no tienen cascade) antes de borrar.
+    db.query(models.OperationCargoSummary).filter(
+        models.OperationCargoSummary.operation_id == op_id
+    ).update({models.OperationCargoSummary.operation_id: None}, synchronize_session=False)
+    db.delete(op)  # cascade borra trips + product_totals
+    db.commit()
+    from urllib.parse import quote as _q
+    return RedirectResponse(url=f"/operations?imported={_q('Operativo eliminado: ' + ship)}", status_code=303)
 
 
 # ── JSON API routes ────────────────────────────────────────────────────────────
