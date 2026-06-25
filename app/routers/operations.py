@@ -631,7 +631,7 @@ async def import_preview(
         })
 
     if not file or not file.filename:
-        return _err("Tenés que seleccionar un archivo Excel (.xlsx).")
+        return _err("Tenés que seleccionar un archivo Excel (.xlsx o .xls).")
     content = await file.read()
     if not content:
         return _err("El archivo está vacío.")

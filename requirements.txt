@@ -9,5 +9,6 @@ jinja2
 cloudinary
 python-dotenv
 openpyxl
+xlrd==2.0.1
 python-docx
 beautifulsoup4

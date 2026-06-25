@@ -102,26 +102,75 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
+def _read_rows_xlsx(file_bytes: bytes):
+    """Lee un .xlsx con openpyxl. Devuelve la lista de filas (tuplas de valores)."""
+    try:
+        import openpyxl
+    except ImportError:
+        raise ValueError("openpyxl no está instalado en el servidor.")
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    except Exception:
+        raise ValueError("El archivo no es un Excel válido (.xlsx).")
+    ws = wb.active
+    rows = list(ws.iter_rows(min_row=2, values_only=True))  # saltar header
+    wb.close()
+    return rows
+
+
+def _read_rows_xls(file_bytes: bytes):
+    """Lee un .xls (formato viejo) con xlrd, normalizando celdas para que el
+    parser las trate igual que las de openpyxl: fechas → datetime, horas → time."""
+    try:
+        import xlrd
+    except ImportError:
+        raise ValueError("El servidor no puede leer archivos .xls (falta xlrd).")
+    try:
+        book = xlrd.open_workbook(file_contents=file_bytes)
+    except Exception:
+        raise ValueError("El archivo no es un Excel válido (.xls).")
+
+    sheet = book.sheet_by_index(0)
+    rows = []
+    for r in range(1, sheet.nrows):  # saltar header
+        cells = []
+        for c in range(sheet.ncols):
+            cell = sheet.cell(r, c)
+            val = cell.value
+            # ctype 3 = fecha/hora (número serial de Excel)
+            if cell.ctype == 3:
+                dt = xlrd.xldate.xldate_as_datetime(val, book.datemode)
+                # Valor < 1 → solo hora (sin parte de fecha) → devolver time
+                val = dt.time() if val < 1 else dt
+            elif cell.ctype == 0:   # celda vacía
+                val = None
+            cells.append(val)
+        rows.append(tuple(cells))
+    return rows
+
+
 def parse_operations_workbook(file_bytes: bytes):
-    """Parsea el Excel de operativos. Devuelve (operations, warnings).
+    """Parsea el Excel de operativos (.xlsx o .xls). Devuelve (operations, warnings).
 
     `operations` es una lista de dicts JSON-friendly, uno por operativo, con sus
     viajes y los agregados ya calculados (toneladas, promedios, rango de fechas).
     Lanza ValueError si el archivo no se puede leer como planilla.
     """
-    try:
-        import openpyxl
-    except ImportError:
-        raise ValueError("openpyxl no está instalado en el servidor.")
+    if not file_bytes:
+        raise ValueError("El archivo está vacío.")
 
-    try:
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
-    except Exception:
-        raise ValueError("El archivo no es un Excel válido (.xlsx).")
-
-    ws = wb.active
-    raw_rows = list(ws.iter_rows(min_row=2, values_only=True))  # saltar header
-    wb.close()
+    # Detectar formato por bytes mágicos: .xls = OLE2 (D0 CF 11 E0); .xlsx = ZIP (PK).
+    head = file_bytes[:4]
+    if head[:2] == b"PK":
+        raw_rows = _read_rows_xlsx(file_bytes)
+    elif head == b"\xd0\xcf\x11\xe0":
+        raw_rows = _read_rows_xls(file_bytes)
+    else:
+        # Fallback: intentar xlsx y, si falla, xls.
+        try:
+            raw_rows = _read_rows_xlsx(file_bytes)
+        except ValueError:
+            raw_rows = _read_rows_xls(file_bytes)
 
     warnings: list[str] = []
     operations_data: list[dict] = []
