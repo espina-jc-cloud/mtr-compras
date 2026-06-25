@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Cuentas — Tesorería MTR{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-2 mb-6">
+  <a href="/finanzas" class="text-gray-400 hover:text-gray-600">←</a>
+  <h1 class="text-xl font-semibold text-gray-900">Cuentas de tesorería</h1>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Listado -->
+  <div class="lg:col-span-2 bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    {% if cuentas_con_saldo %}
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
+          <th class="px-3 py-2 rounded-l-lg">Cuenta</th>
+          <th class="px-3 py-2">Tipo</th>
+          <th class="px-3 py-2 text-right">Saldo</th>
+          <th class="px-3 py-2 rounded-r-lg"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for cuenta, saldo in cuentas_con_saldo %}
+        <tr class="{% if not cuenta.activo %}opacity-50{% endif %}">
+          <td class="px-3 py-2.5 text-gray-800 font-medium">{{ cuenta.nombre }}
+            {% if cuenta.banco %}<span class="text-gray-400 text-xs block">{{ cuenta.banco }}{% if cuenta.numero_cuenta %} · {{ cuenta.numero_cuenta }}{% endif %}</span>{% endif %}
+          </td>
+          <td class="px-3 py-2.5 text-gray-500">{{ tipo_cuenta_labels.get(cuenta.tipo, cuenta.tipo) }}</td>
+          <td class="px-3 py-2.5 text-right font-mono {% if saldo < 0 %}text-red-600{% else %}text-gray-900{% endif %}">
+            {{ cuenta.moneda }} {{ saldo | fmt_num(2) }}
+          </td>
+          <td class="px-3 py-2.5 text-right">
+            <form method="post" action="/finanzas/cuentas/{{ cuenta.id }}/toggle">
+              <button type="submit" class="text-xs text-gray-400 hover:text-gray-700">
+                {{ "Desactivar" if cuenta.activo else "Activar" }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-400 py-6 text-center">Sin cuentas. Creá la primera con el formulario →</p>
+    {% endif %}
+  </div>
+
+  <!-- Alta -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Nueva cuenta</h2>
+    <form method="post" action="/finanzas/cuentas/new" class="space-y-3">
+      <input type="text" name="nombre" required placeholder="Nombre (ej: Caja MTR1)"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <div class="grid grid-cols-2 gap-2">
+        <select name="tipo" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+          {% for val, label in tipos_cuenta %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select>
+        <select name="moneda" class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+          {% for val, label in monedas %}<option value="{{ val }}">{{ val }}</option>{% endfor %}
+        </select>
+      </div>
+      <input type="text" name="banco" placeholder="Banco (opcional)"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <input type="text" name="numero_cuenta" placeholder="Nº de cuenta (opcional)"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <input type="text" name="cbu" placeholder="CBU (opcional)"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <input type="text" name="alias_cbu" placeholder="Alias CBU (opcional)"
+             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      <div>
+        <label class="text-xs text-gray-500">Saldo inicial</label>
+        <input type="text" name="saldo_inicial" inputmode="decimal" value="0"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      </div>
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        Crear cuenta
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

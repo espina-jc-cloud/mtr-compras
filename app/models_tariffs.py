@@ -142,6 +142,7 @@ class Client(Base):
     id          = Column(Integer, primary_key=True, index=True)
     nombre      = Column(String(200), nullable=False, index=True)
     cuit        = Column(String(20), nullable=True)
+    condicion_iva = Column(String(30), nullable=True)  # Finanzas: responsable_inscripto | monotributo | ...
     rubro       = Column(String(120), nullable=True)   # "Fertilizantes", "Minería"...
     contacto    = Column(String(200), nullable=True)
     email       = Column(String(200), nullable=True)

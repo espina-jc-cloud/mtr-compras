@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Nuevo usuario — MTR{% endblock %}
+{% block title %}{{ "Editar" if edit_user else "Nuevo" }} usuario — MTR{% endblock %}
 {% block content %}
 
-<div class="max-w-lg mx-auto">
+<div class="max-w-2xl mx-auto">
   <div class="mb-6">
     <a href="/admin/users" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
       Usuarios
     </a>
-    <h1 class="text-xl font-semibold text-gray-900">Nuevo usuario</h1>
-    <p class="text-sm text-gray-400 mt-0.5">El usuario recibirá acceso con el email y contraseña que definas.</p>
+    <h1 class="text-xl font-semibold text-gray-900">{{ "Editar usuario" if edit_user else "Nuevo usuario" }}</h1>
+    <p class="text-sm text-gray-400 mt-0.5">
+      {% if edit_user %}{{ edit_user.email }}{% else %}El usuario recibirá acceso con el email y contraseña que definas.{% endif %}
+    </p>
   </div>
 
   {% if error %}
@@ -19,33 +21,37 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/admin/users/new" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
+  <form method="post" action="{{ '/admin/users/' ~ edit_user.id ~ '/edit' if edit_user else '/admin/users/new' }}"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
 
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre completo <span class="text-red-400">*</span></label>
-      <input type="text" name="name" required placeholder="Juan García"
+      <input type="text" name="name" required placeholder="Juan García" value="{{ edit_user.name if edit_user else '' }}"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
     </div>
 
+    {% if not edit_user %}
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Email <span class="text-red-400">*</span></label>
       <input type="email" name="email" required placeholder="usuario@mtr.com"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
     </div>
+    {% endif %}
 
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1.5">Contraseña <span class="text-red-400">*</span></label>
-      <input type="password" name="password" required minlength="6" placeholder="Mínimo 6 caracteres"
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">
+        Contraseña {% if not edit_user %}<span class="text-red-400">*</span>{% else %}<span class="text-gray-400 font-normal">(dejar en blanco para no cambiar)</span>{% endif %}
+      </label>
+      <input type="password" name="password" {% if not edit_user %}required minlength="6"{% endif %} placeholder="Mínimo 6 caracteres"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 placeholder-gray-400">
-      <p class="text-xs text-gray-400 mt-1">El usuario puede cambiarla después (si agregás esa función).</p>
     </div>
 
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Rol <span class="text-red-400">*</span></label>
-        <select name="role" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+        <select name="role" id="roleSelect" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
           {% for r in roles %}
-          <option value="{{ r }}">{{ r|capitalize }}</option>
+          <option value="{{ r }}" {{ "selected" if edit_user and edit_user.role == r }}>{{ r|capitalize }}</option>
           {% endfor %}
         </select>
       </div>
@@ -53,19 +59,51 @@
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Planta <span class="text-red-400">*</span></label>
         <select name="plant" required class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
           {% for p in plants %}
-          <option value="{{ p }}">{{ p }}</option>
+          <option value="{{ p }}" {{ "selected" if edit_user and edit_user.plant == p }}>{{ p }}</option>
           {% endfor %}
         </select>
       </div>
     </div>
 
-    <!-- Info roles -->
-    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-500 space-y-1.5">
-      <p class="font-semibold text-gray-600 mb-2">Permisos por rol:</p>
-      <p><span class="font-medium text-gray-700">Planta</span> — crea solicitudes, sube remitos, ve sus propias compras.</p>
-      <p><span class="font-medium text-gray-700">Autorizador</span> — aprueba o rechaza solicitudes de su planta.</p>
-      <p><span class="font-medium text-gray-700">Admin</span> — ve todo, carga facturas, marca pagos, gestiona proveedores.</p>
-      <p><span class="font-medium text-amber-600">Superadmin</span> — acceso completo, puede cancelar y gestionar usuarios.</p>
+    <!-- ── Permisos de acceso ──────────────────────────────────────────────── -->
+    <div class="border border-gray-100 rounded-xl p-4" id="permsBox">
+      <p class="font-semibold text-gray-700 text-sm mb-3">Permisos de acceso</p>
+
+      <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 text-sm">
+        <label class="inline-flex items-center gap-2">
+          <input type="radio" name="perm_mode" value="default" {{ "checked" if not is_custom }} onchange="onModeChange()">
+          <span>Usar permisos por defecto del rol</span>
+        </label>
+        <label class="inline-flex items-center gap-2">
+          <input type="radio" name="perm_mode" value="custom" {{ "checked" if is_custom }} onchange="onModeChange()">
+          <span>Personalizar</span>
+        </label>
+      </div>
+
+      <p id="defaultHint" class="text-xs text-gray-400 mb-3">
+        El usuario verá lo que su rol permite. Pasá a <span class="font-medium">Personalizar</span> para elegir módulo por módulo.
+      </p>
+
+      <div class="space-y-2" id="modulesList">
+        {% for m in modules %}
+        <div class="border border-gray-100 rounded-lg" data-module="{{ m.key }}">
+          <label class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none bg-gray-50 rounded-t-lg">
+            <input type="checkbox" class="module-master" data-module="{{ m.key }}" onchange="toggleModule(this)">
+            <span class="font-medium text-gray-800 text-sm">{{ m.label }}</span>
+            <span class="ml-auto text-xs text-gray-400 module-count"></span>
+          </label>
+          <div class="px-3 py-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {% for s in m.subs %}
+            <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" name="perms" value="{{ s.key }}" class="perm-cb" data-module="{{ m.key }}"
+                     {{ "checked" if s.key in granted }} onchange="syncMaster('{{ m.key }}')">
+              {{ s.label }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
 
     <div class="flex gap-3 pt-1">
@@ -73,10 +111,74 @@
         Cancelar
       </a>
       <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">
-        Crear usuario
+        {{ "Guardar cambios" if edit_user else "Crear usuario" }}
       </button>
     </div>
   </form>
 </div>
+
+<script>
+  const ROLE_DEFAULTS = {{ role_default_map | tojson }};
+  const IS_CUSTOM = {{ "true" if is_custom else "false" }};
+
+  function allCbs() { return Array.from(document.querySelectorAll('.perm-cb')); }
+
+  function setEnabled(enabled) {
+    allCbs().forEach(cb => cb.disabled = !enabled);
+    document.querySelectorAll('.module-master').forEach(cb => cb.disabled = !enabled);
+    document.getElementById('permsBox').classList.toggle('opacity-60', !enabled);
+    document.getElementById('defaultHint').style.display = enabled ? 'none' : '';
+  }
+
+  function applyRoleDefaults() {
+    // En modo "default": tildar (visualmente) lo que da el rol elegido.
+    const role = document.getElementById('roleSelect').value;
+    const keys = (role === 'superadmin') ? allCbs().map(c => c.value) : (ROLE_DEFAULTS[role] || []);
+    allCbs().forEach(cb => cb.checked = keys.includes(cb.value));
+    document.querySelectorAll('.module-master').forEach(m => syncMaster(m.dataset.module));
+  }
+
+  function currentMode() {
+    const r = document.querySelector('input[name="perm_mode"]:checked');
+    return r ? r.value : 'default';
+  }
+
+  function onModeChange() {
+    const custom = currentMode() === 'custom';
+    setEnabled(custom);
+    if (!custom) applyRoleDefaults();
+  }
+
+  function toggleModule(master) {
+    const mod = master.dataset.module;
+    document.querySelectorAll('.perm-cb[data-module="'+mod+'"]').forEach(cb => cb.checked = master.checked);
+    updateCount(mod);
+  }
+
+  function syncMaster(mod) {
+    const subs = Array.from(document.querySelectorAll('.perm-cb[data-module="'+mod+'"]'));
+    const master = document.querySelector('.module-master[data-module="'+mod+'"]');
+    const checked = subs.filter(c => c.checked).length;
+    master.checked = checked > 0 && checked === subs.length;
+    master.indeterminate = checked > 0 && checked < subs.length;
+    updateCount(mod);
+  }
+
+  function updateCount(mod) {
+    const subs = Array.from(document.querySelectorAll('.perm-cb[data-module="'+mod+'"]'));
+    const checked = subs.filter(c => c.checked).length;
+    const el = document.querySelector('[data-module="'+mod+'"] .module-count');
+    if (el) el.textContent = checked ? checked + '/' + subs.length : '';
+  }
+
+  // Si cambia el rol estando en modo default, refrescar el preview.
+  document.getElementById('roleSelect').addEventListener('change', () => {
+    if (currentMode() === 'default') applyRoleDefaults();
+  });
+
+  // Estado inicial.
+  document.querySelectorAll('.module-master').forEach(m => syncMaster(m.dataset.module));
+  onModeChange();
+</script>
 
 {% endblock %}

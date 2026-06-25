@@ -14,6 +14,7 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 
@@ -23,7 +24,7 @@ try:
 except Exception:
     CLOUDINARY_AVAILABLE = False
 
-router = APIRouter(prefix="/fuel")
+router = APIRouter(prefix="/fuel", dependencies=[Depends(require_perm("mantenimiento.combustible"))])
 
 FUEL_TYPES = {
     "gasoil_comun":   "Gasoil Común",

@@ -10,6 +10,7 @@ from app.routers import despachos
 from app.routers import tariffs
 from app.routers import projects
 from app.routers import transporte
+from app.routers import finanzas
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ app.include_router(operations_live.router)
 app.include_router(operations.router)
 app.include_router(despachos.router)
 app.include_router(tariffs.router)
+app.include_router(finanzas.router)
 app.include_router(operations.api_router)
 
 @app.get("/")

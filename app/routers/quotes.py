@@ -5,10 +5,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_compras_access, require_no_operador
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 from app.cloudinary_upload import upload_file
+
+# Acceso al módulo Cotizaciones → permiso "compras.cotizaciones".
+require_compras_access = require_perm("compras.cotizaciones")
+require_no_operador = require_compras_access
 
 router = APIRouter(prefix="/quotes", dependencies=[Depends(require_no_operador)])
 

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.deps import require_role
+from app.permissions import require_perm
 from app.models_cupos import (
     CupoDespacho, ImportBatch,
     DESPACHO_ESTADOS, DESPACHO_ESTADO_LABELS, ESTADO_CSS,
@@ -34,7 +35,8 @@ from app.templates import templates
 
 router = APIRouter(prefix="/despachos", tags=["despachos"])
 
-_ROLES = ("admin", "superadmin", "planta", "operador")
+# Acceso al módulo Despachos → permiso "operaciones.despachos".
+_guard = require_perm("operaciones.despachos")
 
 
 def get_db():
@@ -709,7 +711,7 @@ def _kpis(registros: list) -> dict:
 async def list_despachos(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
     fecha_desde: str = "",
     fecha_hasta: str = "",
     cliente:     str = "",
@@ -1067,7 +1069,7 @@ def _generate_template_bytes() -> bytes:
 
 @router.get("/template")
 async def download_template(
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     """Descarga la Plantilla_Despachos_MTR.xlsx directamente desde el sistema."""
     content = _generate_template_bytes()
@@ -1085,7 +1087,7 @@ async def download_template(
 @router.get("/import", response_class=HTMLResponse)
 async def import_form(
     request: Request,
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     return templates.TemplateResponse(
         request,
@@ -1098,7 +1100,7 @@ async def import_form(
 async def import_preview(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
     file: UploadFile = File(...),
     source_override: str = Form("auto"),    # 'auto' | 'nutrien' | 'cna'
     import_fecha_desde: str = Form(""),     # filtro de fecha en importación
@@ -1191,7 +1193,7 @@ async def import_preview(
 async def import_confirm(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     form = await request.form()
     import json
@@ -1344,7 +1346,7 @@ async def detail(
     request: Request,
     rid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     reg = db.query(CupoDespacho).filter_by(id=rid).first()
     if not reg:
@@ -1368,7 +1370,7 @@ async def change_status(
     request: Request,
     rid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     reg = db.query(CupoDespacho).filter_by(id=rid).first()
     if not reg:
@@ -1399,7 +1401,7 @@ async def edit_registro(
     request: Request,
     rid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     reg = db.query(CupoDespacho).filter_by(id=rid).first()
     if not reg:
@@ -1459,7 +1461,7 @@ async def reprogram(
     request: Request,
     rid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_ROLES)),
+    current_user=Depends(_guard),
 ):
     reg = db.query(CupoDespacho).filter_by(id=rid).first()
     if not reg:

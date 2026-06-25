@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import require_compras_access
+from app.permissions import require_perm, can
 from app import models
 from app.models_tariffs import (
     Client, TariffService, Tariff, TariffComponent, calcular_componentes,
@@ -43,12 +43,15 @@ from app.models_tariffs import (
 )
 from app.templates import templates
 
+# Acceso al módulo Tarifas → permiso "operaciones.tarifas_propias".
+require_compras_access = require_perm("operaciones.tarifas_propias")
+
 router = APIRouter(prefix="/tarifario", tags=["tarifario"])
 
 
 def _can_view_internal(user) -> bool:
-    """Solo admin/superadmin pueden ver tarifas internas (piso, benchmarks)."""
-    return user.role in TARIFF_INTERNAL_ROLES
+    """Tarifas internas (piso, benchmarks) y de terceros → permiso tarifas_terceros."""
+    return can(user, "operaciones.tarifas_terceros")
 
 
 def _ctx(request, current_user, **extra):

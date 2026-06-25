@@ -48,6 +48,7 @@ from typing import Optional
 
 from app.database import get_db
 from app.deps import require_role
+from app.permissions import require_perm
 from app.templates import templates
 from app import models
 from app.models_live import (
@@ -302,7 +303,7 @@ def _build_session_context(session: OperationLiveSession, db: Session) -> dict:
 async def list_live_sessions(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     sessions_active = (
         db.query(OperationLiveSession)
@@ -361,7 +362,7 @@ async def list_live_sessions(
 @router.get("/new", response_class=HTMLResponse)
 async def new_session_form(
     request: Request,
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     return templates.TemplateResponse(
         request,
@@ -376,7 +377,7 @@ async def new_session_form(
 async def create_session(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Crea una sesión live con uno o más productos.
@@ -454,7 +455,7 @@ async def session_detail(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     ctx = _build_session_context(session, db)
@@ -476,7 +477,7 @@ async def edit_session_form(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     return templates.TemplateResponse(
@@ -494,7 +495,7 @@ async def update_session(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     form = await request.form()
@@ -544,7 +545,7 @@ async def finish_session(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     form = await request.form()
@@ -568,7 +569,7 @@ async def close_session_form(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Pantalla de confirmación antes de cerrar formalmente el operativo.
@@ -617,7 +618,7 @@ async def close_session(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Ejecuta el cierre formal del operativo.
@@ -946,7 +947,7 @@ async def new_shift_form(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
 
@@ -989,7 +990,7 @@ async def create_shift(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
 
@@ -1049,7 +1050,7 @@ async def shift_detail(
     sid: int,
     shid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     shift   = _get_shift_or_404(sid, shid, db)
@@ -1130,7 +1131,7 @@ async def edit_shift_form(
     sid: int,
     shid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     shift   = _get_shift_or_404(sid, shid, db)
@@ -1186,7 +1187,7 @@ async def update_shift(
     sid: int,
     shid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     session = _get_session_or_404(sid, db)
     shift   = _get_shift_or_404(sid, shid, db)
@@ -1501,7 +1502,7 @@ async def invoice_new_form(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Formulario de carga de la factura cooperativa.
@@ -1544,7 +1545,7 @@ async def invoice_new_submit(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """Crea la factura cooperativa en estado 'draft'."""
     session = _get_session_or_404(sid, db)
@@ -1602,7 +1603,7 @@ async def invoice_detail_view(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """Vista de solo lectura de la factura cooperativa."""
     session = _get_session_or_404(sid, db)
@@ -1628,7 +1629,7 @@ async def invoice_edit_form(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Formulario de edición de la factura cooperativa.
@@ -1658,7 +1659,7 @@ async def invoice_edit_submit(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """Guarda los cambios de la factura (solo si status == 'draft')."""
     _get_session_or_404(sid, db)
@@ -1760,7 +1761,7 @@ async def invoice_review_form(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Pantalla de revisión MTR. Muestra recibido vs revisado línea por línea.
@@ -1791,7 +1792,7 @@ async def invoice_review_submit(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Guarda los datos revisados (_revisado) de todas las líneas.
@@ -1877,7 +1878,7 @@ async def invoice_approve(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Transiciona la factura a 'approved_for_payment'.
@@ -1940,7 +1941,7 @@ async def invoice_dispute(
     sid: int,
     iid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Transiciona la factura a 'disputed'.
@@ -1971,7 +1972,7 @@ async def reconciliation_view(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Pantalla de conciliación final por producto.
@@ -2032,7 +2033,7 @@ async def reconciliation_save(
     request: Request,
     sid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Guarda el dictamen de conciliación por producto.
@@ -2138,7 +2139,7 @@ async def upload_photo(
     shift_id: Optional[int] = Form(None),
     bodega_number: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """
     Sube una o más fotos al operativo.
@@ -2197,7 +2198,7 @@ async def delete_photo(
     sid: int,
     pid: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_LIVE_ROLES)),
+    current_user=Depends(require_perm("operaciones.live")),
 ):
     """Borra una foto del operativo (DB + Cloudinary)."""
     session = _get_session_or_404(sid, db)

@@ -18,6 +18,7 @@ from app import models
 from app import models_cupos        # noqa: F401 — registra tablas de Despachos en Base.metadata
 from app import models_tariffs      # noqa: F401 — registra tablas de Tarifario en Base.metadata
 from app import models_transporte   # noqa: F401 — registra tablas de Transporte en Base.metadata
+from app import models_finanzas      # noqa: F401 — registra tablas de Finanzas en Base.metadata
 from app.auth import hash_password
 
 
@@ -129,6 +130,13 @@ def run():
         # (tariff_components se crea sola con create_all)
         _add_column(conn, "tariffs", "owner",   "VARCHAR(20) DEFAULT 'propia'")
         _add_column(conn, "tariffs", "tercero", "VARCHAR(200)")
+        # Módulo Finanzas — condición IVA en maestros existentes (unificación).
+        # Las tablas centros_costo / cuentas_tesoreria / movimientos_tesoreria
+        # se crean solas con create_all().
+        _add_column(conn, "clients",   "condicion_iva", "VARCHAR(30)")
+        _add_column(conn, "suppliers", "condicion_iva", "VARCHAR(30)")
+        # Sistema de permisos por usuario — claves concedidas (JSON); NULL = defaults del rol.
+        _add_column(conn, "users", "permissions", "TEXT")
         # Módulo Proyectos — Etapa 2A: Bitácora diaria
         # project_entries se crea sola con create_all().
         # Las columnas de projects que pasan a nullable no requieren ALTER en SQLite.

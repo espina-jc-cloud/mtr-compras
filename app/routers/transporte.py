@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from app.database import get_db
 from app.deps import get_current_user
+from app.permissions import require_path_perm
 from app import models_transporte as mt
 from app.templates import templates
 
-router = APIRouter(prefix="/transporte")
+router = APIRouter(prefix="/transporte", dependencies=[Depends(require_path_perm())])
 
 
 def _require_access(current_user=Depends(get_current_user)):
@@ -61,7 +62,7 @@ async def nomina_list(
         .all()
     )
 
-    return templates.TemplateResponse("transporte/nomina_list.html", {
+    return templates.TemplateResponse(request, "transporte/nomina_list.html", {
         "request": request,
         "user": current_user,
         "nomina": nomina,
@@ -74,7 +75,7 @@ async def nomina_new_form(
     request: Request,
     current_user=Depends(_require_access),
 ):
-    return templates.TemplateResponse("transporte/nomina_form.html", {
+    return templates.TemplateResponse(request, "transporte/nomina_form.html", {
         "request": request,
         "user": current_user,
         "item": None,
@@ -101,7 +102,7 @@ async def nomina_create(
         errors.append("El nombre del chofer es requerido.")
 
     if errors:
-        return templates.TemplateResponse("transporte/nomina_form.html", {
+        return templates.TemplateResponse(request, "transporte/nomina_form.html", {
             "request": request,
             "user": current_user,
             "item": None,
@@ -143,7 +144,7 @@ async def nomina_edit_form(
     if not item:
         raise HTTPException(status_code=404, detail="Registro no encontrado.")
 
-    return templates.TemplateResponse("transporte/nomina_form.html", {
+    return templates.TemplateResponse(request, "transporte/nomina_form.html", {
         "request": request,
         "user": current_user,
         "item": item,
@@ -178,7 +179,7 @@ async def nomina_update(
         errors.append("El nombre del chofer es requerido.")
 
     if errors:
-        return templates.TemplateResponse("transporte/nomina_form.html", {
+        return templates.TemplateResponse(request, "transporte/nomina_form.html", {
             "request": request,
             "user": current_user,
             "item": item,
@@ -241,7 +242,7 @@ async def historial_list(
         .all()
     )
 
-    return templates.TemplateResponse("transporte/historial_list.html", {
+    return templates.TemplateResponse(request, "transporte/historial_list.html", {
         "request": request,
         "user": current_user,
         "operativos": operativos,
@@ -253,7 +254,7 @@ async def historial_new_form(
     request: Request,
     current_user=Depends(_require_access),
 ):
-    return templates.TemplateResponse("transporte/historial_new.html", {
+    return templates.TemplateResponse(request, "transporte/historial_new.html", {
         "request": request,
         "user": current_user,
         "errors": [],
@@ -277,7 +278,7 @@ async def historial_create(
         errors.append("El nombre del barco es requerido.")
 
     if errors:
-        return templates.TemplateResponse("transporte/historial_new.html", {
+        return templates.TemplateResponse(request, "transporte/historial_new.html", {
             "request": request,
             "user": current_user,
             "errors": errors,
@@ -344,7 +345,7 @@ async def historial_detail(
         .all()
     )
 
-    return templates.TemplateResponse("transporte/historial_detail.html", {
+    return templates.TemplateResponse(request, "transporte/historial_detail.html", {
         "request": request,
         "user": current_user,
         "op": op,
