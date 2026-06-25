@@ -159,14 +159,21 @@ def parse_operations_workbook(file_bytes: bytes):
     if not file_bytes:
         raise ValueError("El archivo está vacío.")
 
-    # Detectar formato por bytes mágicos: .xls = OLE2 (D0 CF 11 E0); .xlsx = ZIP (PK).
-    head = file_bytes[:4]
-    if head[:2] == b"PK":
+    # Detectar formato. Muchos sistemas (incluido el de balanza MTR) exportan
+    # ".xls" que en realidad son HTML; los detectamos y parseamos aparte.
+    head = file_bytes[:64].lstrip()[:16].lower()
+    if head.startswith(b"<") and (b"<table" in file_bytes[:4096].lower()
+                                  or b"<html" in head or b"<div" in head):
+        operations_data, warnings = _read_operativos_html(file_bytes)
+        return _finalize_operations(operations_data, warnings)
+
+    # Excel binario: .xls = OLE2 (D0 CF 11 E0); .xlsx = ZIP (PK).
+    magic = file_bytes[:4]
+    if magic[:2] == b"PK":
         raw_rows = _read_rows_xlsx(file_bytes)
-    elif head == b"\xd0\xcf\x11\xe0":
+    elif magic == b"\xd0\xcf\x11\xe0":
         raw_rows = _read_rows_xls(file_bytes)
     else:
-        # Fallback: intentar xlsx y, si falla, xls.
         try:
             raw_rows = _read_rows_xlsx(file_bytes)
         except ValueError:
@@ -226,7 +233,11 @@ def parse_operations_workbook(file_bytes: bytes):
             })
         # else: subtotal u otra fila → se ignora en silencio
 
-    # ── Calcular agregados por operativo y descartar los sin viajes ────────────
+    return _finalize_operations(operations_data, warnings)
+
+
+def _finalize_operations(operations_data: list[dict], warnings: list[str]):
+    """Calcula los agregados por operativo y descarta los que no tienen viajes."""
     result: list[dict] = []
     for op in operations_data:
         trips = op["trips"]
@@ -264,6 +275,119 @@ def parse_operations_workbook(file_bytes: bytes):
         warnings.append("No se detectó ningún operativo con viajes en el archivo.")
 
     return result, warnings
+
+
+def _ddmmyyyy(s):
+    """Parsea fecha 'dd-mm-yyyy' o 'dd/mm/yyyy' → datetime (medianoche) o None."""
+    if not s:
+        return None
+    s = str(s).strip().replace("/", "-")
+    for fmt in ("%d-%m-%Y", "%d-%m-%y"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _int_txt(s):
+    """Convierte texto de celda HTML a int (tolera separadores) o None."""
+    if s is None:
+        return None
+    s = str(s).strip().replace(".", "").replace(",", "")
+    if not s or s in ("-", "."):
+        return None
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return int(float(s))
+        except ValueError:
+            return None
+
+
+def _read_operativos_html(file_bytes: bytes):
+    """Parsea el HTML exportado por el sistema de balanza MTR (.xls que es HTML).
+
+    Estructura:
+      - Una tabla de cabecera con 'Operativo: NN) NOMBRE BARCO (dd-mm-yy) ...'.
+      - Una tabla de viajes con header [Nro, Fecha Ent, H. Ent, Fecha Sal, H. Sal,
+        Pat. Cam, Tara, Bruto, Neto, Peso Orig, Diferencia, Cliente, Producto],
+        filas 'Transporte: ...' (se ignoran) y filas de subtotal 'Viajes: ...'.
+    """
+    import re
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        raise ValueError("El servidor no puede leer este formato (falta beautifulsoup4).")
+
+    try:
+        html = file_bytes.decode("latin-1")
+    except Exception:
+        html = file_bytes.decode("utf-8", errors="replace")
+
+    soup = BeautifulSoup(html, "html.parser")
+    warnings: list[str] = []
+
+    # Nombre del operativo desde el texto 'Operativo: NN) NOMBRE (fecha)'
+    full_text = soup.get_text(" ", strip=True)
+    m = re.search(r"Operativo:\s*(?:\d+\)\s*)?(.+?)\s*\(\d", full_text)
+    if not m:
+        m = re.search(r"Operativo:\s*(?:\d+\)\s*)?([^\n]+)", full_text)
+    raw_name = (m.group(1).strip() if m else "Operativo importado")
+
+    # Localizar la tabla de viajes (la que tiene el header con 'Neto').
+    trip_rows = []
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        header = [c.get_text(" ", strip=True).lower() for c in (rows[0].find_all(["td", "th"]) if rows else [])]
+        if any("neto" in h for h in header) and any("fecha" in h for h in header):
+            trip_rows = rows[1:]  # saltar header
+            break
+
+    if not trip_rows:
+        return [], ["No se encontró la tabla de viajes en el archivo."]
+
+    op = {
+        "raw_name":       raw_name,
+        "ship_name":      _normalize_ship(raw_name),
+        "operation_type": "special" if raw_name in SPECIAL_NAMES else "vessel",
+        "declared_trips": None,
+        "trips":          [],
+    }
+
+    for tr in trip_rows:
+        cells = [c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])]
+        if len(cells) < 13:
+            continue  # 'Transporte: ...' (1 celda) o subtotal (5 celdas) → ignorar
+        code = _int_txt(cells[0])
+        if code is None:
+            continue  # fila que no es un viaje real
+
+        entry_date = _ddmmyyyy(cells[1])
+        exit_date  = _ddmmyyyy(cells[3])
+        entry_time = cells[2].strip()[:8] or None
+        exit_time  = cells[4].strip()[:8] or None
+
+        op["trips"].append({
+            "trip_code":    code,
+            "entry_date":   _iso(entry_date),
+            "entry_time":   entry_time,
+            "exit_date":    _iso(exit_date),
+            "exit_time":    exit_time,
+            "plate":        cells[5].strip() or None,
+            "tara_kg":      _int_txt(cells[6]),
+            "bruto_kg":     _int_txt(cells[7]),
+            "neto_kg":      _int_txt(cells[8]),
+            "origen_kg":    _int_txt(cells[9]),
+            "diff_kg":      _int_txt(cells[10]),
+            "shift_number": _get_shift(entry_time),
+            "duration_min": _calc_duration(entry_date, entry_time, exit_date, exit_time),
+            "client":       cells[11].strip() or None,
+            "product":      _fix_product(cells[12]),
+        })
+
+    return [op], warnings
 
 
 def insert_operations(db, operations_data: list[dict], source_file: str):
