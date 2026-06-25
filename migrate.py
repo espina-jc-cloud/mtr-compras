@@ -19,6 +19,7 @@ from app import models_cupos        # noqa: F401 — registra tablas de Despacho
 from app import models_tariffs      # noqa: F401 — registra tablas de Tarifario en Base.metadata
 from app import models_transporte   # noqa: F401 — registra tablas de Transporte en Base.metadata
 from app import models_finanzas      # noqa: F401 — registra tablas de Finanzas en Base.metadata
+from app import models_daily_ops    # noqa: F401 — registra tablas de Operaciones Diarias en Base.metadata
 from app.auth import hash_password
 
 
@@ -106,6 +107,8 @@ def run():
         _add_column(conn, "purchases",  "deleted_at",     "TIMESTAMP")
         _add_column(conn, "purchases",  "deleted_reason", "TEXT")
         _add_column(conn, "documents",  "remito_date",    "VARCHAR")
+        _add_column(conn, "documents",  "factura_id",     "INTEGER")
+        _add_column(conn, "invoices",   "archivo_public_id", "VARCHAR")
         _add_column(conn, "fuel_loads", "plant",          "VARCHAR")
         # Fase 2: Operativos en Tiempo Real — Cierre + Factura + Conciliación
         _add_column(conn, "operation_live_sessions", "closed_at",     "TIMESTAMP")
@@ -137,6 +140,14 @@ def run():
         _add_column(conn, "suppliers", "condicion_iva", "VARCHAR(30)")
         # Sistema de permisos por usuario — claves concedidas (JSON); NULL = defaults del rol.
         _add_column(conn, "users", "permissions", "TEXT")
+        # Módulo Transporte: campo mercadería a mover
+        _add_column(conn, "transporte_operativos", "mercaderia_a_mover", "VARCHAR(500)")
+        _add_column(conn, "daily_op_trips", "operation", "VARCHAR")
+        _add_column(conn, "daily_op_trips", "trailer_plate", "VARCHAR")
+        _add_column(conn, "daily_op_trips", "driver", "VARCHAR")
+        _add_column(conn, "daily_op_trips", "remito", "VARCHAR")
+        _add_column(conn, "daily_op_trips", "planta", "VARCHAR")
+        _add_column(conn, "daily_op_imports", "upload_group_id", "VARCHAR")
         # Módulo Proyectos — Etapa 2A: Bitácora diaria
         # project_entries se crea sola con create_all().
         # Las columnas de projects que pasan a nullable no requieren ALTER en SQLite.

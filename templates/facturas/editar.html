@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Editar factura — MTR{% endblock %}
+{% block content %}
+
+<div class="mb-5">
+  <div class="text-xs text-gray-400 mb-2">
+    <a href="/purchases" class="hover:text-gray-600">Compras</a>
+    <span class="mx-1">›</span>
+    <a href="/compras/facturas" class="hover:text-gray-600">Dashboard facturas</a>
+    <span class="mx-1">›</span>
+    <span>Editar factura</span>
+  </div>
+
+  <h1 class="text-xl font-semibold text-gray-900">Editar factura</h1>
+  <p class="text-sm text-gray-400 mt-0.5">Modificá los datos, archivo y remitos vinculados.</p>
+</div>
+
+<form method="post"
+      action="/compras/facturas/{{ invoice.id }}/editar"
+      enctype="multipart/form-data"
+      class="space-y-5">
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+        <select name="proveedor_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+          {% for s in suppliers %}
+          <option value="{{ s.id }}" {% if invoice.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Tipo comprobante</label>
+        <select name="tipo_comprobante" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+          {% for t in tipos_comprobante %}
+          <option value="{{ t }}" {% if invoice.tipo_comprobante == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">N° factura</label>
+        <input type="text" name="numero_factura" value="{{ invoice.numero_factura or '' }}"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Fecha emisión</label>
+        <input type="date" name="fecha_emision" value="{{ invoice.fecha_emision or '' }}"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Monto total</label>
+        <input type="text" name="monto_total" value="{{ invoice.monto_total or '' }}"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">CUIT proveedor</label>
+        <input type="text" name="cuit_proveedor" value="{{ invoice.cuit_proveedor or '' }}"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-500 mb-1">Observaciones</label>
+        <textarea name="observaciones" rows="3"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">{{ invoice.observaciones or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-900 mb-3">Archivo adjunto</h2>
+
+    {% if invoice.archivo_url %}
+    <div class="mb-4 p-3 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-medium text-gray-800">{{ invoice.archivo_nombre or "Archivo actual" }}</p>
+        <a href="{{ invoice.archivo_url }}" target="_blank" class="text-xs text-indigo-600 hover:text-indigo-800">
+          Ver / descargar archivo actual
+        </a>
+      </div>
+
+      <label class="inline-flex items-center gap-2 text-xs text-red-600">
+        <input type="checkbox" name="quitar_archivo" value="1">
+        Quitar archivo
+      </label>
+    </div>
+    {% endif %}
+
+    <label class="block text-xs font-medium text-gray-500 mb-1">Reemplazar archivo</label>
+    <input type="file" name="archivo" accept="image/*,application/pdf"
+           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+    <p class="text-xs text-gray-400 mt-1">PDF, JPG o PNG · máx. 10 MB</p>
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-900 mb-3">Remitos vinculados</h2>
+
+    {% if invoice.remitos %}
+    <div class="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+      {% for r in invoice.remitos %}
+      <div id="remito-vinculado-{{ r.id }}" class="p-3 flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-medium text-gray-800">
+            {{ r.invoice_number or "Remito sin número" }}
+          </p>
+          <p class="text-xs text-gray-400">
+            {{ r.remito_date or "Sin fecha" }}
+            {% if r.purchase and r.purchase.supplier %} · {{ r.purchase.supplier.name }}{% endif %}
+          </p>
+        </div>
+
+        <button type="button"
+                hx-post="/compras/facturas/{{ invoice.id }}/desvincular-remito/{{ r.id }}"
+                hx-target="#remito-vinculado-{{ r.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="¿Seguro que querés desvincular este remito?"
+                class="text-xs font-semibold text-red-600 hover:text-red-800">
+          Desvincular
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400">No hay remitos vinculados.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-900 mb-3">Vincular más remitos</h2>
+
+    {% if remitos_libres %}
+    <div class="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+      {% for r in remitos_libres %}
+      <label class="p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50">
+        <input type="checkbox" name="remito_ids" value="{{ r.id }}" class="rounded border-gray-300">
+        <div>
+          <p class="text-sm font-medium text-gray-800">
+            {{ r.invoice_number or "Remito sin número" }}
+          </p>
+          <p class="text-xs text-gray-400">
+            {{ r.remito_date or "Sin fecha" }}
+            {% if r.purchase and r.purchase.supplier %} · {{ r.purchase.supplier.name }}{% endif %}
+          </p>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400">No hay remitos libres para vincular.</p>
+    {% endif %}
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
+    <a href="/compras/facturas" class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+      Cancelar
+    </a>
+
+    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
+      Guardar cambios
+    </button>
+  </div>
+</form>
+
+<form method="post"
+      action="/compras/facturas/{{ invoice.id }}/eliminar"
+      onsubmit="return confirm('¿Seguro que querés eliminar esta factura? Esta acción desvincula los remitos asociados.');"
+      class="mt-6 pt-5 border-t border-gray-100">
+  <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-800">
+    Eliminar factura
+  </button>
+</form>
+
+{% endblock %}

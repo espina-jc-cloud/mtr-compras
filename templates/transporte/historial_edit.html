@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Nuevo operativo — Transporte{% endblock %}
+{% block title %}Editar operativo — Transporte{% endblock %}
 {% block content %}
 
 {% set f = form if form is defined else none %}
@@ -8,11 +8,11 @@
   <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
     <a href="/transporte/historial" class="hover:text-gray-600">Historial</a>
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    <span class="text-gray-600 font-medium">Nuevo operativo</span>
+    <span class="text-gray-600 font-medium">Editar operativo</span>
   </div>
 
   <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
-    <h1 class="text-lg font-semibold text-gray-900 mb-5">Nuevo operativo</h1>
+    <h1 class="text-lg font-semibold text-gray-900 mb-5">Editar operativo</h1>
 
     {% if errors %}
     <div class="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -22,7 +22,7 @@
     </div>
     {% endif %}
 
-    <form method="post" action="/transporte/historial/new">
+    <form method="post" action="/transporte/historial/{{ op.id }}/edit">
       <div class="space-y-4">
 
         <!-- Nombre del barco -->
@@ -31,7 +31,7 @@
             Nombre del barco <span class="text-red-500">*</span>
           </label>
           <input type="text" name="nombre_barco"
-                 value="{{ f.nombre_barco if f else '' }}"
+                 value="{{ f.nombre_barco if f else (op.nombre_barco or '') }}"
                  placeholder="Ej: MV ARGENMAR MISTRAL"
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50"
                  required autofocus>
@@ -42,14 +42,14 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Producto</label>
             <input type="text" name="producto"
-                   value="{{ f.producto if f else '' }}"
+                   value="{{ f.producto if f else (op.producto or '') }}"
                    placeholder="Ej: UREA GRANULADA"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Cliente</label>
             <input type="text" name="cliente"
-                   value="{{ f.cliente if f else '' }}"
+                   value="{{ f.cliente if f else (op.cliente or '') }}"
                    placeholder="Razón social"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
           </div>
@@ -59,7 +59,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Depósito</label>
           <input type="text" name="deposito"
-                 value="{{ f.deposito if f else '' }}"
+                 value="{{ f.deposito if f else (op.deposito or '') }}"
                  placeholder="Nombre o ubicación del depósito"
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
         </div>
@@ -68,7 +68,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Mercadería a mover</label>
           <input type="text" name="mercaderia_a_mover"
-                 value="{{ f.mercaderia_a_mover if f else '' }}"
+                 value="{{ f.mercaderia_a_mover if f else (op.mercaderia_a_mover or '') }}"
                  placeholder="Ej: Fertilizantes, bobinas y alambrones"
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
         </div>
@@ -78,30 +78,27 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha inicio</label>
             <input type="date" name="fecha_inicio"
-                   value="{{ f.fecha_inicio if f else '' }}"
+                   value="{{ f.fecha_inicio if f else (op.fecha_inicio|string if op.fecha_inicio else '') }}"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha fin</label>
             <input type="date" name="fecha_fin"
-                   value="{{ f.fecha_fin if f else '' }}"
+                   value="{{ f.fecha_fin if f else (op.fecha_fin|string if op.fecha_fin else '') }}"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-gray-50">
           </div>
         </div>
 
       </div>
 
-      <p class="text-xs text-gray-400 mt-4">
-        Después de crear el operativo podrás agregar transportes desde la Nómina Madre.
-      </p>
 
       <div class="flex items-center justify-between mt-6 pt-5 border-t border-gray-100">
-        <a href="/transporte/historial" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+        <a href="/transporte/historial/{{ op.id }}" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
           Cancelar
         </a>
         <button type="submit"
                 class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
-          Crear operativo
+          Guardar cambios
         </button>
       </div>
     </form>

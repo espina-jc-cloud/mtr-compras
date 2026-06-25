@@ -25,6 +25,7 @@ MODULES = [
         "subs": [
             {"key": "compras.compras",      "label": "Compras",      "prefixes": ["/purchases"]},
             {"key": "compras.cotizaciones", "label": "Cotizaciones", "prefixes": ["/quotes"]},
+            {"key": "compras.facturas",     "label": "Facturas",     "prefixes": ["/compras/facturas"]},
             {"key": "compras.proveedores",  "label": "Proveedores",  "prefixes": ["/suppliers"]},
             {"key": "compras.conciliacion", "label": "Conciliación", "prefixes": ["/conciliation"]},
         ],
@@ -47,6 +48,7 @@ MODULES = [
         "key": "operaciones", "label": "Operaciones",
         "subs": [
             {"key": "operaciones.despachos",        "label": "Despachos",            "prefixes": ["/despachos"]},
+            {"key": "operaciones.diarias",          "label": "Operaciones Diarias",  "prefixes": ["/operations/daily"]},
             {"key": "operaciones.live",             "label": "Operativos Live",      "prefixes": ["/operations/live"]},
             {"key": "operaciones.finalizados",      "label": "Operativos Finalizados", "prefixes": ["/operations", "/api/operations"]},
             {"key": "operaciones.tarifas_propias",  "label": "Tarifas propias",      "prefixes": ["/tarifario"]},
@@ -92,7 +94,7 @@ _DEF = {
     # autorizador: compras (sin conciliación), mantenimiento, proyectos,
     # transporte, tarifas propias. Sin operativos ni admin-only.
     "autorizador": {
-        "compras.compras", "compras.cotizaciones", "compras.proveedores",
+        "compras.compras", "compras.cotizaciones", "compras.facturas", "compras.proveedores",
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
         "operaciones.tarifas_propias",
@@ -101,7 +103,7 @@ _DEF = {
 
     # planta: como autorizador + despachos + operativos live.
     "planta": {
-        "compras.compras", "compras.cotizaciones", "compras.proveedores",
+        "compras.compras", "compras.cotizaciones", "compras.facturas", "compras.proveedores",
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
         "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias",

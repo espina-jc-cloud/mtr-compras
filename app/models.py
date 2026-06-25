@@ -31,6 +31,7 @@ class Supplier(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     purchases = relationship("Purchase", back_populates="supplier")
+    invoices = relationship("Invoice", back_populates="supplier")
 
 class Purchase(Base):
     __tablename__ = "purchases"
@@ -75,11 +76,35 @@ class Document(Base):
     invoice_date = Column(String)
     invoice_amount = Column(Numeric(12, 2))
     remito_date = Column(String, nullable=True)  # fecha del remito
+    factura_id = Column(Integer, ForeignKey("invoices.id"), nullable=True, index=True)
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
     purchase = relationship("Purchase", back_populates="documents")
     uploader = relationship("User")
+    invoice = relationship("Invoice", back_populates="remitos")
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    numero_factura = Column(String(50), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False, index=True)
+    tipo_comprobante = Column(String(30), nullable=False, default="Factura A")
+    fecha_emision = Column(Date, nullable=True)
+    monto_total = Column(Numeric(12, 2), nullable=True)
+    cuit_proveedor = Column(String(20), nullable=True)
+    observaciones = Column(Text, nullable=True)
+    archivo_url = Column(String(500), nullable=True)
+    archivo_nombre = Column(String(200), nullable=True)
+    archivo_public_id = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    supplier = relationship("Supplier", back_populates="invoices")
+    remitos = relationship("Document", back_populates="invoice")
+
+
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
@@ -573,4 +598,10 @@ from app.models_live import (  # noqa: E402, F401
     OperationLiveReconciliation,
     # Fase 3: Fotos
     OperationLivePhoto,
+)
+# ── Módulo Operaciones Diarias ───────────────────────────────────────────────
+from app.models_daily_ops import (  # noqa: E402, F401
+    DailyOpDay,
+    DailyOpImport,
+    DailyOpTrip,
 )

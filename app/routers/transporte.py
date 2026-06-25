@@ -56,8 +56,8 @@ async def nomina_list(
     nomina = (
         query
         .order_by(
-            mt.TransporteNomina.empresa.asc(),
             mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
         )
         .all()
     )
@@ -268,6 +268,7 @@ async def historial_create(
     producto: str     = Form(""),
     cliente: str      = Form(""),
     deposito: str     = Form(""),
+    mercaderia_a_mover: str = Form(""),
     fecha_inicio: str = Form(""),
     fecha_fin: str    = Form(""),
     db: Session = Depends(get_db),
@@ -287,6 +288,7 @@ async def historial_create(
                 "producto": producto,
                 "cliente": cliente,
                 "deposito": deposito,
+                "mercaderia_a_mover": mercaderia_a_mover,
                 "fecha_inicio": fecha_inicio,
                 "fecha_fin": fecha_fin,
             },
@@ -298,13 +300,14 @@ async def historial_create(
         cliente       = cliente.strip() or None,
         deposito      = deposito.strip() or None,
         fecha_inicio  = _parse_date(fecha_inicio),
+        mercaderia_a_mover = mercaderia_a_mover.strip() or None,
         fecha_fin     = _parse_date(fecha_fin),
         created_by_id = current_user.id,
     )
     db.add(op)
     db.commit()
     db.refresh(op)
-    return RedirectResponse(f"/transporte/historial/{op.id}", status_code=303)
+    return RedirectResponse(f"/transporte/historial/{op.id}/puerto", status_code=303)
 
 
 @router.get("/historial/{op_id}", response_class=HTMLResponse)
@@ -339,8 +342,8 @@ async def historial_detail(
             mt.TransporteNomina.id.notin_(asignados_ids) if asignados_ids else True,
         )
         .order_by(
-            mt.TransporteNomina.empresa.asc(),
             mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
         )
         .all()
     )
@@ -351,6 +354,311 @@ async def historial_detail(
         "op": op,
         "disponibles": disponibles,
     })
+
+
+
+@router.get("/historial/{op_id}/balanza", response_class=HTMLResponse)
+async def historial_balanza(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    return await historial_detail(op_id, request, db, current_user)
+
+
+@router.get("/historial/{op_id}/edit", response_class=HTMLResponse)
+async def historial_edit_form(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    return templates.TemplateResponse(request, "transporte/historial_edit.html", {
+        "request": request,
+        "user": current_user,
+        "op": op,
+        "errors": [],
+    })
+
+
+@router.post("/historial/{op_id}/edit", response_class=HTMLResponse)
+async def historial_edit_save(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+    nombre_barco: str = Form(""),
+    producto: str = Form(""),
+    cliente: str = Form(""),
+    deposito: str = Form(""),
+    mercaderia_a_mover: str = Form(""),
+    fecha_inicio: str = Form(""),
+    fecha_fin: str = Form(""),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+    op.nombre_barco = nombre_barco
+    op.producto = producto
+    op.cliente = cliente
+    op.deposito = deposito
+    op.mercaderia_a_mover = mercaderia_a_mover
+    from datetime import date as _date
+    op.fecha_inicio = _date.fromisoformat(fecha_inicio) if fecha_inicio else None
+    op.fecha_fin = _date.fromisoformat(fecha_fin) if fecha_fin else None
+    db.commit()
+    return RedirectResponse(url=f"/transporte/historial/{op_id}", status_code=303)
+
+
+@router.post("/historial/{op_id}/delete", response_class=HTMLResponse)
+async def historial_delete(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+    from datetime import datetime
+    op.deleted_at = datetime.now()
+    db.commit()
+    return RedirectResponse(url="/transporte/historial", status_code=303)
+
+
+@router.get("/historial/{op_id}/exportar-word-puerto")
+async def historial_exportar_word_puerto(
+    op_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    try:
+        from docx import Document
+        from docx.shared import Pt, Cm, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="python-docx no está instalado.",
+        )
+    from pathlib import Path
+
+    op = (
+        db.query(mt.TransporteOperativo)
+        .filter(
+            mt.TransporteOperativo.id == op_id,
+            mt.TransporteOperativo.deleted_at == None,
+        )
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    excluidos_ids = {
+        x.nomina_id
+        for x in db.query(mt.TransportePuertoExclusion)
+        .filter(mt.TransportePuertoExclusion.operativo_id == op_id)
+        .all()
+    }
+
+    nomina_puerto = (
+        db.query(mt.TransporteNomina)
+        .filter(
+            mt.TransporteNomina.deleted_at == None,
+            mt.TransporteNomina.id.notin_(excluidos_ids) if excluidos_ids else True,
+        )
+        .order_by(
+            mt.TransporteNomina.nombre_chofer.asc(),
+            mt.TransporteNomina.empresa.asc(),
+        )
+        .all()
+    )
+
+    MESES = {
+        1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+        5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+        9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+    }
+    hoy = date.today()
+    fecha_str = (
+        f"San Nicolás de los Arroyos, "
+        f"{hoy.day} de {MESES[hoy.month]} de {hoy.year}"
+    )
+
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2.5)
+
+    if os.path.isfile(_LOGO_PATH):
+        logo_p = doc.add_paragraph()
+        logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_p.paragraph_format.space_after = Pt(6)
+        logo_p.add_run().add_picture(_LOGO_PATH, width=Inches(2.2))
+
+    doc.add_paragraph()
+
+    p_fecha = doc.add_paragraph()
+    p_fecha.paragraph_format.space_after = Pt(2)
+    r_fecha = p_fecha.add_run(fecha_str)
+    r_fecha.font.size = Pt(11)
+
+    doc.add_paragraph()
+
+    p_dest = doc.add_paragraph()
+    p_dest.paragraph_format.space_after = Pt(0)
+    r_dest = p_dest.add_run("Al señor /es,")
+    r_dest.font.size = Pt(11)
+
+    p_consorcio = doc.add_paragraph()
+    p_consorcio.paragraph_format.space_after = Pt(0)
+    r_consorcio = p_consorcio.add_run("CONSORCIO DE GESTION DEL PUERTO SAN NICOLAS")
+    r_consorcio.bold = True
+    r_consorcio.font.size = Pt(11)
+
+    p_aduana = doc.add_paragraph()
+    p_aduana.paragraph_format.space_after = Pt(0)
+    r_aduana = p_aduana.add_run("ADUANA SAN NICOLAS")
+    r_aduana.bold = True
+    r_aduana.font.size = Pt(11)
+
+    p_sd = doc.add_paragraph()
+    p_sd.paragraph_format.space_after = Pt(2)
+    r_sd = p_sd.add_run("S / D")
+    r_sd.font.size = Pt(11)
+
+    p_ref = doc.add_paragraph()
+    p_ref.paragraph_format.space_after = Pt(0)
+    r_ref = p_ref.add_run("Ref. Solicitud de ingreso")
+    r_ref.bold = True
+    r_ref.font.size = Pt(11)
+
+    p_buque = doc.add_paragraph()
+    p_buque.paragraph_format.space_after = Pt(8)
+    r_buque_label = p_buque.add_run("Buque: ")
+    r_buque_label.bold = True
+    r_buque_label.font.size = Pt(11)
+    r_buque = p_buque.add_run(op.nombre_barco or "—")
+    r_buque.bold = True
+    r_buque.font.size = Pt(11)
+
+    p_consideracion = doc.add_paragraph()
+    p_consideracion.paragraph_format.space_after = Pt(4)
+    r_consideracion = p_consideracion.add_run("De nuestra consideración.")
+    r_consideracion.font.size = Pt(11)
+
+    mercaderia = op.mercaderia_a_mover or "mercadería"
+
+    p_cuerpo = doc.add_paragraph()
+    p_cuerpo.paragraph_format.space_after = Pt(8)
+    r_cuerpo = p_cuerpo.add_run(
+        f"Por la presente y a fin de cumplimentar con las resoluciones vigentes, "
+        f"solicitamos tengan a bien autorizar el ingreso de choferes y vehículos, "
+        f"con el motivo de realizar el movimiento de {mercaderia} de la zona de balanza "
+        f"y muelle de puerto SAN NICOLAS con destino a Deposito MTR S.A."
+    )
+    r_cuerpo.font.size = Pt(11)
+
+    p_detalle = doc.add_paragraph()
+    p_detalle.paragraph_format.space_after = Pt(8)
+    r_detalle = p_detalle.add_run(
+        "A continuación, detallo las unidades y el personal a ingresar:"
+    )
+    r_detalle.font.size = Pt(11)
+
+    headers = [
+        "Empresa",
+        "Apellido y nombre",
+        "DNI",
+        "Camión",
+        "Patente camión",
+        "Patente acoplado",
+    ]
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    hdr_row = table.rows[0]
+    for i, h in enumerate(headers):
+        cell = hdr_row.cells[i]
+        cell.paragraphs[0].clear()
+        run = cell.paragraphs[0].add_run(h)
+        run.bold = True
+        run.font.size = Pt(10)
+
+    for n in nomina_puerto:
+        row = table.add_row()
+        vals = [
+            n.empresa,
+            n.nombre_chofer,
+            n.dni or "—",
+            n.marca_camion or "—",
+            n.patente_camion or "—",
+            n.patente_acoplado or "—",
+        ]
+        for i, v in enumerate(vals):
+            cell = row.cells[i]
+            cell.paragraphs[0].clear()
+            run = cell.paragraphs[0].add_run(v)
+            run.font.size = Pt(10)
+
+    doc.add_paragraph()
+
+    firma_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "static" / "firmas" / "fernando_martinez.png"
+    )
+    if firma_path.is_file():
+        firma_p = doc.add_paragraph()
+        firma_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        firma_p.add_run().add_picture(
+            str(firma_path), width=Inches(1.8)
+        )
+
+    p_nombre = doc.add_paragraph()
+    p_nombre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_nombre.paragraph_format.space_after = Pt(0)
+    r_nombre = p_nombre.add_run("Fernando Martínez")
+    r_nombre.bold = True
+    r_nombre.font.size = Pt(11)
+
+    p_cargo = doc.add_paragraph()
+    p_cargo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_cargo = p_cargo.add_run("MTR Logística")
+    r_cargo.font.size = Pt(11)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    safe_name = op.nombre_barco.replace(" ", "_").replace("/", "-")
+    filename = f"carta_puerto_{safe_name}_{op_id}.docx"
+
+    WORD_MIME = (
+        "application/vnd.openxmlformats-"
+        "officedocument.wordprocessingml.document"
+    )
+    return StreamingResponse(
+        buf,
+        media_type=WORD_MIME,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
 
 
 @router.post("/historial/{op_id}/asignar", response_class=HTMLResponse)
@@ -556,6 +864,30 @@ async def historial_exportar_word(
             run = cell.paragraphs[0].add_run(v)
             run.font.size = Pt(10)
 
+    doc.add_paragraph()
+
+    from pathlib import Path
+    firma_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "static" / "firmas" / "fernando_martinez.png"
+    )
+    if firma_path.is_file():
+        firma_p = doc.add_paragraph()
+        firma_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        firma_p.add_run().add_picture(str(firma_path), width=Inches(1.8))
+
+    p_nombre = doc.add_paragraph()
+    p_nombre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_nombre.paragraph_format.space_after = Pt(0)
+    r_nombre = p_nombre.add_run("Fernando Martínez")
+    r_nombre.bold = True
+    r_nombre.font.size = Pt(11)
+
+    p_cargo = doc.add_paragraph()
+    p_cargo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_cargo = p_cargo.add_run("MTR Logística")
+    r_cargo.font.size = Pt(11)
+
     # ── Serializar ─────────────────────────────────────────────────────────────
     buf = io.BytesIO()
     doc.save(buf)
@@ -569,3 +901,86 @@ async def historial_exportar_word(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+# ── NÓMINA PARA PUERTO ───────────────────────────────────────────────────────
+
+@router.get("/historial/{op_id}/puerto", response_class=HTMLResponse)
+async def historial_puerto(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    op = db.query(mt.TransporteOperativo).filter(
+        mt.TransporteOperativo.id == op_id,
+        mt.TransporteOperativo.deleted_at == None,
+    ).first()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operativo no encontrado.")
+
+    excluidos_ids = {
+        x.nomina_id
+        for x in db.query(mt.TransportePuertoExclusion)
+        .filter(mt.TransportePuertoExclusion.operativo_id == op_id)
+        .all()
+    }
+
+    nomina = (
+        db.query(mt.TransporteNomina)
+        .filter(mt.TransporteNomina.deleted_at == None)
+        .order_by(mt.TransporteNomina.nombre_chofer.asc(), mt.TransporteNomina.empresa.asc())
+        .all()
+    )
+
+    incluidos = [n for n in nomina if n.id not in excluidos_ids]
+    excluidos = [n for n in nomina if n.id in excluidos_ids]
+
+    return templates.TemplateResponse(request, "transporte/historial_puerto.html", {
+        "request": request,
+        "user": current_user,
+        "op": op,
+        "incluidos": incluidos,
+        "excluidos": excluidos,
+    })
+
+
+@router.post("/historial/{op_id}/puerto/quitar/{nomina_id}")
+async def historial_puerto_quitar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    existe = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if not existe:
+        db.add(mt.TransportePuertoExclusion(
+            operativo_id=op_id,
+            nomina_id=nomina_id,
+            removed_by_id=current_user.id,
+        ))
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
+
+
+@router.post("/historial/{op_id}/puerto/restaurar/{nomina_id}")
+async def historial_puerto_restaurar(
+    op_id: int,
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(_require_access),
+):
+    excl = db.query(mt.TransportePuertoExclusion).filter(
+        mt.TransportePuertoExclusion.operativo_id == op_id,
+        mt.TransportePuertoExclusion.nomina_id == nomina_id,
+    ).first()
+
+    if excl:
+        db.delete(excl)
+        db.commit()
+
+    return RedirectResponse(f"/transporte/historial/{op_id}/puerto", status_code=303)
