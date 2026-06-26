@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Tablero de arribos — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <a href="/operations/arribos" class="text-gray-400 hover:text-gray-600 text-sm">← Volver</a>
+    <p class="text-xs text-gray-400">Generado {{ now | fmt_ar("%d/%m/%Y %H:%M") }}</p>
+  </div>
+
+  <!-- Tarjeta limpia para screenshot -->
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="bg-indigo-600 text-white px-5 py-3">
+      <p class="font-bold text-lg">Próximos Arribos — Puerto San Nicolás</p>
+      <p class="text-indigo-200 text-xs">MTR · {{ arribos|length }} buques · {{ now | fmt_ar("%d/%m/%Y") }}</p>
+    </div>
+    {% if arribos %}
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
+          <th class="px-4 py-2">Buque</th>
+          <th class="px-4 py-2">Cliente</th>
+          <th class="px-4 py-2">Merc.</th>
+          <th class="px-4 py-2">ETB</th>
+          <th class="px-4 py-2">ETC</th>
+          <th class="px-4 py-2">Muelle</th>
+          <th class="px-4 py-2">Estado</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for a in arribos %}
+        <tr>
+          <td class="px-4 py-2.5 font-semibold text-gray-900">{{ a.buque }}</td>
+          <td class="px-4 py-2.5 text-gray-600">{{ a.cliente or "—" }}</td>
+          <td class="px-4 py-2.5 text-gray-600">{{ a.mercaderia or "—" }}</td>
+          <td class="px-4 py-2.5 text-gray-700">{{ a.etb or "—" }}</td>
+          <td class="px-4 py-2.5 text-gray-700">{{ a.etc or "—" }}</td>
+          <td class="px-4 py-2.5 text-gray-600">{{ a.muelle or "—" }}</td>
+          <td class="px-4 py-2.5"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado) }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-400 py-8 text-center">No hay arribos activos.</p>
+    {% endif %}
+  </div>
+  <p class="text-center text-xs text-gray-400 mt-3">📸 Sacá captura de esta tarjeta para compartir por WhatsApp.</p>
+</div>
+
+{% endblock %}

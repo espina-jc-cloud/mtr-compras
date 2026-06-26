@@ -47,6 +47,7 @@ MODULES = [
     {
         "key": "operaciones", "label": "Operaciones",
         "subs": [
+            {"key": "operaciones.arribos",          "label": "Próximos Arribos",     "prefixes": ["/operations/arribos"]},
             {"key": "operaciones.despachos",        "label": "Despachos",            "prefixes": ["/despachos"]},
             {"key": "operaciones.diarias",          "label": "Operaciones Diarias",  "prefixes": ["/operations/daily"]},
             {"key": "operaciones.live",             "label": "Operativos Live",      "prefixes": ["/operations/live"]},
@@ -106,7 +107,7 @@ _DEF = {
         "compras.compras", "compras.cotizaciones", "compras.facturas", "compras.proveedores",
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
-        "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias",
+        "operaciones.arribos", "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias",
         "transporte.nomina", "transporte.historial",
     },
 

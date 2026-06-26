@@ -85,6 +85,7 @@
       </div>
     </a>
     <div class="border-t border-gray-50 px-3 py-2 flex-1">
+      {% if can(user, "operaciones.arribos") %}<a href="/operations/arribos" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Próximos Arribos <span class="text-gray-300">→</span></a>{% endif %}
       {% if can(user, "operaciones.despachos") %}<a href="/despachos" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Despachos <span class="text-gray-300">→</span></a>{% endif %}
       {% if can(user, "operaciones.diarias") %}
       <a href="/operations/daily" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700">

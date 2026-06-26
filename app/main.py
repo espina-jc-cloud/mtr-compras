@@ -12,6 +12,7 @@ from app.routers import tariffs
 from app.routers import projects
 from app.routers import transporte
 from app.routers import finanzas
+from app.routers import arribos
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ app.include_router(transporte.router)
 # no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
 app.include_router(operations_live.router)
 app.include_router(daily_operations.router)
+app.include_router(arribos.router)   # /operations/arribos — antes que operations (/{op_id})
 app.include_router(operations.router)
 app.include_router(despachos.router)
 app.include_router(tariffs.router)
