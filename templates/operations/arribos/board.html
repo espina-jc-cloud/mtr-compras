@@ -3,49 +3,70 @@
 {% block content %}
 
 <div class="max-w-4xl mx-auto">
-  <div class="flex items-center justify-between mb-4">
+  <div class="flex items-center justify-between mb-4 print:hidden">
     <a href="/operations/arribos" class="text-gray-400 hover:text-gray-600 text-sm">← Volver</a>
-    <p class="text-xs text-gray-400">Generado {{ now | fmt_ar("%d/%m/%Y %H:%M") }}</p>
+    <button onclick="window.print()" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">Imprimir / PDF</button>
   </div>
 
-  <!-- Tarjeta limpia para screenshot -->
-  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-    <div class="bg-indigo-600 text-white px-5 py-3">
-      <p class="font-bold text-lg">Próximos Arribos — Puerto San Nicolás</p>
-      <p class="text-indigo-200 text-xs">MTR · {{ arribos|length }} buques · {{ now | fmt_ar("%d/%m/%Y") }}</p>
+  <!-- Tarjeta limpia para screenshot / compartir -->
+  <div id="board" class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+    <!-- Encabezado con logo — navy MTR -->
+    <div class="px-6 py-5 flex items-center gap-4" style="background:linear-gradient(135deg,#0e1c3f 0%,#1b2f5e 100%)">
+      <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden">
+        <img src="/static/logo_mtr.png" alt="MTR" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.parentNode.innerHTML='<span class=\'font-black text-xl\' style=\'color:#16264f\'>MTR</span>'">
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-black text-white text-xl leading-tight tracking-tight">Próximos Arribos</p>
+        <p class="text-sm" style="color:#9db0d6">Puerto San Nicolás</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-white font-semibold text-sm">{{ now | fmt_ar("%d/%m/%Y") }}</p>
+        <p class="text-xs" style="color:#9db0d6">{{ now | fmt_ar("%H:%M") }} hs · {{ arribos|length }} buques</p>
+      </div>
     </div>
+
     {% if arribos %}
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
-          <th class="px-4 py-2">Buque</th>
-          <th class="px-4 py-2">Cliente</th>
-          <th class="px-4 py-2">Merc.</th>
-          <th class="px-4 py-2">ETB</th>
-          <th class="px-4 py-2">ETC</th>
-          <th class="px-4 py-2">Muelle</th>
-          <th class="px-4 py-2">Estado</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-100">
-        {% for a in arribos %}
-        <tr>
-          <td class="px-4 py-2.5 font-semibold text-gray-900">{{ a.buque }}</td>
-          <td class="px-4 py-2.5 text-gray-600">{{ a.cliente or "—" }}</td>
-          <td class="px-4 py-2.5 text-gray-600">{{ a.mercaderia or "—" }}</td>
-          <td class="px-4 py-2.5 text-gray-700">{{ a.etb or "—" }}</td>
-          <td class="px-4 py-2.5 text-gray-700">{{ a.etc or "—" }}</td>
-          <td class="px-4 py-2.5 text-gray-600">{{ a.muelle or "—" }}</td>
-          <td class="px-4 py-2.5"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado) }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-200">
+            <th class="px-4 py-3">Buque</th>
+            <th class="px-4 py-3">Cliente</th>
+            <th class="px-4 py-3">Mercadería</th>
+            <th class="px-4 py-3">Ready est.</th>
+            <th class="px-4 py-3">ETB</th>
+            <th class="px-4 py-3">ETC</th>
+            <th class="px-4 py-3">Muelle</th>
+            <th class="px-4 py-3 text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for a in arribos %}
+          <tr class="{% if loop.index0 % 2 %}bg-gray-50/40{% endif %}">
+            <td class="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{{ a.buque }}</td>
+            <td class="px-4 py-3 text-gray-600">{{ a.cliente or "—" }}</td>
+            <td class="px-4 py-3 text-gray-600">{{ a.mercaderia or "—" }}</td>
+            <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">{{ a.ready or "—" }}</td>
+            <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{{ a.etb or "—" }}</td>
+            <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{{ a.etc or "—" }}</td>
+            <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>
+            <td class="px-4 py-3 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado)|upper }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+      <p class="text-xs text-gray-400">MTR · Gestión Operativa</p>
+      <p class="text-xs text-gray-400">Actualizado {{ now | fmt_ar("%d/%m/%Y %H:%M") }} hs</p>
+    </div>
     {% else %}
-    <p class="text-sm text-gray-400 py-8 text-center">No hay arribos activos.</p>
+    <p class="text-sm text-gray-400 py-10 text-center">No hay arribos activos.</p>
     {% endif %}
   </div>
-  <p class="text-center text-xs text-gray-400 mt-3">📸 Sacá captura de esta tarjeta para compartir por WhatsApp.</p>
+
+  <p class="text-center text-xs text-gray-400 mt-3 print:hidden">📸 Sacá captura de esta tarjeta (o usá Imprimir/PDF) para compartir por WhatsApp.</p>
 </div>
 
 {% endblock %}

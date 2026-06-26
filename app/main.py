@@ -3,6 +3,7 @@ import sys
 import subprocess
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel, invoices
 from app.routers import operations
 from app.routers import operations_live
@@ -27,6 +28,10 @@ if _DB_URL and not _DB_URL.startswith("sqlite") and (not _SK or _SK == _INSECURE
     sys.exit(1)
 
 app = FastAPI(title="MTR Gestión")
+
+# Archivos estáticos (logo, etc.) — servidos en /static.
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ── Redirigir a /login cuando el browser pide HTML y no hay sesión ─────────────

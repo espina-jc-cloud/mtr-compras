@@ -37,6 +37,7 @@
         <th class="px-4 py-2.5">Estado</th>
         <th class="px-4 py-2.5">Buque</th>
         <th class="px-4 py-2.5">Cliente</th>
+        <th class="px-4 py-2.5">Ready est.</th>
         <th class="px-4 py-2.5">ETB</th>
         <th class="px-4 py-2.5">ETC</th>
         <th class="px-4 py-2.5">Muelle</th>
@@ -51,6 +52,7 @@
           {% if a.mercaderia %}<span class="text-gray-400 text-xs block">{{ a.mercaderia }}</span>{% endif %}
         </td>
         <td class="px-4 py-3 text-gray-600">{{ a.cliente or "—" }}</td>
+        <td class="px-4 py-3 text-gray-700 font-medium">{{ a.ready or "—" }}</td>
         <td class="px-4 py-3 text-gray-700">{{ a.etb or "—" }}</td>
         <td class="px-4 py-3 text-gray-700">{{ a.etc or "—" }}</td>
         <td class="px-4 py-3 text-gray-600">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>

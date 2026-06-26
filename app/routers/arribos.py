@@ -31,7 +31,7 @@ _guard = require_perm("operaciones.arribos")
 LINEUP_FIELDS = [
     ("etb",        "ETB"),
     ("etc",        "ETC"),
-    ("ready",      "Ready / Red"),
+    ("ready",      "Ready estimado"),
     ("muelle",     "Muelle"),
     ("posicion",   "Posición / Sector"),
     ("operacion",  "Operación"),
