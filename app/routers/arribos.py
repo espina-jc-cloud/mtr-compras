@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.database import get_db
 from app.permissions import require_perm
@@ -50,22 +50,49 @@ def _dec(s):
 
 
 def _parse_fecha(s):
-    """Date desde 'dd/mm/yyyy ...' o ISO 'yyyy-mm-dd'. Tolerante."""
+    """Date desde texto libre: 'dd/mm/yyyy', 'dd-mm-yyyy', 'dd/mm' (asume año) o ISO.
+
+    Tolerante: ignora sufijos como 'AM/PM/estimado'. Para 'dd/mm' sin año usa el
+    año actual; si la fecha quedó muy en el pasado (>180 días), pasa al siguiente.
+    """
     if not s:
         return None
-    s = str(s).strip()
-    m = None
     import re
-    mm = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)
-    if mm:
-        try:
-            return date(int(mm.group(3)), int(mm.group(2)), int(mm.group(1)))
-        except ValueError:
-            return None
+    s = str(s).strip()
+    # ISO 'yyyy-mm-dd'
     try:
         return date.fromisoformat(s[:10])
     except ValueError:
-        return None
+        pass
+    # dd/mm/yyyy o dd-mm-yyyy
+    m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", s)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+    # dd/mm (sin año) → asumir año actual, ajustar si quedó muy en el pasado
+    m = re.search(r"\b(\d{1,2})[/-](\d{1,2})\b", s)
+    if m:
+        from datetime import timedelta
+        today = date.today()
+        try:
+            d = date(today.year, int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+        if d < today - timedelta(days=180):
+            try:
+                d = d.replace(year=today.year + 1)
+            except ValueError:
+                pass
+        return d
+    return None
+
+
+def _sort_date(arribo_or_etb, ready=None):
+    """Fecha de orden: ETB primero, si no Ready estimado."""
+    etb = arribo_or_etb
+    return _parse_fecha(etb) or _parse_fecha(ready)
 
 
 def _lineup_value(vessel, field):
@@ -98,10 +125,9 @@ async def list_arribos(request: Request, db: Session = Depends(get_db), current_
             ProximoArribo.mercaderia.ilike(f"%{q_texto}%"),
         ))
 
-    # Orden: primero los que tienen fecha estimada (más próximos), luego el resto.
+    # Orden: por fecha estimada (ETB→Ready) ascendente; los sin fecha al final.
     arribos = aq.order_by(
-        ProximoArribo.fecha_estimada.is_(None),
-        ProximoArribo.fecha_estimada.asc(),
+        func.coalesce(ProximoArribo.fecha_estimada, "9999-12-31").asc(),
         ProximoArribo.updated_at.desc(),
     ).all()
 
@@ -121,8 +147,7 @@ async def board(request: Request, db: Session = Depends(get_db), current_user=De
                .filter(ProximoArribo.deleted_at.is_(None),
                        ProximoArribo.estado != "cancelado",
                        ProximoArribo.estado != "finalizado")
-               .order_by(ProximoArribo.fecha_estimada.is_(None),
-                         ProximoArribo.fecha_estimada.asc(),
+               .order_by(func.coalesce(ProximoArribo.fecha_estimada, "9999-12-31").asc(),
                          ProximoArribo.updated_at.desc())
                .all())
     return templates.TemplateResponse(request, "operations/arribos/board.html", {
@@ -172,7 +197,7 @@ async def create_arribo(
         tonelaje_estimado=_dec(tonelaje_estimado), procedencia=procedencia.strip() or None,
         agencia=agencia.strip() or None, operacion=operacion.strip() or None,
         estado=estado if estado in ARRIBO_ESTADO_LABELS else "esperado",
-        fecha_estimada=_parse_fecha(fecha_estimada),
+        fecha_estimada=_parse_fecha(fecha_estimada) or _sort_date(etb, ready),
         etb=etb.strip() or None, etc=etc.strip() or None, ready=ready.strip() or None,
         muelle=muelle.strip() or None, posicion=posicion.strip() or None,
         amarre=amarre.strip() or None, observaciones=observaciones.strip() or None,
@@ -292,8 +317,8 @@ async def import_confirm(
             if new and new != cur:
                 setattr(a, field, new)
                 changed.append(label)
-        # fecha_estimada: derivar del ETB si se puede.
-        f = _parse_fecha(v.get("etb"))
+        # fecha_estimada (orden): ETB y, si no hay, Ready estimado.
+        f = _sort_date(v.get("etb"), v.get("ready"))
         if f and a.fecha_estimada != f:
             a.fecha_estimada = f
             changed.append("Fecha estimada")
@@ -378,7 +403,7 @@ async def update_arribo(
     a.agencia = agencia.strip() or None
     a.operacion = operacion.strip() or None
     a.estado = estado if estado in ARRIBO_ESTADO_LABELS else a.estado
-    a.fecha_estimada = _parse_fecha(fecha_estimada)
+    a.fecha_estimada = _parse_fecha(fecha_estimada) or _sort_date(etb, ready)
     a.etb = etb.strip() or None
     a.etc = etc.strip() or None
     a.ready = ready.strip() or None
