@@ -32,26 +32,28 @@
         <thead>
           <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-200">
             <th class="px-4 py-3">Buque</th>
-            <th class="px-4 py-3">Cliente</th>
-            <th class="px-4 py-3">Mercadería</th>
             <th class="px-4 py-3">Ready est.</th>
             <th class="px-4 py-3">ETB</th>
+            <th class="px-4 py-3 text-right">Tonelaje</th>
+            <th class="px-4 py-3">Producto</th>
+            <th class="px-4 py-3">Cliente</th>
+            <th class="px-4 py-3 text-center">Estado</th>
             <th class="px-4 py-3">ETC</th>
             <th class="px-4 py-3">Muelle</th>
-            <th class="px-4 py-3 text-center">Estado</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           {% for a in arribos %}
           <tr class="{% if loop.index0 % 2 %}bg-gray-50/40{% endif %}">
             <td class="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{{ a.buque }}</td>
-            <td class="px-4 py-3 text-gray-600">{{ a.cliente or "—" }}</td>
-            <td class="px-4 py-3 text-gray-600">{{ a.mercaderia or "—" }}</td>
             <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">{{ a.ready or "—" }}</td>
-            <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{{ a.etb or "—" }}</td>
-            <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{{ a.etc or "—" }}</td>
-            <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>
+            <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">{{ a.etb or "—" }}</td>
+            <td class="px-4 py-3 text-right font-mono text-gray-800 whitespace-nowrap">{{ a.tonelaje_estimado | fmt_num(0) if a.tonelaje_estimado else "—" }}</td>
+            <td class="px-4 py-3 text-gray-700">{{ a.mercaderia or "—" }}</td>
+            <td class="px-4 py-3 text-gray-600">{{ a.cliente or "—" }}</td>
             <td class="px-4 py-3 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado)|upper }}</span></td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ a.etc or "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
