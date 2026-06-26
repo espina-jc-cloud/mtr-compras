@@ -18,7 +18,6 @@ from app import models
 from app import models_cupos        # noqa: F401 — registra tablas de Despachos en Base.metadata
 from app import models_tariffs      # noqa: F401 — registra tablas de Tarifario en Base.metadata
 from app import models_transporte   # noqa: F401 — registra tablas de Transporte en Base.metadata
-from app import models_finanzas      # noqa: F401 — registra tablas de Finanzas en Base.metadata
 from app import models_daily_ops    # noqa: F401 — registra tablas de Operaciones Diarias en Base.metadata
 from app import models_arribos       # noqa: F401 — registra tablas de Próximos Arribos en Base.metadata
 from app.auth import hash_password

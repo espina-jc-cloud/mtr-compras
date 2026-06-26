@@ -64,12 +64,6 @@ MODULES = [
         ],
     },
     {
-        "key": "finanzas", "label": "Finanzas",
-        "subs": [
-            {"key": "finanzas.tesoreria", "label": "Tesorería", "prefixes": ["/finanzas"]},
-        ],
-    },
-    {
         "key": "usuarios", "label": "Usuarios",
         "subs": [
             {"key": "usuarios.usuarios", "label": "Usuarios", "prefixes": ["/admin/users"]},
