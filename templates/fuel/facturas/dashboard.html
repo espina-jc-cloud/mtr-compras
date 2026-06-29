@@ -3,22 +3,93 @@
 
 {% block content %}
 
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold">Facturas de Combustible</h1>
-        <p class="text-gray-500">
-            Asociación de facturas con cargas de combustible.
-        </p>
-    </div>
-
-    <a href="/fuel/invoices/nueva"
-       class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl">
-        Nueva factura
+<!-- Header -->
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Facturas de Combustible</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Asociación de facturas con cargas de combustible</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/fuel"
+       class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      Volver a cargas
     </a>
+    <a href="/fuel/invoices/nueva"
+       class="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Nueva factura
+    </a>
+  </div>
 </div>
 
+<!-- Métricas -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Facturas</p>
+    <p class="text-2xl font-bold text-gray-900">{{ metrics.cantidad_facturas }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total facturado</p>
+    <p class="text-2xl font-bold text-indigo-700">$ {{ metrics.total_facturado | fmt_num }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Promedio</p>
+    <p class="text-2xl font-bold text-teal-700">$ {{ metrics.promedio_factura | fmt_num }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Cargas vinculadas</p>
+    <p class="text-2xl font-bold text-orange-600">{{ metrics.total_cargas }}</p>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" action="/fuel/invoices"
+      hx-get="/fuel/invoices" hx-target="#facturas-resultados" hx-swap="innerHTML" hx-push-url="true"
+      class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <!-- Empresa -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Empresa</label>
+      <select name="company" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+        <option value="">Todas</option>
+        {% for co in companies %}
+        <option value="{{ co }}" {% if params.company == co %}selected{% endif %}>{{ co }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Fecha desde -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Desde</label>
+      <input type="date" name="fecha_desde" value="{{ params.fecha_desde }}"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+    </div>
+    <!-- Fecha hasta -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ params.fecha_hasta }}"
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+    </div>
+    <!-- Búsqueda -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Buscar</label>
+      <input type="text" name="busqueda" value="{{ params.busqueda }}" placeholder="Nro, proveedor, CUIT..."
+             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50">
+    </div>
+    <!-- Botones -->
+    <div class="flex items-end gap-2">
+      <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+        Filtrar
+      </button>
+      <a href="/fuel/invoices" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium px-3 py-2.5 rounded-xl">
+        Limpiar
+      </a>
+    </div>
+  </div>
+</form>
+
+<!-- Resultados -->
 <div id="facturas-resultados">
-    {% include "fuel/facturas/_resultados.html" %}
+  {% include "fuel/facturas/_resultados.html" %}
 </div>
 
 {% endblock %}

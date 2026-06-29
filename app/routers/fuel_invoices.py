@@ -2,15 +2,21 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 
-from fastapi import APIRouter, Request, Form, Depends, HTTPException
+from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, subqueryload
 from sqlalchemy import or_
 
 from app.database import get_db
 from app.deps import get_current_user
 from app import models
 from app.templates import templates
+
+try:
+    from app.cloudinary_upload import upload_file as cloud_upload
+    CLOUDINARY_AVAILABLE = True
+except Exception:
+    CLOUDINARY_AVAILABLE = False
 
 
 router = APIRouter(prefix="/fuel/invoices")
@@ -44,7 +50,7 @@ def _parse_amount(value: Optional[str]):
 
 
 def _fuel_invoice_query(db: Session, fecha_desde=None, fecha_hasta=None, company=None, busqueda=None):
-    q = db.query(models.FuelInvoice).options(joinedload(models.FuelInvoice.cargas))
+    q = db.query(models.FuelInvoice).options(subqueryload(models.FuelInvoice.cargas))
 
     if fecha_desde:
         d = _parse_date(fecha_desde)
@@ -177,9 +183,23 @@ async def crear_fuel_factura(
     cuit_proveedor: str = Form(""),
     observaciones: str = Form(""),
     carga_ids: List[int] = Form([]),
+    archivo: UploadFile = File(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    # Upload archivo a Cloudinary
+    archivo_url = archivo_nombre = archivo_public_id = None
+    if archivo and archivo.filename and CLOUDINARY_AVAILABLE:
+        content = await archivo.read()
+        if content:
+            try:
+                res = cloud_upload(content, archivo.filename, folder="mtr-facturas-combustible")
+                archivo_url = res["url"]
+                archivo_public_id = res["public_id"]
+                archivo_nombre = archivo.filename
+            except Exception:
+                pass
+
     invoice = models.FuelInvoice(
         numero_factura=numero_factura.strip() or None,
         company=company,
@@ -189,6 +209,9 @@ async def crear_fuel_factura(
         monto_total=_parse_amount(monto_total),
         cuit_proveedor=cuit_proveedor.strip() or None,
         observaciones=observaciones.strip() or None,
+        archivo_url=archivo_url,
+        archivo_nombre=archivo_nombre,
+        archivo_public_id=archivo_public_id,
     )
     db.add(invoice)
     db.commit()
