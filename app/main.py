@@ -4,6 +4,7 @@ import subprocess
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel, invoices
+from app.routers import fuel_invoices
 from app.routers import operations
 from app.routers import operations_live
 from app.routers import daily_operations
