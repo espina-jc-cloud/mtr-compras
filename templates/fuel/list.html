@@ -8,11 +8,21 @@
     <h1 class="text-xl font-semibold text-gray-900">Combustible</h1>
     <p class="text-sm text-gray-500 mt-0.5">Registro de cargas</p>
   </div>
-  <a href="/fuel/new"
-    class="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-    Nueva carga
-  </a>
+  <div class="flex items-center gap-2">
+    <a href="/fuel/invoices"
+      class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-orange-700 border border-orange-200 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      Dashboard facturas
+    </a>
+    <a href="/fuel/invoices/nueva"
+      class="inline-flex items-center gap-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      Cargar factura
+    </a>
+    <a href="/fuel/new"
+      class="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Nueva carga
+    </a>
+  </div>
 </div>
 
 <!-- Resumen del mes actual -->

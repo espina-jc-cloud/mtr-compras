@@ -283,6 +283,30 @@ class MaintenanceAuditLog(Base):
 
 # ─── Combustible ──────────────────────────────────────────────────────────────
 
+
+
+class FuelInvoice(Base):
+    __tablename__ = "fuel_invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    numero_factura = Column(String(50), nullable=True)
+    company = Column(String, nullable=False, index=True)  # MTR SA / INGEE
+    supplier_name = Column(String(120), nullable=True)
+    cuit_proveedor = Column(String(20), nullable=True)
+    tipo_comprobante = Column(String(30), nullable=False, default="Factura A")
+    fecha_emision = Column(Date, nullable=True)
+    monto_total = Column(Numeric(12, 2), nullable=True)
+    observaciones = Column(Text, nullable=True)
+
+    archivo_url = Column(String(500), nullable=True)
+    archivo_nombre = Column(String(200), nullable=True)
+    archivo_public_id = Column(String(500), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    cargas = relationship("FuelLoad", back_populates="fuel_invoice")
+
 class FuelLoad(Base):
     __tablename__ = "fuel_loads"
     id               = Column(Integer, primary_key=True, index=True)
@@ -307,6 +331,8 @@ class FuelLoad(Base):
     receipt_url      = Column(String, nullable=True)
     receipt_filename = Column(String, nullable=True)
 
+    fuel_invoice_id  = Column(Integer, ForeignKey("fuel_invoices.id"), nullable=True, index=True)
+
     odometer_km      = Column(Integer, nullable=True)
     hourmeter        = Column(Numeric(8, 1), nullable=True)
     notes            = Column(Text, nullable=True)
@@ -317,6 +343,7 @@ class FuelLoad(Base):
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     entered_by       = relationship("User", foreign_keys=[entered_by_id])
+    fuel_invoice    = relationship("FuelInvoice", back_populates="cargas")
 
 
 # ─── Operativos portuarios ─────────────────────────────────────────────────
