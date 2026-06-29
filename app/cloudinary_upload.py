@@ -26,6 +26,8 @@ def upload_file(file_bytes: bytes, filename: str, folder: str = "mtr-compras") -
 def delete_file(public_id: str) -> None:
     """Borra un archivo de Cloudinary dado su public_id."""
     cloudinary.uploader.destroy(public_id)
+
+
 async def upload_factura_file(file) -> dict:
     if not file or not file.filename:
         return None
@@ -39,8 +41,10 @@ async def upload_factura_file(file) -> dict:
         raise ValueError("El archivo supera los 10MB.")
 
     filename_lower = file.filename.lower()
-    if not filename_lower.endswith((".pdf", ".jpg", ".jpeg", ".png")):
-        raise ValueError("Solo se permiten PDF, JPG o PNG.")
+
+    # Se agregan HEIC y HEIF (fotos tomadas con iPhone)
+    if not filename_lower.endswith((".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif")):
+        raise ValueError("Solo se permiten archivos PDF, JPG, JPEG, PNG, HEIC o HEIF.")
 
     result = upload_file(contents, file.filename, folder="facturas")
 
@@ -60,4 +64,3 @@ def delete_factura_file(public_id: str) -> bool:
         return True
     except Exception:
         return False
-
