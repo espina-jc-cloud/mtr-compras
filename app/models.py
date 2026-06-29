@@ -11,6 +11,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False)  # planta | autorizador | admin | superadmin
     plant = Column(String, nullable=False)  # MTR1 | MTR2 | ROSARIO | TODAS
+    permissions = Column(Text, nullable=True)  # JSON lista de claves concedidas; NULL = defaults del rol
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -22,6 +23,7 @@ class Supplier(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     cuit = Column(String)
+    condicion_iva = Column(String(30), nullable=True)  # Finanzas: responsable_inscripto | monotributo | ...
     contact_name = Column(String)
     contact_phone = Column(String)
     email = Column(String)

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Importar lineup — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center gap-2 mb-6">
+    <a href="/operations/arribos" class="text-gray-400 hover:text-gray-600">←</a>
+    <h1 class="text-xl font-semibold text-gray-900">Importar lineup del Puerto de San Nicolás</h1>
+  </div>
+
+  {% if error %}<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">{{ error }}</div>{% endif %}
+
+  {% if preview is none %}
+  <!-- Paso 1: subir -->
+  <form method="post" action="/operations/arribos/import" enctype="multipart/form-data"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+    <p class="text-sm text-gray-600 mb-4">
+      Subí el PDF del lineup. El sistema lee los buques y <strong>actualiza solo los arribos que vos seguís</strong>
+      (no carga todo el puerto). Vas a ver un resumen de qué cambia antes de confirmar.
+    </p>
+    <input type="file" name="file" accept=".pdf" required
+           class="block w-full text-sm text-gray-600 mb-4 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:text-white file:font-semibold file:text-sm hover:file:bg-indigo-700 cursor-pointer">
+    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg">Analizar lineup</button>
+  </form>
+
+  {% else %}
+  <!-- Paso 2: preview con diff -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 mb-5">
+    <div class="flex flex-wrap items-center gap-4 mb-4 text-sm">
+      <span class="text-gray-500">Archivo: <span class="font-medium text-gray-800">{{ filename }}</span></span>
+      {% if pdf_date %}<span class="text-gray-500">Fecha lineup: <span class="font-medium text-gray-800">{{ pdf_date }}</span></span>{% endif %}
+      <span class="text-gray-700 font-semibold">{{ total_vessels }} buques en el PDF</span>
+      <span class="text-emerald-700 font-semibold">{{ matched_count }} coinciden con tus arribos</span>
+      <span class="text-amber-700 font-semibold">{{ with_changes }} con cambios</span>
+    </div>
+
+    {% if preview %}
+    <div class="space-y-3 mb-4">
+      {% for m in preview %}
+      <div class="border border-gray-100 rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="font-semibold text-gray-900">{{ m.buque }}</span>
+          <span class="text-xs text-gray-400">↔ lineup: {{ m.vessel.buque }}</span>
+        </div>
+        {% if m.diffs %}
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-xs text-gray-400"><th class="py-1">Campo</th><th class="py-1">Actual</th><th class="py-1">Nuevo (lineup)</th></tr></thead>
+          <tbody>
+            {% for d in m.diffs %}
+            <tr class="border-t border-gray-50">
+              <td class="py-1.5 text-gray-600">{{ d.label }}</td>
+              <td class="py-1.5 text-gray-400">{{ d.old or "—" }}</td>
+              <td class="py-1.5 text-emerald-700 font-medium">{{ d.new }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-xs text-gray-400">Sin cambios — el lineup no aporta datos nuevos.</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-amber-700 mb-4">Ninguno de los buques del lineup coincide con tus arribos en seguimiento.
+      Cargá primero el arribo manualmente y volvé a importar.</p>
+    {% endif %}
+
+    {% if unmatched %}
+    <details class="mb-4">
+      <summary class="text-xs text-gray-400 cursor-pointer">{{ unmatched|length }} buques del lineup que NO seguís (se ignoran)</summary>
+      <p class="text-xs text-gray-400 mt-2">{{ unmatched | map(attribute='buque') | join(" · ") }}</p>
+    </details>
+    {% endif %}
+
+    <form method="post" action="/operations/arribos/import/confirm" class="flex gap-3">
+      <input type="hidden" name="vessels_json" value='{{ vessels_json }}'>
+      <input type="hidden" name="filename" value="{{ filename }}">
+      <a href="/operations/arribos/import" class="border border-gray-200 rounded-lg px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</a>
+      {% if with_changes %}
+      <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg">Confirmar actualizaciones</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

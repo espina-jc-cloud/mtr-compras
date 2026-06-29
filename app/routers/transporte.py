@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from app.database import get_db
 from app.deps import get_current_user
+from app.permissions import require_path_perm
 from app import models_transporte as mt
 from app.templates import templates
 
-# FORCE REDEPLOY - Railway cache fix
-router = APIRouter(prefix="/transporte")
+router = APIRouter(prefix="/transporte", dependencies=[Depends(require_path_perm())])
 
 
 def _require_access(current_user=Depends(get_current_user)):

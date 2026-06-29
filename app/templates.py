@@ -56,4 +56,9 @@ _env.globals["fmt_kg"]          = _fmt_kg
 _env.globals["delta_badge"]     = _delta_badge
 _env.globals["format_minutes"]  = _format_minutes
 
+# ── Permisos: can() / can_module() disponibles en todos los templates ──────────
+from app.permissions import can as _can, can_module as _can_module
+_env.globals["can"]        = _can
+_env.globals["can_module"] = _can_module
+
 templates = Jinja2Templates(env=_env)

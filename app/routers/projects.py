@@ -7,10 +7,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_projects_access
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 from app.cloudinary_upload import upload_file as _cloud_upload, delete_file as _cloud_delete
+
+# Acceso al módulo Proyectos → permiso "proyectos.proyectos".
+require_projects_access = require_perm("proyectos.proyectos")
 
 router = APIRouter(prefix="/projects")
 

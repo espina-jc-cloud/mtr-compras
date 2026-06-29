@@ -9,12 +9,13 @@ from sqlalchemy import or_
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 from app.cloudinary_upload import upload_factura_file, delete_factura_file
 
 
-router = APIRouter(prefix="/compras/facturas")
+router = APIRouter(prefix="/compras/facturas", dependencies=[Depends(require_perm("compras.facturas"))])
 
 
 TIPOS_COMPROBANTE = [
@@ -135,9 +136,9 @@ async def dashboard_facturas(
     }
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse("facturas/_resultados.html", context)
+        return templates.TemplateResponse(request, "facturas/_resultados.html", context)
 
-    return templates.TemplateResponse("facturas/dashboard.html", context)
+    return templates.TemplateResponse(request, "facturas/dashboard.html", context)
 
 
 @router.get("/nueva", response_class=HTMLResponse)
@@ -150,6 +151,7 @@ async def nueva_factura_form(
     remitos = _free_remitos_query(db).all()
 
     return templates.TemplateResponse(
+        request,
         "facturas/cargar.html",
         {
             "request": request,
@@ -236,6 +238,7 @@ async def editar_factura_form(
     remitos_libres = _free_remitos_query(db).all()
 
     return templates.TemplateResponse(
+        request,
         "facturas/editar.html",
         {
             "request": request,

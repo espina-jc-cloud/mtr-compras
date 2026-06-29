@@ -6,16 +6,17 @@ from datetime import datetime, date as _date, time as _time, timedelta
 from collections import defaultdict
 from urllib.parse import quote as _url_quote
 
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, exists
 
 from app.database import get_db
 from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 
-_OPERATIONS_ROLES = ("admin", "superadmin")
+_OPERATIONS_ROLES = ("admin", "superadmin")  # legacy (sustituido por require_perm)
 from app.templates import templates
 from app.product_normalize import normalize_product
 
@@ -171,7 +172,7 @@ def _compute_shift_stats(trips):
 async def list_operations(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
+    current_user=Depends(require_perm("operaciones.finalizados")),
 ):
     def qp(name, default=""):
         vals = request.query_params.getlist(name)
@@ -374,7 +375,7 @@ async def list_operations(
 async def operations_dashboard(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
+    current_user=Depends(require_perm("operaciones.finalizados")),
 ):
     def qp(name, default=""):
         vals = request.query_params.getlist(name)
@@ -601,12 +602,128 @@ async def operations_dashboard(
     })
 
 
+# ── IMPORTAR EXCEL ─────────────────────────────────────────────────────────────
+# DEBE declararse antes de /{op_id} para que "/import" no se interprete como op_id.
+
+@router.get("/import", response_class=HTMLResponse)
+async def import_form(
+    request: Request,
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    return templates.TemplateResponse(request, "operations/import.html", {
+        "user": current_user, "preview": None, "error": None,
+    })
+
+
+@router.post("/import", response_class=HTMLResponse)
+async def import_preview(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    import json
+    from app.operations_parser import parse_operations_workbook
+
+    def _err(msg):
+        return templates.TemplateResponse(request, "operations/import.html", {
+            "user": current_user, "preview": None, "error": msg,
+        })
+
+    if not file or not file.filename:
+        return _err("Tenés que seleccionar un archivo Excel (.xlsx o .xls).")
+    content = await file.read()
+    if not content:
+        return _err("El archivo está vacío.")
+
+    try:
+        operations, warnings = parse_operations_workbook(content)
+    except ValueError as e:
+        return _err(str(e))
+
+    if not operations:
+        return _err("No se detectó ningún operativo con viajes en el archivo. "
+                    "Revisá que tenga el formato de la planilla de balanza.")
+
+    # Avisos de duplicados: viajes con trip_code ya existente y operativos ya cargados.
+    incoming_codes = [t["trip_code"] for op in operations for t in op["trips"]]
+    existing_codes = set()
+    if incoming_codes:
+        rows = (db.query(models.OperationTrip.trip_code)
+                .filter(models.OperationTrip.trip_code.in_(incoming_codes)).all())
+        existing_codes = {r[0] for r in rows}
+
+    preview = []
+    total_dup = 0
+    for op in operations:
+        dup = sum(1 for t in op["trips"] if t["trip_code"] in existing_codes)
+        total_dup += dup
+        # ¿ya existe un operativo con mismo barco + fecha de inicio?
+        already = False
+        if op.get("start_date"):
+            already = db.query(
+                exists().where(
+                    (models.Operation.ship_name == op["ship_name"]) &
+                    (models.Operation.start_date == datetime.fromisoformat(op["start_date"]))
+                )
+            ).scalar()
+        preview.append({
+            "ship_name":   op["ship_name"],
+            "product":     op.get("product"),
+            "client":      op.get("client"),
+            "trip_count":  op["actual_trips"],
+            "dup_count":   dup,
+            "total_t":     (op.get("total_neto_kg") or 0) / 1000,
+            "start_date":  op.get("start_date"),
+            "end_date":    op.get("end_date"),
+            "already":     bool(already),
+        })
+
+    return templates.TemplateResponse(request, "operations/import.html", {
+        "user":          current_user,
+        "preview":       preview,
+        "ops_json":      json.dumps(operations),
+        "filename":      file.filename,
+        "total_ops":     len(operations),
+        "total_trips":   len(incoming_codes),
+        "total_dup":     total_dup,
+        "warnings":      warnings,
+        "error":         None,
+    })
+
+
+@router.post("/import/confirm")
+async def import_confirm(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    import json
+    from app.operations_parser import insert_operations
+
+    form = await request.form()
+    try:
+        operations = json.loads(form.get("ops_json", "[]"))
+    except Exception:
+        raise HTTPException(400, "Datos de importación inválidos.")
+    if not operations:
+        raise HTTPException(400, "No hay operativos para importar.")
+
+    filename = str(form.get("filename", "import_web.xlsx"))
+    stats = insert_operations(db, operations, source_file=filename)
+
+    msg = (f"{stats['ops_created']} operativo(s) · {stats['trips_inserted']} viajes importados"
+           + (f" · {stats['trips_dup']} viajes duplicados saltados" if stats["trips_dup"] else ""))
+    from urllib.parse import quote as _q
+    return RedirectResponse(url=f"/operations?imported={_q(msg)}", status_code=303)
+
+
 @router.get("/{op_id}", response_class=HTMLResponse)
 async def operation_detail(
     op_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
+    current_user=Depends(require_perm("operaciones.finalizados")),
 ):
     filter_product: str = request.query_params.get("product", "").strip()
 
@@ -771,13 +888,88 @@ async def operation_detail(
     })
 
 
+# ── EDITAR / ELIMINAR operativo ────────────────────────────────────────────────
+
+@router.get("/{op_id}/edit", response_class=HTMLResponse)
+async def edit_operation_form(
+    op_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "operations/edit.html", {
+        "user": current_user, "op": op,
+    })
+
+
+@router.post("/{op_id}/edit")
+async def update_operation(
+    op_id: int,
+    request: Request,
+    ship_name: str = Form(...),
+    operation_type: str = Form("vessel"),
+    client: str = Form(""),
+    product: str = Form(""),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+
+    def _d(s):
+        try:
+            return datetime.fromisoformat(s) if s else None
+        except ValueError:
+            return None
+
+    if not ship_name.strip():
+        raise HTTPException(status_code=422, detail="El nombre del barco es obligatorio.")
+
+    op.ship_name      = ship_name.strip()
+    op.operation_type = operation_type if operation_type in ("vessel", "special") else "vessel"
+    op.client         = client.strip() or None
+    op.product        = product.strip() or None
+    if start_date:
+        op.start_date = _d(start_date)
+    if end_date:
+        op.end_date = _d(end_date)
+    db.commit()
+    return RedirectResponse(url=f"/operations/{op_id}", status_code=303)
+
+
+@router.post("/{op_id}/delete")
+async def delete_operation(
+    op_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.finalizados")),
+):
+    op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
+    if not op:
+        raise HTTPException(status_code=404)
+    ship = op.ship_name  # capturar antes de borrar
+    # Romper el vínculo de cargo summaries (no tienen cascade) antes de borrar.
+    db.query(models.OperationCargoSummary).filter(
+        models.OperationCargoSummary.operation_id == op_id
+    ).update({models.OperationCargoSummary.operation_id: None}, synchronize_session=False)
+    db.delete(op)  # cascade borra trips + product_totals
+    db.commit()
+    from urllib.parse import quote as _q
+    return RedirectResponse(url=f"/operations?imported={_q('Operativo eliminado: ' + ship)}", status_code=303)
+
+
 # ── JSON API routes ────────────────────────────────────────────────────────────
 
 @api_router.get("")
 async def api_list_operations(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
+    current_user=Depends(require_perm("operaciones.finalizados")),
 ):
     q = db.query(models.Operation)
     op_type = request.query_params.get("op_type", "")
@@ -810,7 +1002,7 @@ async def api_list_operations(
 async def api_operation_detail(
     op_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_OPERATIONS_ROLES)),
+    current_user=Depends(require_perm("operaciones.finalizados")),
 ):
     op = db.query(models.Operation).filter(models.Operation.id == op_id).first()
     if not op:

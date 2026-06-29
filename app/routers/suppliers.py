@@ -4,9 +4,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_compras_access, require_no_operador
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
+
+# Acceso al módulo Proveedores → permiso "compras.proveedores".
+require_compras_access = require_perm("compras.proveedores")
+require_no_operador = require_compras_access
 
 router = APIRouter(prefix="/suppliers", dependencies=[Depends(require_no_operador)])
 

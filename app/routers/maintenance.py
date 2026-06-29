@@ -3,9 +3,13 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_no_operador
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
+
+# Acceso al módulo Mantenimiento → permiso "mantenimiento.mantenimiento".
+require_no_operador = require_perm("mantenimiento.mantenimiento")
 
 try:
     from app.cloudinary_upload import upload_file as cloud_upload

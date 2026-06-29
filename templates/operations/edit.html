@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Editar {{ op.ship_name }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-lg mx-auto">
+  <div class="flex items-center gap-2 mb-6">
+    <a href="/operations/{{ op.id }}" class="text-gray-400 hover:text-gray-600">←</a>
+    <h1 class="text-xl font-semibold text-gray-900">Editar operativo</h1>
+  </div>
+
+  <form method="post" action="/operations/{{ op.id }}/edit"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Barco / Operativo <span class="text-red-400">*</span></label>
+      <input type="text" name="ship_name" required value="{{ op.ship_name }}"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5">Tipo</label>
+      <select name="operation_type" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm bg-gray-50">
+        <option value="vessel"  {{ "selected" if op.operation_type == "vessel" }}>Barco</option>
+        <option value="special" {{ "selected" if op.operation_type == "special" }}>Especial</option>
+      </select>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Cliente</label>
+        <input type="text" name="client" value="{{ op.client or '' }}"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Producto</label>
+        <input type="text" name="product" value="{{ op.product or '' }}"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha inicio</label>
+        <input type="date" name="start_date" value="{{ op.start_date.strftime('%Y-%m-%d') if op.start_date else '' }}"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha fin</label>
+        <input type="date" name="end_date" value="{{ op.end_date.strftime('%Y-%m-%d') if op.end_date else '' }}"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50">
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-400">Las toneladas y viajes se calculan de los registros importados y no se editan acá.</p>
+
+    <div class="flex gap-3 pt-1">
+      <a href="/operations/{{ op.id }}" class="flex-1 flex items-center justify-center border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">
+        Cancelar
+      </a>
+      <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">
+        Guardar cambios
+      </button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

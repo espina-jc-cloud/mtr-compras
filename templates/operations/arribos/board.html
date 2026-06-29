@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Tablero de arribos — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between mb-3 print:hidden">
+    <a href="/operations/arribos" class="text-gray-400 hover:text-gray-600 text-sm">← Volver</a>
+    <button onclick="window.print()" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">Imprimir / PDF</button>
+  </div>
+
+  <!-- Mostrar / ocultar columnas (no aparece en el screenshot / impresión) -->
+  <div class="mb-4 print:hidden">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Mostrar columnas</p>
+    <div id="colToggles" class="flex flex-wrap gap-2">
+      {% set cols = [("ready","Ready est."),("etb","ETB"),("tonelaje","Tonelaje"),("producto","Producto"),("cliente","Cliente"),("estado","Estado"),("etc","ETC"),("muelle","Muelle")] %}
+      {% for key, label in cols %}
+      <label class="inline-flex items-center gap-1.5 text-sm bg-white border border-gray-200 rounded-full px-3 py-1 cursor-pointer select-none hover:bg-gray-50">
+        <input type="checkbox" class="col-toggle" data-col="{{ key }}" checked>
+        <span>{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Tarjeta limpia para screenshot / compartir -->
+  <div id="board" class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+    <!-- Encabezado con logo — navy MTR -->
+    <div class="px-6 py-5 flex items-center gap-4" style="background:linear-gradient(135deg,#0e1c3f 0%,#1b2f5e 100%)">
+      <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden">
+        <img src="/static/logo_mtr.png" alt="MTR" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.parentNode.innerHTML='<span class=\'font-black text-xl\' style=\'color:#16264f\'>MTR</span>'">
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-black text-white text-xl leading-tight tracking-tight">Próximos Arribos</p>
+        <p class="text-sm" style="color:#9db0d6">Puerto San Nicolás</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-white font-semibold text-sm">{{ now | fmt_ar("%d/%m/%Y") }}</p>
+        <p class="text-xs" style="color:#9db0d6">{{ now | fmt_ar("%H:%M") }} hs · {{ arribos|length }} buques</p>
+      </div>
+    </div>
+
+    {% if arribos %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-200">
+            <th class="px-4 py-3">Buque</th>
+            <th class="px-4 py-3" data-col="ready">Ready est.</th>
+            <th class="px-4 py-3" data-col="etb">ETB</th>
+            <th class="px-4 py-3 text-right" data-col="tonelaje">Tonelaje</th>
+            <th class="px-4 py-3" data-col="producto">Producto</th>
+            <th class="px-4 py-3" data-col="cliente">Cliente</th>
+            <th class="px-4 py-3 text-center" data-col="estado">Estado</th>
+            <th class="px-4 py-3" data-col="etc">ETC</th>
+            <th class="px-4 py-3" data-col="muelle">Muelle</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for a in arribos %}
+          <tr class="{% if loop.index0 % 2 %}bg-gray-50/40{% endif %}">
+            <td class="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{{ a.buque }}</td>
+            <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap" data-col="ready">{{ a.ready or "—" }}</td>
+            <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap" data-col="etb">{{ a.etb or "—" }}</td>
+            <td class="px-4 py-3 text-right font-mono text-gray-800 whitespace-nowrap" data-col="tonelaje">{{ a.tonelaje_estimado | fmt_num(0) if a.tonelaje_estimado else "—" }}</td>
+            <td class="px-4 py-3 text-gray-700" data-col="producto">{{ a.mercaderia or "—" }}</td>
+            <td class="px-4 py-3 text-gray-600" data-col="cliente">{{ a.cliente or "—" }}</td>
+            <td class="px-4 py-3 text-center" data-col="estado"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado)|upper }}</span></td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="etc">{{ a.etc or "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="muelle">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+      <p class="text-xs text-gray-400">MTR · Gestión Operativa</p>
+      <p class="text-xs text-gray-400">Actualizado {{ now | fmt_ar("%d/%m/%Y %H:%M") }} hs</p>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 py-10 text-center">No hay arribos activos.</p>
+    {% endif %}
+  </div>
+
+  <p class="text-center text-xs text-gray-400 mt-3 print:hidden">📸 Sacá captura de esta tarjeta (o usá Imprimir/PDF) para compartir por WhatsApp.</p>
+</div>
+
+<script>
+  (function () {
+    var KEY = 'arribos_board_hidden_cols';
+    var toggles = Array.prototype.slice.call(document.querySelectorAll('.col-toggle'));
+
+    function hidden() {
+      try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; }
+    }
+    function apply(col, show) {
+      document.querySelectorAll('[data-col="' + col + '"]').forEach(function (el) {
+        el.style.display = show ? '' : 'none';
+      });
+    }
+    // Estado inicial desde localStorage.
+    var hid = hidden();
+    toggles.forEach(function (cb) {
+      if (hid.indexOf(cb.dataset.col) !== -1) cb.checked = false;
+      apply(cb.dataset.col, cb.checked);
+      cb.addEventListener('change', function () {
+        apply(cb.dataset.col, cb.checked);
+        var h = toggles.filter(function (t) { return !t.checked; }).map(function (t) { return t.dataset.col; });
+        try { localStorage.setItem(KEY, JSON.stringify(h)); } catch (e) {}
+      });
+    });
+  })();
+</script>
+
+{% endblock %}

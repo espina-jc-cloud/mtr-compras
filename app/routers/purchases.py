@@ -5,13 +5,17 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, exists, func, case, nullslast
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_compras_access
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 
 _log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/purchases")
+# Acceso al módulo Compras → permiso "compras.compras".
+require_compras_access = require_perm("compras.compras")
+
+router = APIRouter(prefix="/purchases", dependencies=[Depends(require_compras_access)])
 
 AREAS = ["Mantenimiento", "Producción", "Logística", "Administración", "Seguridad", "Limpieza", "Otros"]
 PLANTS = ["MTR1", "MTR2"]

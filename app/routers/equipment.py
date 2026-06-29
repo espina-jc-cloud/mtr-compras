@@ -3,9 +3,13 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_no_operador
+from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
+
+# Acceso al módulo Equipos → permiso "mantenimiento.equipos".
+require_no_operador = require_perm("mantenimiento.equipos")
 
 router = APIRouter(prefix="/equipment", dependencies=[Depends(require_no_operador)])
 

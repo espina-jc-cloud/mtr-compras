@@ -22,6 +22,19 @@
       {% if op.product %} · {{ op.product }}{% endif %}
     </p>
   </div>
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <a href="/operations/{{ op.id }}/edit"
+       class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-2 rounded-lg hover:bg-indigo-50">
+      Editar
+    </a>
+    <form method="post" action="/operations/{{ op.id }}/delete"
+          onsubmit="return confirm('¿Eliminar este operativo y sus {{ trips|length }} viajes? Esta acción no se puede deshacer.')">
+      <button type="submit"
+              class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50">
+        Eliminar
+      </button>
+    </form>
+  </div>
 </div>
 
 <!-- Banner de filtro por producto -->

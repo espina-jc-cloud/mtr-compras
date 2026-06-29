@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import require_role
+from app.permissions import require_perm
 from app.templates import templates
 from app.models_daily_ops import DailyOpDay, DailyOpImport, DailyOpTrip
 
@@ -39,7 +40,7 @@ def _is_operation(value, expected: str) -> bool:
 async def list_daily_operations(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     q_date_from = _qp(request, "date_from")
     q_date_to = _qp(request, "date_to")
@@ -169,7 +170,7 @@ async def list_daily_operations(
 @router.get("/new", response_class=HTMLResponse)
 async def new_daily_operation(
     request: Request,
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     return templates.TemplateResponse(
         request,
@@ -182,7 +183,7 @@ async def new_daily_operation(
 async def create_daily_operation(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     from app.daily_ops_parser import parse_old_system_html
 
@@ -294,7 +295,7 @@ async def create_daily_operation(
 async def list_daily_imports(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     imports = (
         db.query(DailyOpImport)
@@ -343,7 +344,7 @@ async def daily_operation_detail(
     day_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
     if not day:
@@ -451,7 +452,7 @@ async def daily_operation_detail(
 async def delete_legacy_daily_import_file(
     filename: str,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     imports = (
         db.query(DailyOpImport)
@@ -491,7 +492,7 @@ async def delete_legacy_daily_import_file(
 async def delete_daily_import_group(
     group_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     imports = (
         db.query(DailyOpImport)
@@ -529,7 +530,7 @@ async def delete_daily_trip(
     day_id: int,
     trip_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     trip = (
         db.query(DailyOpTrip)
@@ -552,7 +553,7 @@ async def delete_daily_import(
     day_id: int,
     import_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     imp = (
         db.query(DailyOpImport)
@@ -587,7 +588,7 @@ async def delete_daily_import(
 async def delete_daily_operation(
     day_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_DAILY_OPS_ROLES)),
+    current_user=Depends(require_perm("operaciones.diarias")),
 ):
     day = db.query(DailyOpDay).filter(DailyOpDay.id == day_id).first()
     if not day:

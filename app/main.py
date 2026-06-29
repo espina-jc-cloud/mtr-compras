@@ -3,6 +3,7 @@ import sys
 import subprocess
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel, invoices
 from app.routers import fuel_invoices
 from app.routers import operations
@@ -12,6 +13,7 @@ from app.routers import despachos
 from app.routers import tariffs
 from app.routers import projects
 from app.routers import transporte
+from app.routers import arribos
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -26,6 +28,10 @@ if _DB_URL and not _DB_URL.startswith("sqlite") and (not _SK or _SK == _INSECURE
     sys.exit(1)
 
 app = FastAPI(title="MTR Gestión")
+
+# Archivos estáticos (logo, etc.) — servidos en /static.
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ── Redirigir a /login cuando el browser pide HTML y no hay sesión ─────────────
@@ -58,6 +64,7 @@ app.include_router(transporte.router)
 # no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
 app.include_router(operations_live.router)
 app.include_router(daily_operations.router)
+app.include_router(arribos.router)   # /operations/arribos — antes que operations (/{op_id})
 app.include_router(operations.router)
 app.include_router(despachos.router)
 app.include_router(tariffs.router)
@@ -71,6 +78,7 @@ async def run_db_migrations_on_startup():
         migrate.run()
     except Exception as e:
         print(f"[startup migrate] ERROR: {e}")
+
 @app.get("/")
 async def root():
     return RedirectResponse(url="/home")
@@ -97,6 +105,7 @@ async def debug_invoices_check():
         }
     finally:
         db.close()
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

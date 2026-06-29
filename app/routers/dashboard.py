@@ -5,6 +5,7 @@ from sqlalchemy import and_, exists
 from datetime import datetime
 from app.database import get_db
 from app.deps import get_current_user, require_role
+from app.permissions import require_perm
 from app import models
 from app.templates import templates
 
@@ -91,7 +92,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db), current_use
 
 
 @router.get("/conciliation", response_class=HTMLResponse)
-async def conciliation(request: Request, db: Session = Depends(get_db), current_user=Depends(require_role("admin", "superadmin"))):
+async def conciliation(request: Request, db: Session = Depends(get_db), current_user=Depends(require_perm("compras.conciliacion"))):
     opts = joinedload(models.Purchase.supplier), joinedload(models.Purchase.requester), joinedload(models.Purchase.documents)
 
     remito_ex = exists().where(and_(models.Document.purchase_id == models.Purchase.id, models.Document.doc_type == "remito"))
