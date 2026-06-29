@@ -70,7 +70,7 @@ async def run_db_migrations_on_startup():
         migrate.run()
     except Exception as e:
         print(f"[startup migrate] ERROR: {e}")
-\n@app.get("/")
+@app.get("/")
 async def root():
     return RedirectResponse(url="/home")
 
@@ -96,7 +96,7 @@ async def debug_invoices_check():
         }
     finally:
         db.close()
-\n@app.get("/health")
+@app.get("/health")
 async def health():
     return {"status": "ok"}
 
