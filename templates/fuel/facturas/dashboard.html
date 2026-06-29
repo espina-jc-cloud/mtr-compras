@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Facturas de Combustible{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Facturas de Combustible</h1>
+        <p class="text-gray-500">
+            Asociación de facturas con cargas de combustible.
+        </p>
+    </div>
+
+    <a href="/fuel/facturas/nueva"
+       class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl">
+        Nueva factura
+    </a>
+</div>
+
+<div id="facturas-resultados">
+    {% include "fuel/facturas/_resultados.html" %}
+</div>
+
+{% endblock %}
