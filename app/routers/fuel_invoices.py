@@ -13,7 +13,7 @@ from app import models
 from app.templates import templates
 
 
-router = APIRouter(prefix="/fuel/facturas")
+router = APIRouter(prefix="/fuel/invoices")
 
 TIPOS_COMPROBANTE = [
     "Factura A",
@@ -207,7 +207,7 @@ async def crear_fuel_factura(
             carga.fuel_invoice_id = invoice.id
 
     db.commit()
-    return RedirectResponse(url="/fuel/facturas", status_code=303)
+    return RedirectResponse(url="/fuel/invoices", status_code=303)
 
 
 @router.post("/{invoice_id}/eliminar")
@@ -228,7 +228,7 @@ async def eliminar_fuel_factura(
     db.delete(invoice)
     db.commit()
 
-    return RedirectResponse(url="/fuel/facturas", status_code=303)
+    return RedirectResponse(url="/fuel/invoices", status_code=303)
 
 
 @router.post("/{invoice_id}/desvincular-carga/{load_id}", response_class=HTMLResponse)
