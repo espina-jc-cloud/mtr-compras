@@ -109,6 +109,7 @@ def run():
         _add_column(conn, "documents",  "factura_id",     "INTEGER")
         _add_column(conn, "invoices",   "archivo_public_id", "VARCHAR")
         _add_column(conn, "fuel_loads", "plant",          "VARCHAR")
+        _add_column(conn, "fuel_loads", "fuel_invoice_id", "INTEGER")
         # Fase 2: Operativos en Tiempo Real — Cierre + Factura + Conciliación
         _add_column(conn, "operation_live_sessions", "closed_at",     "TIMESTAMP")
         _add_column(conn, "operation_live_sessions", "reconciled_at", "TIMESTAMP")
