@@ -155,7 +155,7 @@
 
 <!-- ── Finalizados ──────────────────────────────────────────────────────────── -->
 {% if sessions_finished %}
-<h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Finalizados (últimos 30)</h2>
+<h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Finalizados y cerrados</h2>
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
   {% for session in sessions_finished %}
   {% set summ = finished_summaries[session.id] %}
@@ -163,7 +163,14 @@
   <a href="/operations/live/{{ session.id }}"
     class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
     <div class="min-w-0">
-      <p class="text-sm font-semibold text-gray-900 truncate">{{ session.ship_name }}</p>
+      <p class="text-sm font-semibold text-gray-900 truncate">{{ session.ship_name }}
+        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full align-middle
+          {% if session.status == 'reconciled' %}bg-emerald-50 text-emerald-700
+          {% elif session.status == 'closed' %}bg-indigo-50 text-indigo-700
+          {% else %}bg-gray-100 text-gray-500{% endif %}">
+          {% if session.status == 'reconciled' %}CONCILIADO{% elif session.status == 'closed' %}CERRADO{% else %}FINALIZADO{% endif %}
+        </span>
+      </p>
       <p class="text-xs text-gray-400">
         {{ session.finished_at | fmt_date if session.finished_at else session.created_at | fmt_date }}
         · {{ summ.shift_count }} parte{% if summ.shift_count != 1 %}s{% endif %}

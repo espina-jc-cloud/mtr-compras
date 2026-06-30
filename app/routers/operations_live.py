@@ -311,11 +311,13 @@ async def list_live_sessions(
         .order_by(desc(OperationLiveSession.created_at))
         .all()
     )
+    # Incluye finalizados Y cerrados/conciliados (cierre formal) para que el
+    # operativo NO desaparezca de la lista después de "Cerrar operativo".
     sessions_finished = (
         db.query(OperationLiveSession)
-        .filter_by(status="finished")
-        .order_by(desc(OperationLiveSession.finished_at))
-        .limit(30)
+        .filter(OperationLiveSession.status.in_(["finished", "closed", "reconciled"]))
+        .order_by(desc(OperationLiveSession.created_at))
+        .limit(50)
         .all()
     )
 
