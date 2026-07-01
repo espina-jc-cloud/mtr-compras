@@ -101,15 +101,28 @@ async def list_daily_operations(
         .all()
     )
 
-    all_days = (
-        db.query(DailyOpDay)
-        .order_by(DailyOpDay.op_date.desc())
-        .all()
-    )
+    # Filtros activos (para que el LISTADO de días respete lo mismo que las tarjetas).
+    has_filters = any([q_date_from, q_date_to, q_client, q_product, q_operativo])
+
+    def _apply_trip_filters(q):
+        if q_client:
+            q = q.filter(DailyOpTrip.client == q_client)
+        if q_product:
+            q = q.filter(DailyOpTrip.product == q_product)
+        if q_operativo:
+            q = q.filter(DailyOpTrip.operativo == q_operativo)
+        return q
+
+    days_query = db.query(DailyOpDay).order_by(DailyOpDay.op_date.desc())
+    if has_filters:
+        # Solo los días que tienen viajes que matchean el filtro.
+        filtered_day_ids = {r[0] for r in trips_q.with_entities(DailyOpTrip.day_id).distinct().all()}
+        days_query = days_query.filter(DailyOpDay.id.in_(filtered_day_ids or [-1]))
+    all_days = days_query.all()
 
     days_rows = []
     for day in all_days:
-        day_trips_q = db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day.id)
+        day_trips_q = _apply_trip_filters(db.query(DailyOpTrip).filter(DailyOpTrip.day_id == day.id))
 
         cargas_q = day_trips_q.filter(func.lower(DailyOpTrip.operation) == "carga")
         descargas_q = day_trips_q.filter(func.lower(DailyOpTrip.operation) == "descarga")
