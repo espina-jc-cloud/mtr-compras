@@ -6,3 +6,8 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+# Tooling de build de CSS (solo dev — el CSS compilado viaja en static/)
+package.json
+package-lock.json
+tailwind.config.js
+assets/
