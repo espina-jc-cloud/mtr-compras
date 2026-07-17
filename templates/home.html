@@ -1,135 +1,122 @@
 {% extends "base.html" %}
-{% block title %}Inicio — MTR Gestión{% endblock %}
+{% block title %}Centro de Operaciones — MTR{% endblock %}
 {% block content %}
 
-<!-- ── Saludo ──────────────────────────────────────────────────────────────── -->
-<div class="mb-8 mt-2">
-  <h1 class="text-2xl font-bold text-gray-900">Hola, {{ user.name.split()[0] }}</h1>
-  <p class="text-sm text-gray-500 mt-1">¿En qué módulo querés trabajar?</p>
+<!-- ── Encabezado ─────────────────────────────────────────────────────────── -->
+<div class="flex flex-wrap items-end justify-between gap-3 mb-7">
+  <div>
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">{{ now | fmt_ar("%d/%m/%Y · %H:%M") }} hs</p>
+    <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Hola, {{ user.name.split()[0] }}</h1>
+  </div>
+  <div class="flex items-center gap-2">
+    {% for label, href in quick[:3] %}
+    <a href="{{ href }}" class="{{ 'btn-primary' if loop.first else 'btn-secondary' }}">{{ label }}</a>
+    {% endfor %}
+    <a href="/dashboard" class="text-xs font-medium text-gray-400 hover:text-gray-600 px-2 py-2">Indicadores →</a>
+  </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 max-w-7xl">
-
-  {% if can_module(user, "compras") %}
-  <!-- ── COMPRAS ──────────────────────────────────────────────────────────── -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-    <a href="{{ '/purchases' if can(user,'compras.compras') else '/quotes' if can(user,'compras.cotizaciones') else '/suppliers' if can(user,'compras.proveedores') else '/conciliation' }}" class="flex items-center gap-3 p-5 pb-4 hover:bg-indigo-50/40 group">
-      <span class="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      </span>
-      <div>
-        <p class="font-bold text-gray-900 group-hover:text-indigo-700">Compras</p>
-        <p class="text-xs text-gray-400">Gestión comercial y proveedores</p>
-      </div>
-    </a>
-    <div class="border-t border-gray-50 px-3 py-2 flex-1">
-      {% if can(user, "compras.compras") %}<a href="/purchases" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Compras <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "compras.cotizaciones") %}<a href="/quotes" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Cotizaciones <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "compras.proveedores") %}<a href="/suppliers" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Proveedores <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "compras.conciliacion") %}
-      <a href="/conciliation" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Conciliación <span class="text-gray-300">→</span></a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if can_module(user, "mantenimiento") %}
-  <!-- ── MANTENIMIENTO ────────────────────────────────────────────────────── -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-    <a href="{{ '/maintenance' if can(user,'mantenimiento.mantenimiento') else '/equipment' if can(user,'mantenimiento.equipos') else '/fuel' }}" class="flex items-center gap-3 p-5 pb-4 hover:bg-amber-50/40 group">
-      <span class="w-11 h-11 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-      </span>
-      <div>
-        <p class="font-bold text-gray-900 group-hover:text-amber-700">Mantenimiento</p>
-        <p class="text-xs text-gray-400">Equipos, trabajos y combustible</p>
-      </div>
-    </a>
-    <div class="border-t border-gray-50 px-3 py-2 flex-1">
-      {% if can(user, "mantenimiento.mantenimiento") %}<a href="/maintenance" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Mantenimiento <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "mantenimiento.equipos") %}<a href="/equipment" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Equipos <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "mantenimiento.combustible") %}<a href="/fuel" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Combustible <span class="text-gray-300">→</span></a>{% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if can_module(user, "proyectos") %}
-  <!-- ── PROYECTOS ────────────────────────────────────────────────────────── -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-    <a href="/projects" class="flex items-center gap-3 p-5 pb-4 hover:bg-violet-50/40 group">
-      <span class="w-11 h-11 rounded-xl bg-violet-600 flex items-center justify-center flex-shrink-0">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-      </span>
-      <div>
-        <p class="font-bold text-gray-900 group-hover:text-violet-700">Proyectos</p>
-        <p class="text-xs text-gray-400">Obras, tareas y seguimiento</p>
-      </div>
-    </a>
-    <div class="border-t border-gray-50 px-3 py-2 flex-1">
-      <a href="/projects" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Todos los proyectos <span class="text-gray-300">→</span></a>
-      <a href="/projects/new" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Nuevo proyecto <span class="text-gray-300">→</span></a>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if can_module(user, "operaciones") %}
-  <!-- ── OPERACIONES ──────────────────────────────────────────────────────── -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-    <a href="{{ '/despachos' if can(user,'operaciones.despachos') else '/operations/live' if can(user,'operaciones.live') else '/operations' if can(user,'operaciones.finalizados') else '/tarifario' }}" class="flex items-center gap-3 p-5 pb-4 hover:bg-emerald-50/40 group">
-      <span class="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-      </span>
-      <div>
-        <p class="font-bold text-gray-900 group-hover:text-emerald-700">Operaciones</p>
-        <p class="text-xs text-gray-400">Barcos, turnos y camiones</p>
-      </div>
-    </a>
-    <div class="border-t border-gray-50 px-3 py-2 flex-1">
-      {% if can(user, "operaciones.arribos") %}<a href="/operations/arribos" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Próximos Arribos <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "operaciones.despachos") %}<a href="/despachos" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Despachos <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "operaciones.diarias") %}
-      <a href="/operations/daily" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700">
-        <span>Operaciones Diarias</span>
-        <span class="text-gray-300">→</span>
-      </a>
-      {% endif %}
-      {% if can(user, "operaciones.live") or can(user, "operaciones.finalizados") %}
-      <p class="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Operativos</p>
-      {% endif %}
-      {% if can(user, "operaciones.live") %}
-      <a href="/operations/live" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">
-        <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Live</span>
-        <span class="text-gray-300">→</span>
-      </a>
-      {% endif %}
-      {% if can(user, "operaciones.finalizados") %}<a href="/operations" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Finalizados <span class="text-gray-300">→</span></a>{% endif %}
-      {% if can(user, "operaciones.tarifas_propias") %}
-      <p class="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Tarifas</p>
-      <a href="/tarifario?owner=propia" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Tarifas propias <span class="text-gray-300">→</span></a>
-      {% endif %}
-      {% if can(user, "operaciones.tarifas_terceros") %}
-      <a href="/tarifario?owner=tercero" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">
-        <span>🔒 Tarifas de terceros</span> <span class="text-gray-300">→</span>
-      </a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-</div>
-
-<!-- ── Accesos secundarios ─────────────────────────────────────────────────── -->
-<div class="flex items-center gap-4 mt-8 max-w-5xl">
-  <a href="/dashboard" class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600">
-    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-    Indicadores
+<!-- ── Necesita atención ──────────────────────────────────────────────────── -->
+{% if atencion %}
+<div class="flex flex-wrap gap-2 mb-7">
+  {% for a in atencion %}
+  <a href="{{ a.href }}" class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 hover:border-amber-300 text-amber-900 text-sm font-medium pl-2.5 pr-3.5 py-2 rounded-xl transition-all hover:shadow-sm">
+    <span class="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold">{{ a.n }}</span>
+    {{ a.label }}
   </a>
-  {% if can_module(user, "usuarios") %}
-  <a href="/admin/users" class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600">
-    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-    Usuarios
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── AHORA: operativos en curso ─────────────────────────────────────────── -->
+{% if live_rows %}
+<div class="mb-8">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="relative flex h-2.5 w-2.5">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+    </span>
+    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">En curso ahora</h2>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for r in live_rows %}
+    <a href="/operations/live/{{ r.s.id }}" class="card p-5 hover:shadow-md hover:border-indigo-200 transition-all group">
+      <div class="flex items-start justify-between gap-2 mb-3">
+        <p class="font-bold text-gray-900 group-hover:text-indigo-800 truncate">{{ r.s.ship_name }}</p>
+        <span class="badge {{ 'bg-emerald-50 text-emerald-700' if r.s.status == 'active' else 'bg-amber-50 text-amber-700' }}">{{ "ACTIVO" if r.s.status == "active" else "PAUSADO" }}</span>
+      </div>
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <p class="text-2xl font-black text-gray-900 leading-none">{{ fmt_kg(r.grand.kg_total_mtr) }}</p>
+          <p class="text-[11px] text-gray-400 mt-1">kg MTR{% if r.grand.kg_coop %} · coop {{ fmt_kg(r.grand.kg_coop) }}{% endif %}</p>
+        </div>
+        <div class="text-right text-[11px] text-gray-400">
+          <p>{{ r.shift_count }} parte{{ "s" if r.shift_count != 1 }}</p>
+          {% if r.open_shifts %}<p class="text-amber-600 font-semibold">{{ r.open_shifts }} sin cerrar</p>{% endif %}
+        </div>
+      </div>
+      {% if r.grand.progreso_pct is not none %}
+      <div class="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-indigo-600 rounded-full transition-all" style="width: {{ [r.grand.progreso_pct, 100] | min }}%"></div>
+      </div>
+      <p class="text-[10px] text-gray-400 mt-1">{{ r.grand.progreso_pct | fmt_num(0) }}% del contratado</p>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── PRÓXIMO ────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+
+  {% if arribos is not none %}
+  <div class="card lg:col-span-2">
+    <div class="flex items-center justify-between px-5 pt-4 pb-2">
+      <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Próximos arribos</h2>
+      <a href="/operations/arribos" class="text-xs font-semibold text-indigo-700 hover:text-indigo-900">Ver todos →</a>
+    </div>
+    {% if arribos %}
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-gray-50">
+        {% for a in arribos %}
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/operations/arribos/{{ a.id }}'">
+          <td class="px-5 py-2.5 font-semibold text-gray-900 whitespace-nowrap">{{ a.buque }}</td>
+          <td class="px-3 py-2.5 text-gray-600 hidden sm:table-cell">{{ a.mercaderia or "—" }}</td>
+          <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">{{ a.etb or a.ready or "—" }}</td>
+          <td class="px-5 py-2.5 text-right">
+            <span class="badge bg-gray-100 text-gray-600">{{ a.estado }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">Sin arribos en seguimiento. <a href="/operations/arribos/new" class="text-indigo-700 font-medium">Cargar el primero →</a></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if despachos_hoy is not none %}
+  <a href="/despachos" class="card p-5 hover:shadow-md hover:border-indigo-200 transition-all block">
+    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">Despachos de hoy</h2>
+    <p class="text-4xl font-black text-gray-900 leading-none">{{ despachos_hoy.total }}</p>
+    <p class="text-xs text-gray-400 mt-1 mb-4">camiones programados</p>
+    <div class="flex gap-4 text-sm">
+      <div><p class="font-bold text-gray-900">{{ despachos_hoy.programado }}</p><p class="text-[11px] text-gray-400">pendientes</p></div>
+      <div><p class="font-bold text-emerald-600">{{ despachos_hoy.cargado }}</p><p class="text-[11px] text-gray-400">cargados</p></div>
+    </div>
   </a>
   {% endif %}
 </div>
+
+<!-- ── Acciones rápidas restantes ─────────────────────────────────────────── -->
+{% if quick | length > 3 %}
+<div class="flex flex-wrap gap-2">
+  {% for label, href in quick[3:] %}
+  <a href="{{ href }}" class="btn-secondary">{{ label }}</a>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% endblock %}

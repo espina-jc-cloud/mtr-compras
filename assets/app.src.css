@@ -1,0 +1,79 @@
+/* Design System MTR — fuente de static/css/app.css (compilar con scripts/build_css.sh) */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Inter local (reemplaza Google Fonts) ─────────────────────────────────── */
+@layer base {
+  @font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/static/fonts/inter-var.woff2") format("woff2");
+  }
+  body { @apply font-sans text-gray-900 antialiased; }
+  /* Microinteracción base: todo lo clickeable transiciona suave */
+  a, button, input, select, textarea { transition: all 150ms ease; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #f9fafb; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  /* Focus visible consistente (accesibilidad + look premium) */
+  a:focus-visible, button:focus-visible, input:focus-visible,
+  select:focus-visible, textarea:focus-visible {
+    outline: 2px solid #2e4a86; outline-offset: 1px;
+  }
+}
+
+/* ── Componentes canónicos ────────────────────────────────────────────────── */
+@layer components {
+  .btn-primary   { @apply inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-xl; }
+  .btn-danger    { @apply inline-flex items-center justify-center gap-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 text-sm font-semibold px-3 py-2 rounded-lg; }
+  .card          { @apply bg-white rounded-xl border border-gray-100 shadow-sm; }
+  .input         { @apply w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white; }
+  .badge         { @apply inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full; }
+  .th            { @apply px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide; }
+  .empty-state   { @apply text-sm text-gray-400 py-10 text-center; }
+
+  /* Skeleton de carga */
+  .skeleton { @apply animate-pulse bg-gray-100 rounded-lg; }
+
+  /* Sidebar */
+  .nav-item        { @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100; }
+  .nav-item-active { @apply bg-indigo-50 text-indigo-800 hover:bg-indigo-50 hover:text-indigo-800; }
+  .nav-group-label { @apply px-3 pt-5 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest; }
+}
+
+/* ── Estados de negocio (migrado de base.html) ────────────────────────────── */
+.status-pendiente  { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+.status-aprobada   { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+.status-recibida   { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+.status-facturada  { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
+.status-pagada     { background:#F3F4F6; color:#374151; border:1px solid #E5E7EB; }
+.status-rechazada  { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
+.status-cancelada  { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
+.status-borrador   { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
+.status-vencida    { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+.status-convertida_en_compra { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
+.status-mant-abierto     { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+.status-mant-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+.status-mant-cerrado     { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+.status-proj-pendiente   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+.status-proj-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
+.status-proj-pausado     { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
+.status-proj-finalizado  { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+.status-proj-cancelado   { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
+.priority-baja    { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
+.priority-media   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
+.priority-alta    { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
+.priority-urgente { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
+
+/* HTMX */
+.htmx-indicator { opacity:0; transition:opacity 200ms ease-in; }
+.htmx-request .htmx-indicator { opacity:1; }
+.htmx-request.htmx-indicator { opacity:1; }
+
+/* Separador de nav legacy (aún usado) */
+.nav-sep { width:1px; height:16px; background:#E5E7EB; display:inline-block; margin:0 4px; vertical-align:middle; }

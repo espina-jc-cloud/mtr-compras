@@ -4,243 +4,165 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>{% block title %}MTR Gestión{% endblock %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-        }
-      }
-    }
-  </script>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="icon" href="/static/logo_mtr.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js" defer></script>
   <meta http-equiv="Cache-Control" content="no-store">
+  <script>
+    // Aplicar colapso de sidebar antes del primer paint (evita flash).
+    try { if (localStorage.getItem("mtr_sidebar") === "min") document.documentElement.classList.add("sb-min"); } catch (e) {}
+  </script>
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .status-pendiente  { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
-    .status-aprobada   { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
-    .status-recibida   { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
-    .status-facturada  { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
-    .status-pagada     { background:#F3F4F6; color:#374151; border:1px solid #E5E7EB; }
-    .status-rechazada  { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
-    .status-cancelada  { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
-    .status-borrador   { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
-    .status-vencida    { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
-    .status-convertida_en_compra { background:#EDE9FE; color:#4C1D95; border:1px solid #DDD6FE; }
-    /* status mantenimiento */
-    .status-mant-abierto     { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
-    .status-mant-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
-    .status-mant-cerrado     { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
-    /* status proyectos */
-    .status-proj-pendiente   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
-    .status-proj-en_progreso { background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; }
-    .status-proj-pausado     { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
-    .status-proj-finalizado  { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
-    .status-proj-cancelado   { background:#F9FAFB; color:#9CA3AF; border:1px solid #E5E7EB; }
-    /* prioridad proyectos */
-    .priority-baja    { background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; }
-    .priority-media   { background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; }
-    .priority-alta    { background:#FED7AA; color:#9A3412; border:1px solid #FDBA74; }
-    .priority-urgente { background:#FEE2E2; color:#991B1B; border:1px solid #FECACA; }
-    a, button { transition: all .15s ease; }
-    ::-webkit-scrollbar { width:5px; height:5px; }
-    ::-webkit-scrollbar-track { background:#F9FAFB; }
-    ::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:3px; }
-    .htmx-indicator { opacity:0; transition:opacity 200ms ease-in; }
-    .htmx-request .htmx-indicator { opacity:1; }
-    .htmx-request.htmx-indicator { opacity:1; }
-    input, select, textarea { font-family: 'Inter', sans-serif; }
-    /* Nav group separator */
-    .nav-sep { width:1px; height:16px; background:#E5E7EB; display:inline-block; margin:0 4px; vertical-align:middle; }
+    /* Colapso de sidebar: etiquetas fuera, ancho mínimo */
+    .sb-min #sidebar { width: 4.25rem; }
+    .sb-min .sb-label, .sb-min .sb-group, .sb-min .sb-user-txt { display: none; }
+    .sb-min .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
   </style>
 </head>
 <body class="h-full bg-gray-50 text-gray-900">
 
 {% if user %}
-<!-- Desktop nav -->
-<header class="hidden md:block bg-white border-b border-gray-100 sticky top-0 z-40">
-  <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-    <div class="flex items-center gap-6">
-      <!-- Brand -->
-      <a href="/home" class="flex items-center gap-2 font-bold text-gray-900 tracking-tight text-sm flex-shrink-0">
-        <span class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">M</span>
-        <span class="hidden lg:inline">MTR Gestión</span>
-        <span class="lg:hidden">MTR</span>
+{% set p = request.url.path if request else "" %}
+<div class="h-full md:flex">
+
+  <!-- ── Sidebar (desktop) ─────────────────────────────────────────────────── -->
+  <aside id="sidebar" class="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-gray-200 transition-all duration-200">
+    <!-- Brand -->
+    <a href="/home" class="flex items-center gap-2.5 px-4 h-14 border-b border-gray-100 flex-shrink-0">
+      <img src="/static/logo_mtr.png" alt="MTR" class="w-8 h-8 object-contain flex-shrink-0">
+      <span class="sb-label font-bold text-gray-900 tracking-tight text-sm leading-tight">MTR<span class="block text-[9px] font-semibold text-gray-400 uppercase tracking-widest">Logística Portuaria</span></span>
+    </a>
+
+    <nav class="flex-1 overflow-y-auto px-2.5 py-3">
+      {% macro item(href, label, active, icon) -%}
+      <a href="{{ href }}" class="nav-item {{ 'nav-item-active' if active }}" {% if active %}aria-current="page"{% endif %}>
+        <svg class="w-[18px] h-[18px] flex-shrink-0 {{ 'text-indigo-700' if active else 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="{{ icon }}"/></svg>
+        <span class="sb-label truncate">{{ label }}</span>
       </a>
+      {%- endmacro %}
 
-      <nav class="flex items-center gap-0.5 text-sm">
-        <!-- Inicio: home de módulos -->
-        <a href="/home" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Inicio</a>
+      {{ item("/home", "Inicio", p == "/home" or p == "/dashboard",
+              "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6") }}
 
-        <!-- Dropdown COMPRAS -->
-        {% if can_module(user, "compras") %}
-        <div class="relative group">
-          <button class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 inline-flex items-center gap-1 cursor-default">
-            Compras
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div class="absolute top-full left-0 mt-1 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-1 hidden group-hover:block z-50">
-            {% if can(user, "compras.compras") %}<a href="/purchases" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Compras</a>{% endif %}
-            {% if can(user, "compras.cotizaciones") %}<a href="/quotes" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Cotizaciones</a>{% endif %}
-            {% if can(user, "compras.proveedores") %}<a href="/suppliers" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Proveedores</a>{% endif %}
-            {% if can(user, "compras.conciliacion") %}
-            <div class="border-t border-gray-100 my-1"></div>
-            <a href="/conciliation" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Conciliación</a>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
+      {% if can_module(user, "operaciones") %}
+      <p class="nav-group-label sb-group">Operación</p>
+      {% if can(user, "operaciones.arribos") %}{{ item("/operations/arribos", "Próximos Arribos", p.startswith("/operations/arribos"), "M13 10V3L4 14h7v7l9-11h-7z") }}{% endif %}
+      {% if can(user, "operaciones.live") %}{{ item("/operations/live", "Operativos Live", p.startswith("/operations/live"), "M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z") }}{% endif %}
+      {% if can(user, "operaciones.finalizados") %}{{ item("/operations", "Operativos", p == "/operations" or p.startswith("/operations/dashboard") or p.startswith("/operations/import"), "M5 13l4 4L19 7") }}{% endif %}
+      {% if can(user, "operaciones.diarias") %}{{ item("/operations/daily", "Operaciones Diarias", p.startswith("/operations/daily"), "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z") }}{% endif %}
+      {% if can(user, "operaciones.despachos") %}{{ item("/despachos", "Despachos", p.startswith("/despachos"), "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4") }}{% endif %}
+      {% if can(user, "operaciones.tarifas_propias") %}{{ item("/tarifario", "Tarifas", p.startswith("/tarifario"), "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z") }}{% endif %}
+      {% endif %}
 
-        <!-- Dropdown MANTENIMIENTO -->
-        {% if can_module(user, "mantenimiento") %}
-        <div class="relative group">
-          <button class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 inline-flex items-center gap-1 cursor-default">
-            Mantenimiento
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div class="absolute top-full left-0 mt-1 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-1 hidden group-hover:block z-50">
-            {% if can(user, "mantenimiento.mantenimiento") %}<a href="/maintenance" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Mantenimiento</a>{% endif %}
-            {% if can(user, "mantenimiento.equipos") %}<a href="/equipment" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Equipos</a>{% endif %}
-            {% if can(user, "mantenimiento.combustible") %}<a href="/fuel" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Combustible</a>{% endif %}
-          </div>
-        </div>
-        {% elif can(user, "mantenimiento.combustible") %}
-        <a href="/fuel" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Combustible</a>
-        {% endif %}
+      {% if can_module(user, "transporte") %}
+      <p class="nav-group-label sb-group">Transporte</p>
+      {% if can(user, "transporte.nomina") %}{{ item("/transporte/nomina", "Nómina Madre", p.startswith("/transporte/nomina"), "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z") }}{% endif %}
+      {% if can(user, "transporte.historial") %}{{ item("/transporte/historial", "Historial", p.startswith("/transporte/historial"), "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z") }}{% endif %}
+      {% endif %}
 
-        <!-- Proyectos -->
-        {% if can_module(user, "proyectos") %}
-        <a href="/projects" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Proyectos</a>
-        {% endif %}
+      {% if can_module(user, "compras") %}
+      <p class="nav-group-label sb-group">Comercial</p>
+      {% if can(user, "compras.compras") %}{{ item("/purchases", "Compras", p.startswith("/purchases"), "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2") }}{% endif %}
+      {% if can(user, "compras.cotizaciones") %}{{ item("/quotes", "Cotizaciones", p.startswith("/quotes"), "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z") }}{% endif %}
+      {% if can(user, "compras.proveedores") %}{{ item("/suppliers", "Proveedores", p.startswith("/suppliers"), "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4") }}{% endif %}
+      {% if can(user, "compras.conciliacion") %}{{ item("/conciliation", "Conciliación", p == "/conciliation", "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z") }}{% endif %}
+      {% endif %}
 
-        <!-- Dropdown TRANSPORTE -->
-        {% if can_module(user, "transporte") %}
-        <div class="relative group">
-          <button class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 inline-flex items-center gap-1 cursor-default">
-            Transporte
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div class="absolute top-full left-0 mt-1 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-1 hidden group-hover:block z-50">
-            {% if can(user, "transporte.nomina") %}<a href="/transporte/nomina"   class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Nómina Madre</a>{% endif %}
-            {% if can(user, "transporte.historial") %}<a href="/transporte/historial" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Historial</a>{% endif %}
-          </div>
-        </div>
-        {% endif %}
+      {% if can_module(user, "mantenimiento") %}
+      <p class="nav-group-label sb-group">Mantenimiento</p>
+      {% if can(user, "mantenimiento.mantenimiento") %}{{ item("/maintenance", "Mantenimiento", p.startswith("/maintenance"), "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z") }}{% endif %}
+      {% if can(user, "mantenimiento.equipos") %}{{ item("/equipment", "Equipos", p.startswith("/equipment"), "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4") }}{% endif %}
+      {% if can(user, "mantenimiento.combustible") %}{{ item("/fuel", "Combustible", p.startswith("/fuel"), "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3") }}{% endif %}
+      {% endif %}
 
-        <!-- Dropdown OPERACIONES -->
-        {% if can_module(user, "operaciones") %}
-        <div class="relative group">
-          <button class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 inline-flex items-center gap-1 cursor-default">
-            Operaciones
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div class="absolute top-full left-0 mt-1 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-1 hidden group-hover:block z-50">
-            {% if can(user, "operaciones.arribos") %}<a href="/operations/arribos" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Próximos Arribos</a>{% endif %}
-            {% if can(user, "operaciones.despachos") %}<a href="/despachos" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Despachos</a>{% endif %}
-            {% if can(user, "operaciones.diarias") %}<a href="/operations/daily" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Operaciones Diarias</a>{% endif %}
-            {% if can(user, "operaciones.live") or can(user, "operaciones.finalizados") %}
-            <div class="border-t border-gray-100 my-1"></div>
-            <p class="px-4 pt-1.5 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Operativos</p>
-            {% endif %}
-            {% if can(user, "operaciones.live") %}
-            <a href="/operations/live" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-              Live
-            </a>
-            {% endif %}
-            {% if can(user, "operaciones.finalizados") %}<a href="/operations" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Finalizados</a>{% endif %}
-            {% if can(user, "operaciones.tarifas_propias") %}
-            <div class="border-t border-gray-100 my-1"></div>
-            <a href="/tarifario" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900">Tarifas</a>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
+      {% if can_module(user, "proyectos") %}
+      <p class="nav-group-label sb-group">Proyectos</p>
+      {{ item("/projects", "Proyectos", p.startswith("/projects"), "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z") }}
+      {% endif %}
 
-        {% if can_module(user, "usuarios") %}
-        <span class="nav-sep"></span>
-        <a href="/admin/users" class="px-3 py-1.5 rounded-md font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">Usuarios</a>
-        {% endif %}
-      </nav>
-    </div>
+      {% if can_module(user, "usuarios") %}
+      <p class="nav-group-label sb-group">Administración</p>
+      {{ item("/admin/users", "Usuarios", p.startswith("/admin/users"), "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z") }}
+      {% endif %}
+    </nav>
 
-    <!-- Usuario -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 text-xs font-semibold">
-          {{ user.name[0]|upper }}
-        </div>
-        <div class="text-xs leading-tight hidden lg:block">
-          <p class="font-medium text-gray-800">{{ user.name.split()[0] }}</p>
+    <!-- Usuario + colapso -->
+    <div class="border-t border-gray-100 p-2.5 flex-shrink-0">
+      <div class="flex items-center gap-2 px-1.5 py-1.5">
+        <div class="w-8 h-8 rounded-full bg-indigo-900 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{{ user.name[0]|upper }}</div>
+        <div class="sb-user-txt text-xs leading-tight min-w-0 flex-1">
+          <p class="font-semibold text-gray-800 truncate">{{ user.name.split()[0] }}</p>
           <p class="text-gray-400 capitalize">{{ user.role }}</p>
         </div>
-        <a href="/logout" class="ml-1 p-1 text-gray-400 hover:text-gray-600 rounded" title="Salir">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <a href="/logout" class="p-1.5 text-gray-400 hover:text-red-500 rounded-lg flex-shrink-0" title="Salir">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
         </a>
       </div>
+      <button onclick="document.documentElement.classList.toggle('sb-min');try{localStorage.setItem('mtr_sidebar',document.documentElement.classList.contains('sb-min')?'min':'full')}catch(e){}"
+              class="w-full flex items-center justify-center py-1.5 mt-1 text-gray-300 hover:text-gray-500 rounded-lg" title="Colapsar menú">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+      </button>
     </div>
-  </div>
-</header>
+  </aside>
 
-<!-- Mobile top bar -->
-<header class="md:hidden bg-white border-b border-gray-100 sticky top-0 z-40">
-  <div class="px-4 h-12 flex items-center justify-between">
-    <a href="/home" class="font-bold text-gray-900 text-sm flex items-center gap-2">
-      <span class="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">M</span>
-      MTR Gestión
-    </a>
-    <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 text-xs font-semibold">
-        {{ user.name[0]|upper }}
+  <!-- ── Contenido ─────────────────────────────────────────────────────────── -->
+  <div class="flex-1 min-w-0 md:h-full md:overflow-y-auto">
+
+    <!-- Mobile top bar -->
+    <header class="md:hidden bg-white border-b border-gray-100 sticky top-0 z-40">
+      <div class="px-4 h-12 flex items-center justify-between">
+        <a href="/home" class="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <img src="/static/logo_mtr.png" alt="MTR" class="w-6 h-6 object-contain">
+          MTR Gestión
+        </a>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-indigo-900 flex items-center justify-center text-white text-xs font-bold">{{ user.name[0]|upper }}</div>
+          <a href="/logout" class="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="Salir">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          </a>
+        </div>
       </div>
-      <a href="/logout" class="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="Salir">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-      </a>
-    </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 md:px-8 py-5 md:py-7 pb-24 md:pb-10">
+      {% block content %}{% endblock %}
+    </main>
   </div>
-</header>
-{% endif %}
+</div>
 
-<main class="max-w-7xl mx-auto px-4 md:px-6 py-5 {% if user %}pb-24 md:pb-8{% endif %}">
-  {% block content %}{% endblock %}
-</main>
-
-{% if user %}
 <!-- Mobile bottom tab bar -->
 <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40" style="padding-bottom:env(safe-area-inset-bottom)">
-
-  {# ── Barra mobile basada en permisos: Inicio + hasta 4 módulos permitidos ── #}
   {% set mobile_tabs = [
-      {"href": "/purchases",      "key": "compras.compras",            "label": "Compras",   "color": "indigo",  "d": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},
-      {"href": "/maintenance",    "key": "mantenimiento.mantenimiento","label": "Mant.",     "color": "amber",   "d": "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"},
-      {"href": "/fuel",           "key": "mantenimiento.combustible",  "label": "Comb.",     "color": "orange",  "d": "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"},
-      {"href": "/projects",       "key": "proyectos.proyectos",        "label": "Proyect.",  "color": "violet",  "d": "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"},
-      {"href": "/despachos",      "key": "operaciones.despachos",      "label": "Despachos", "color": "emerald", "d": "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"},
-      {"href": "/operations/live","key": "operaciones.live",           "label": "Operativos","color": "emerald", "d": "M13 10V3L4 14h7v7l9-11h-7z"}
+      {"href": "/purchases",      "key": "compras.compras",            "label": "Compras",   "d": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},
+      {"href": "/maintenance",    "key": "mantenimiento.mantenimiento","label": "Mant.",     "d": "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"},
+      {"href": "/fuel",           "key": "mantenimiento.combustible",  "label": "Comb.",     "d": "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"},
+      {"href": "/projects",       "key": "proyectos.proyectos",        "label": "Proyect.",  "d": "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"},
+      {"href": "/despachos",      "key": "operaciones.despachos",      "label": "Despachos", "d": "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"},
+      {"href": "/operations/live","key": "operaciones.live",           "label": "Operativos","d": "M13 10V3L4 14h7v7l9-11h-7z"}
   ] %}
   {% set ns = namespace(shown=0) %}
   <div class="flex justify-around h-16">
-    <a href="/home" class="flex flex-col items-center justify-center gap-0.5 px-3 text-gray-400 hover:text-indigo-600">
+    <a href="/home" class="flex flex-col items-center justify-center gap-0.5 px-3 text-gray-400 hover:text-indigo-700">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
       <span class="text-[10px] font-medium">Inicio</span>
     </a>
     {% for t in mobile_tabs %}
       {% if ns.shown < 4 and can(user, t.key) %}
       {% set ns.shown = ns.shown + 1 %}
-      <a href="{{ t.href }}" class="flex flex-col items-center justify-center gap-0.5 px-3 text-gray-400 hover:text-{{ t.color }}-600">
+      <a href="{{ t.href }}" class="flex flex-col items-center justify-center gap-0.5 px-3 text-gray-400 hover:text-indigo-700">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="{{ t.d }}"/></svg>
         <span class="text-[10px] font-medium">{{ t.label }}</span>
       </a>
       {% endif %}
     {% endfor %}
   </div>
-
-
 </nav>
+
+{% else %}
+{# Páginas sin sesión (login): mismo bloque content, layout simple #}
+<main class="max-w-7xl mx-auto px-4 md:px-6 py-5">
+  {{ self.content() }}
+</main>
 {% endif %}
 
 {% block scripts %}{% endblock %}
