@@ -47,7 +47,7 @@
 </div>
 
 <!-- ── Filtros ──────────────────────────────────────────────────────────────── -->
-<form method="get" action="/despachos" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
+<form method="get" action="/despachos" data-autofilter data-remember="despachos" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
     <input type="text" name="q" value="{{ f_q }}" placeholder="Buscar patente, chofer, remito…"
       class="col-span-2 sm:col-span-3 lg:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
@@ -96,7 +96,7 @@
 
 <!-- Desktop table -->
 <div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-  <table class="w-full text-sm">
+  <table data-sort class="w-full text-sm">
     <thead>
       <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
         <th class="px-3 py-2.5">Fecha prog.</th>

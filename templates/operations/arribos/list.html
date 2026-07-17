@@ -19,7 +19,7 @@
 {% endif %}
 
 <!-- Filtros -->
-<form method="get" class="flex flex-wrap gap-2 mb-4 text-sm">
+<form method="get" data-autofilter data-remember="arribos" class="flex flex-wrap gap-2 items-center mb-4 text-sm">
   <select name="estado" class="border border-gray-200 rounded-lg px-3 py-2 bg-white">
     <option value="">Todos los estados</option>
     {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if params.estado == val }}>{{ label }}</option>{% endfor %}
@@ -31,7 +31,7 @@
 
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
   {% if arribos %}
-  <table class="w-full text-sm">
+  <table data-sort class="w-full text-sm">
     <thead>
       <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
         <th class="px-4 py-2.5">Estado</th>

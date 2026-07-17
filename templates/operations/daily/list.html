@@ -39,7 +39,7 @@
   </div>
 
   <div class="bg-white rounded-xl border p-4 shadow-sm">
-    <form method="get" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+    <form method="get" data-autofilter data-remember="daily" class="grid grid-cols-1 md:grid-cols-6 gap-3">
       <input type="date" name="date_from" value="{{ filters.date_from }}" class="border rounded-lg px-3 py-2 text-sm">
       <input type="date" name="date_to" value="{{ filters.date_to }}" class="border rounded-lg px-3 py-2 text-sm">
 
