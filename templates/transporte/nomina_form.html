@@ -2,8 +2,10 @@
 {% block title %}{% if item %}Editar transporte{% else %}Nuevo transporte{% endif %} — MTR{% endblock %}
 {% block content %}
 
-{% set is_edit = item is not none %}
+{% set is_edit = item and item.id %}
 {% set f = form if form is defined else item %}
+<!-- DEPLOY_MARKER_v2_2026_07_21 -->
+
 
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
