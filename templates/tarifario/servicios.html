@@ -79,7 +79,7 @@
 </div>
 {% else %}
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-  <p class="text-gray-400 text-sm">No hay servicios cargados.</p>
+  {% with msg="No hay servicios cargados." %}{% include "partials/_empty.html" %}{% endwith %}
 </div>
 {% endif %}
 

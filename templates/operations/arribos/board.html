@@ -78,7 +78,7 @@
       <p class="text-xs text-gray-400">Actualizado {{ now | fmt_ar("%d/%m/%Y %H:%M") }} hs</p>
     </div>
     {% else %}
-    <p class="text-sm text-gray-400 py-10 text-center">No hay arribos activos.</p>
+    {% with msg="No hay arribos activos." %}{% include "partials/_empty.html" %}{% endwith %}
     {% endif %}
   </div>
 

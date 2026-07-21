@@ -136,20 +136,8 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center mb-8">
-  <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-      d="M13 10V3L4 14h7v7l9-11h-7z"/>
-  </svg>
-  <p class="text-gray-500 font-medium mb-1">No hay operativos activos</p>
-  <p class="text-gray-400 text-sm mb-4">Creá uno para empezar a cargar datos en tiempo real.</p>
-  <a href="/operations/live/new"
-    class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-    </svg>
-    Nuevo operativo
-  </a>
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm mb-8">
+  {% with msg="No hay operativos activos. Creá uno para cargar datos en tiempo real.", action_href="/operations/live/new", action_label="Iniciar un operativo" %}{% include "partials/_empty.html" %}{% endwith %}
 </div>
 {% endif %}
 

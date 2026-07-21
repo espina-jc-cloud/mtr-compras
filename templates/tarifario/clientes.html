@@ -71,7 +71,7 @@
 </div>
 {% else %}
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-  <p class="text-gray-400 text-sm">Todavía no hay clientes. Agregá el primero arriba.</p>
+  {% with msg="Todavía no hay clientes. Agregá el primero con el formulario." %}{% include "partials/_empty.html" %}{% endwith %}
 </div>
 {% endif %}
 

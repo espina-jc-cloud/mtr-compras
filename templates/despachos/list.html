@@ -218,7 +218,7 @@
 
 {% else %}
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-  <p class="text-gray-400 text-sm mb-3">No hay registros con los filtros aplicados.</p>
+  {% with msg="No hay despachos con los filtros aplicados." %}{% include "partials/_empty.html" %}{% endwith %}
   <a href="/despachos/import" class="text-indigo-600 text-sm font-medium hover:text-indigo-800">
     Importar primer archivo →
   </a>
