@@ -227,6 +227,15 @@ def run():
     else:
         print(f"✓ Superadmin ya existe: {admin_email}")
 
+    # ── TEMPORAL: reset de contraseña de Franco (remover después de login) ─────
+    _franco = db.query(models.User).filter(
+        models.User.email == "pistonefranco04@gmail.com"
+    ).first()
+    if _franco:
+        _franco.hashed_password = hash_password("Temporal2026!")
+        db.commit()
+        print("⚠ Contraseña de pistonefranco04@gmail.com reseteada a Temporal2026!")
+
     # Stats de tablas operativas
     counts = {
         "operations":               db.query(models.Operation).count(),
