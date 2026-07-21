@@ -286,6 +286,43 @@ def _parse_nutrien(
                 continue
             data_rows.append(r)
 
+        # ── Agrupación de camiones por BORDE GRUESO (regla real Nutrien) ──────────
+        # Un camión multi-fila (mezcla/embolsado/consolidado) está encerrado por
+        # bordes gruesos (medium/thick): empieza en una fila con top grueso y
+        # termina en la fila con bottom grueso. Las filas SIN borde grueso son
+        # camiones individuales (el granel monoproducto entero).
+        def _thick_border(row_idx, edge):
+            for c in range(1, ws.max_column + 1):
+                s = getattr(ws.cell(row_idx, c).border, edge, None)
+                if s and s.style in ("medium", "thick"):
+                    return True
+            return False
+
+        row_grupo: dict = {}          # sheet_row → id de camión
+        _gid = 0
+        _cur = None
+        _in_block = False
+        for r in data_rows:
+            top_thick = _thick_border(r, "top")
+            bot_thick = _thick_border(r, "bottom")
+            if _in_block:
+                row_grupo[r] = _cur
+                if bot_thick:
+                    _in_block = False
+            elif top_thick:
+                _gid += 1
+                _cur = _gid
+                row_grupo[r] = _cur
+                _in_block = not bot_thick   # si abre y cierra en la misma fila
+            else:
+                _gid += 1
+                row_grupo[r] = _gid
+        # ¿La hoja realmente usa bordes gruesos para agrupar? Si no hay ninguno,
+        # cada fila es su propio grupo y el fallback por ST (import) sigue aplicando.
+        _usa_bordes = any(
+            _thick_border(r, "top") or _thick_border(r, "bottom") for r in data_rows
+        )
+
         # Detectar unidad de cantidad: si el promedio de valores numéricos > 200 → kg
         cantidades = [
             float(ws.cell(r, c_cant).value)
@@ -339,13 +376,19 @@ def _parse_nutrien(
                 })
                 continue
 
-            # 2. "SM XXXXX" (SM con número): solo conservar la fila MEZCLADO
+            # 2. "SM XXXXX" (SM con número)
             if st_upper.startswith("SM ") and len(st_upper) > 3:
-                if "MEZCLADO" not in prod_upper:
-                    # Sub-fila de packaging de mezcla numerada → capturar bolsa_kg
-                    if any(kw in prod_upper for kw in PACKAGING_KEYWORDS):
-                        # guardar info de packaging para el SM que ya se procesó
-                        pass
+                if _usa_bordes:
+                    # Formato consolidado (bordes): los COMPONENTES con cantidad
+                    # real (FOSFATO, CLORURO, UREA…) son los productos del camión.
+                    # Saltar solo los marcadores sin cantidad: "MEZCLADO DE
+                    # FERTILIZANTES" y packaging (EMBOLSADO/BOLSONES).
+                    if cant is None and ("MEZCLADO" in prod_upper
+                                         or any(kw in prod_upper for kw in PACKAGING_KEYWORDS)):
+                        continue
+                    # con cantidad → se emite como producto normal más abajo
+                elif "MEZCLADO" not in prod_upper:
+                    # Formato plantilla (D1/D2/SM): solo conservar la fila MEZCLADO
                     continue
 
             # 3. Sub-filas de packaging sin cantidad real
@@ -433,6 +476,7 @@ def _parse_nutrien(
                 "bolsa_kg":       bolsa_kg_val,
                 "npk":            npk,
                 "componentes_mezcla": componentes_json,
+                "camion_grupo":   row_grupo.get(r) if _usa_bordes else None,
                 "row_hash":       _row_hash("nutrien", fecha, st, prod, trans),
             })
 
@@ -1232,25 +1276,29 @@ async def import_confirm(
     } if all_hashes else set()
 
     # ── Agrupación de camiones (solo Nutrien) ─────────────────────────────────
-    # Regla real (plantilla + PROJECT_HANDOFF): el camión = el número de cupo
-    # ST / SD / OD. Filas con el MISMO ST son el mismo camión (ej. embolsado:
-    # cupo + packaging; mezcla: SM + componentes). STs distintos son camiones
-    # distintos y NUNCA se combinan por peso.
-    _grupo_counter = 0
-    st_to_grupo: dict = {}
+    # Regla real: el camión se divide por BORDE GRUESO en la planilla (mezclas,
+    # embolsados y consolidados), salvo el granel monoproducto entero que es un
+    # camión por fila. Cuando el archivo trae esa info, el parser ya asignó
+    # `camion_grupo` por borde → se respeta tal cual.
+    #
+    # Fallback (archivos pegados en la plantilla, sin bordes): agrupar por el
+    # número de cupo ST / SD / OD.
     nutrien_rows = [(i, r) for i, r in enumerate(rows) if r.get("source_type") == "nutrien"]
+    _tiene_bordes = any(r.get("camion_grupo") is not None for _, r in nutrien_rows)
 
-    for i, r in nutrien_rows:
-        st_key = (str(r.get("st_sd_od") or "").strip().upper()) or None
-        if st_key is not None:
-            if st_key not in st_to_grupo:
-                st_to_grupo[st_key] = _grupo_counter
+    if not _tiene_bordes:
+        _grupo_counter = 0
+        st_to_grupo: dict = {}
+        for i, r in nutrien_rows:
+            st_key = (str(r.get("st_sd_od") or "").strip().upper()) or None
+            if st_key is not None:
+                if st_key not in st_to_grupo:
+                    st_to_grupo[st_key] = _grupo_counter
+                    _grupo_counter += 1
+                r["camion_grupo"] = st_to_grupo[st_key]
+            else:
+                r["camion_grupo"] = _grupo_counter
                 _grupo_counter += 1
-            r["camion_grupo"] = st_to_grupo[st_key]
-        else:
-            # Sin ST → camión propio (no se agrupa con nadie)
-            r["camion_grupo"] = _grupo_counter
-            _grupo_counter += 1
 
     inserted = 0
     skipped  = 0
