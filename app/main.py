@@ -14,6 +14,7 @@ from app.routers import tariffs
 from app.routers import projects
 from app.routers import transporte
 from app.routers import arribos
+from app.routers import search
 from app.routers import polinomica
 from app.deps import require_role
 
@@ -48,6 +49,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 app.include_router(auth.router)
+app.include_router(search.router)
 app.include_router(dashboard.router)
 app.include_router(purchases.router)
 app.include_router(suppliers.router)

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Buscar buque — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-xl font-semibold text-gray-900 mb-1">Buscar buque</h1>
+  <p class="text-sm text-gray-500 mb-5">Encontrá un buque en Arribos, Operativos Live e históricos.</p>
+
+  <form method="get" action="/buscar" class="flex gap-2 mb-6">
+    <input type="text" name="q" value="{{ q }}" autofocus placeholder="Nombre del buque…"
+      class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">Buscar</button>
+  </form>
+
+  {% if q and q|length < 2 %}
+  <p class="text-sm text-gray-400">Escribí al menos 2 caracteres.</p>
+  {% elif q and total == 0 %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+    {% with msg="Sin coincidencias para “" ~ q ~ "”." %}{% include "partials/_empty.html" %}{% endwith %}
+  </div>
+  {% elif q %}
+  <p class="text-xs text-gray-400 mb-3">{{ total }} resultado{{ "s" if total != 1 }} para “{{ q }}”</p>
+
+  {% if arribos %}
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Próximos Arribos ({{ arribos|length }})</h2>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 mb-6">
+    {% for a in arribos %}
+    <a href="/operations/arribos/{{ a.id }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900 truncate">{{ a.buque }}</p>
+        <p class="text-xs text-gray-400 truncate">{{ a.cliente or "—" }}{% if a.mercaderia %} · {{ a.mercaderia }}{% endif %}</p>
+      </div>
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ml-3 {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if lives %}
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Operativos Live ({{ lives|length }})</h2>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 mb-6">
+    {% for s in lives %}
+    <a href="/operations/live/{{ s.id }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900 truncate">{{ s.ship_name }}</p>
+        <p class="text-xs text-gray-400">{{ s.created_at | fmt_date }}</p>
+      </div>
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ml-3
+        {% if s.status == 'active' %}bg-emerald-100 text-emerald-700{% elif s.status == 'paused' %}bg-amber-100 text-amber-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+        {{ s.status }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if historicos %}
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Operativos históricos ({{ historicos|length }})</h2>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 mb-6">
+    {% for op in historicos %}
+    <a href="/operations/{{ op.id }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900 truncate">{{ op.ship_name }}</p>
+        <p class="text-xs text-gray-400 truncate">{{ op.client or "—" }}{% if op.product %} · {{ op.product }}{% endif %}</p>
+      </div>
+      <span class="text-gray-300 flex-shrink-0 ml-3">→</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+{% endblock %}

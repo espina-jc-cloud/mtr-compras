@@ -37,6 +37,17 @@
       <span class="sb-label font-bold text-gray-900 tracking-tight text-sm leading-tight">MTR<span class="block text-[9px] font-semibold text-gray-400 uppercase tracking-widest">Logística Portuaria</span></span>
     </a>
 
+    <!-- Búsqueda de buque global -->
+    {% if can(user, "operaciones.arribos") or can(user, "operaciones.live") or can(user, "operaciones.finalizados") %}
+    <form method="get" action="/buscar" class="sb-label px-2.5 pt-3">
+      <div class="relative">
+        <svg class="w-4 h-4 text-gray-300 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+        <input type="text" name="q" placeholder="Buscar buque…"
+          class="w-full border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 text-xs bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400">
+      </div>
+    </form>
+    {% endif %}
+
     <nav class="flex-1 overflow-y-auto px-2.5 py-3">
       {% macro item(href, label, active, icon, badge=0) -%}
       <a href="{{ href }}" class="nav-item {{ 'nav-item-active' if active }}" {% if active %}aria-current="page"{% endif %}>
