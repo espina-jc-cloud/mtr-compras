@@ -2,6 +2,15 @@
 {% block title %}{{ session.ship_name }} — Operativo Live — MTR{% endblock %}
 {% block content %}
 
+<style>
+  .live-tab-btn{padding:.5rem .9rem;font-size:.8125rem;font-weight:600;color:#6b7280;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s}
+  .live-tab-btn:hover{color:#111827}
+  .live-tab-btn.is-active{color:#0e1c3f;border-bottom-color:#0e1c3f}
+  .ltab-count{display:inline-block;min-width:1.1rem;padding:0 .3rem;font-size:.6875rem;line-height:1rem;text-align:center;border-radius:9999px;background:#eef2ff;color:#4338ca;font-weight:700}
+  .ltab{display:none}
+  .ltab.is-active{display:block}
+</style>
+
 <!-- Header -->
 <div class="flex items-start justify-between gap-3 mb-5">
   <div class="flex items-start gap-3 min-w-0">
@@ -72,6 +81,22 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════
+     Tabs del operativo (client-side, sin recargar)
+     ══════════════════════════════════════════════════════ -->
+<div class="border-b border-gray-200 mb-5 -mx-1 overflow-x-auto">
+  <nav class="flex gap-1 px-1 min-w-max" id="liveTabs">
+    <button type="button" class="live-tab-btn" data-tab="resumen">Resumen</button>
+    <button type="button" class="live-tab-btn" data-tab="turnos">Turnos{% if shift_history %} <span class="ltab-count">{{ shift_history | length }}</span>{% endif %}</button>
+    <button type="button" class="live-tab-btn" data-tab="fotos">Fotos{% if session_photos %} <span class="ltab-count">{{ session_photos | length }}</span>{% endif %}</button>
+    <button type="button" class="live-tab-btn" data-tab="cierre">Cierre &amp; Factura</button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: RESUMEN — progreso, acumulado y estadísticas
+     ══════════════════════════════════════════════════════ -->
+<div class="ltab" data-tab="resumen">
 <!-- ══════════════════════════════════════════════════════
      BLOQUE A: Progreso por producto
      Incluye turnos abiertos + cerrados (dashboard live)
@@ -226,6 +251,56 @@
   ↑ Los acumulados incluyen turnos abiertos y cerrados — datos en tiempo real
 </p>
 
+<!-- ══════════════════════════════════════════════════════
+     BLOQUE E: Estadísticas del operativo (demoras + equipos)
+     ══════════════════════════════════════════════════════ -->
+{% if session_delay_total > 0 or session_equip_total > 0 %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Estadísticas del operativo</h2>
+  <div class="grid grid-cols-2 gap-3">
+    <!-- Demoras acumuladas -->
+    {% if session_delay_total > 0 %}
+    <div class="rounded-xl bg-amber-50 border border-amber-100 p-3">
+      <div class="text-xs text-amber-600 font-semibold mb-1">⏱ Demoras totales</div>
+      <div class="text-lg font-bold text-amber-700">{{ session_delay_fmt }}</div>
+      {% if session_delay_by_type %}
+      <div class="mt-2 space-y-1">
+        {% for tipo, mins in session_delay_by_type.items() %}
+        <div class="flex justify-between text-[11px]">
+          <span class="text-amber-600">{{ MOTIVO_LABELS.get(tipo, tipo) }}</span>
+          <span class="font-semibold text-amber-700">{{ format_minutes(mins) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    <!-- Equipos acumulados -->
+    {% if session_equip_total > 0 %}
+    <div class="rounded-xl bg-blue-50 border border-blue-100 p-3">
+      <div class="text-xs text-blue-600 font-semibold mb-1">🔧 Horas equipo total</div>
+      <div class="text-lg font-bold text-blue-700">{{ session_equip_total }} hs</div>
+      {% if session_equip_by_empresa %}
+      <div class="mt-2 space-y-1">
+        {% for emp, hrs in session_equip_by_empresa.items() %}
+        <div class="flex justify-between text-[11px]">
+          <span class="text-blue-600">{{ emp }}</span>
+          <span class="font-bold text-blue-700">{{ hrs }} hs</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+</div><!-- /tab resumen -->
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: TURNOS — borradores, acción nuevo turno e historial
+     ══════════════════════════════════════════════════════ -->
+<div class="ltab" data-tab="turnos">
 <!-- ══════════════════════════════════════════════════════
      BLOQUE B: Turnos en borrador (puede haber más de uno)
      ══════════════════════════════════════════════════════ -->
@@ -464,10 +539,12 @@
   {% endif %}
 </div>
 {% endif %}
+</div><!-- /tab turnos -->
 
 <!-- ══════════════════════════════════════════════════════
-     BLOQUE D.5: Fotos del operativo
+     TAB: FOTOS — galería del operativo
      ══════════════════════════════════════════════════════ -->
+<div class="ltab" data-tab="fotos">
 <div class="mb-5">
   <div class="flex items-center justify-between mb-3">
     <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -569,8 +646,9 @@
   </div>
   {% endif %}
 </div>
+</div><!-- /tab fotos -->
 
-<!-- Lightbox (dialog nativo) -->
+<!-- Lightbox (dialog nativo) — global, usado por Turnos y Fotos -->
 <dialog id="photo-dialog" class="rounded-2xl shadow-2xl p-0 max-w-2xl w-[95vw] backdrop:bg-black/70">
   <div class="relative bg-black rounded-t-2xl">
     <img id="photo-dialog-img" src="" alt=""
@@ -608,50 +686,9 @@ document.getElementById('photo-dialog').addEventListener('click', function(e) {
 </script>
 
 <!-- ══════════════════════════════════════════════════════
-     BLOQUE E: Estadísticas del operativo (demoras + equipos)
+     TAB: CIERRE & FACTURA — cierre del operativo, factura coop y opciones
      ══════════════════════════════════════════════════════ -->
-{% if session_delay_total > 0 or session_equip_total > 0 %}
-<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
-  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Estadísticas del operativo</h2>
-  <div class="grid grid-cols-2 gap-3">
-    <!-- Demoras acumuladas -->
-    {% if session_delay_total > 0 %}
-    <div class="rounded-xl bg-amber-50 border border-amber-100 p-3">
-      <div class="text-xs text-amber-600 font-semibold mb-1">⏱ Demoras totales</div>
-      <div class="text-lg font-bold text-amber-700">{{ session_delay_fmt }}</div>
-      {% if session_delay_by_type %}
-      <div class="mt-2 space-y-1">
-        {% for tipo, mins in session_delay_by_type.items() %}
-        <div class="flex justify-between text-[11px]">
-          <span class="text-amber-600">{{ MOTIVO_LABELS.get(tipo, tipo) }}</span>
-          <span class="font-semibold text-amber-700">{{ format_minutes(mins) }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-    <!-- Equipos acumulados -->
-    {% if session_equip_total > 0 %}
-    <div class="rounded-xl bg-blue-50 border border-blue-100 p-3">
-      <div class="text-xs text-blue-600 font-semibold mb-1">🔧 Horas equipo total</div>
-      <div class="text-lg font-bold text-blue-700">{{ session_equip_total }} hs</div>
-      {% if session_equip_by_empresa %}
-      <div class="mt-2 space-y-1">
-        {% for emp, hrs in session_equip_by_empresa.items() %}
-        <div class="flex justify-between text-[11px]">
-          <span class="text-blue-600">{{ emp }}</span>
-          <span class="font-bold text-blue-700">{{ hrs }} hs</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
+<div class="ltab" data-tab="cierre">
 <!-- ══════════════════════════════════════════════════════
      BLOQUE F: Cierre del operativo (Fase 2)
      Visible para: active (muestra botón o warning), closed, reconciled
@@ -839,5 +876,28 @@ document.getElementById('photo-dialog').addEventListener('click', function(e) {
   </div>
 </details>
 {% endif %}
+</div><!-- /tab cierre -->
+
+<script>
+(function () {
+  var KEY = 'live_tab_' + location.pathname;
+  var btns = Array.prototype.slice.call(document.querySelectorAll('.live-tab-btn'));
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.ltab'));
+  function show(tab) {
+    btns.forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === tab); });
+    panels.forEach(function (p) { p.classList.toggle('is-active', p.dataset.tab === tab); });
+    try { sessionStorage.setItem(KEY, tab); } catch (e) {}
+  }
+  btns.forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.tab); }); });
+  var initial = null;
+  try { initial = sessionStorage.getItem(KEY); } catch (e) {}
+  if (location.hash) {
+    var h = location.hash.slice(1);
+    if (document.querySelector('.ltab[data-tab="' + h + '"]')) initial = h;
+  }
+  var valid = panels.some(function (p) { return p.dataset.tab === initial; });
+  show(valid ? initial : 'resumen');
+})();
+</script>
 
 {% endblock %}
