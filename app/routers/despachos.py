@@ -1232,40 +1232,24 @@ async def import_confirm(
     } if all_hashes else set()
 
     # ── Agrupación de camiones (solo Nutrien) ─────────────────────────────────
-    # Nutrien no indica qué filas van en el mismo camión.
-    # Algoritmo: agrupar por destinatario+fecha, luego pack greedy por camión de ~35t.
-    # Si el total del grupo cabe en un camión (≤ 40t), van todos juntos.
-    _TRUCK_CAP = 40.0
+    # Regla real (plantilla + PROJECT_HANDOFF): el camión = el número de cupo
+    # ST / SD / OD. Filas con el MISMO ST son el mismo camión (ej. embolsado:
+    # cupo + packaging; mezcla: SM + componentes). STs distintos son camiones
+    # distintos y NUNCA se combinan por peso.
     _grupo_counter = 0
-
-    from itertools import groupby as _groupby
+    st_to_grupo: dict = {}
     nutrien_rows = [(i, r) for i, r in enumerate(rows) if r.get("source_type") == "nutrien"]
 
-    # Agrupar por (destinatario, fecha) manteniendo el orden de aparición
-    seen_keys: dict = {}
     for i, r in nutrien_rows:
-        key = (r.get("destinatario") or "", str(r.get("scheduled_date") or ""))
-        seen_keys.setdefault(key, []).append(i)
-
-    for key, indices in seen_keys.items():
-        group_rows = [rows[i] for i in indices]
-        total = sum(float(r.get("cantidad_mt") or 0) for r in group_rows)
-
-        if total <= _TRUCK_CAP:
-            # Todo en un solo camión
-            for r in group_rows:
-                r["camion_grupo"] = _grupo_counter
-            _grupo_counter += 1
+        st_key = (str(r.get("st_sd_od") or "").strip().upper()) or None
+        if st_key is not None:
+            if st_key not in st_to_grupo:
+                st_to_grupo[st_key] = _grupo_counter
+                _grupo_counter += 1
+            r["camion_grupo"] = st_to_grupo[st_key]
         else:
-            # Pack greedy: llenar camiones de hasta _TRUCK_CAP t
-            acum = 0.0
-            for r in group_rows:
-                cant = float(r.get("cantidad_mt") or 0)
-                if acum > 0 and acum + cant > _TRUCK_CAP:
-                    _grupo_counter += 1
-                    acum = 0.0
-                r["camion_grupo"] = _grupo_counter
-                acum += cant
+            # Sin ST → camión propio (no se agrupa con nadie)
+            r["camion_grupo"] = _grupo_counter
             _grupo_counter += 1
 
     inserted = 0
