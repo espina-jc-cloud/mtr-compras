@@ -61,4 +61,115 @@ from app.permissions import can as _can, can_module as _can_module
 _env.globals["can"]        = _can
 _env.globals["can_module"] = _can_module
 
+
+# ── Badges de pendientes en el sidebar (Etapa 4) ───────────────────────────────
+# Cuentas ligeras (compras por autorizar + turnos abiertos) cacheadas 60s por
+# usuario para no golpear la DB en cada render del shell.
+import time as _time
+_badge_cache: dict = {}      # user_id -> (timestamp, {"compras": n, "turnos": n})
+_BADGE_TTL = 60
+
+def _pending_badges(user):
+    if user is None:
+        return {"compras": 0, "turnos": 0}
+    now = _time.time()
+    hit = _badge_cache.get(user.id)
+    if hit and now - hit[0] < _BADGE_TTL:
+        return hit[1]
+
+    from app.database import SessionLocal
+    from app import models
+    from app.models_live import OperationLiveShift, OperationLiveSession
+
+    out = {"compras": 0, "turnos": 0}
+    db = SessionLocal()
+    try:
+        if _can(user, "compras.compras"):
+            q = db.query(models.Purchase).filter(
+                models.Purchase.deleted_at == None,
+                models.Purchase.status == "pendiente",
+            )
+            # Mismo aislamiento por rol/planta que el listado de Compras.
+            if user.role == "planta":
+                q = q.filter(models.Purchase.requested_by_id == user.id)
+            elif user.role == "autorizador" and user.plant != "TODAS":
+                q = q.filter(models.Purchase.plant == user.plant)
+            out["compras"] = q.count()
+
+        if _can(user, "operaciones.live"):
+            out["turnos"] = (
+                db.query(OperationLiveShift)
+                .join(OperationLiveSession,
+                      OperationLiveShift.session_id == OperationLiveSession.id)
+                .filter(OperationLiveShift.status == "open",
+                        OperationLiveSession.status.in_(("active", "paused")))
+                .count()
+            )
+    except Exception:
+        # Nunca romper el shell por un badge.
+        out = {"compras": 0, "turnos": 0}
+    finally:
+        db.close()
+
+    _badge_cache[user.id] = (now, out)
+    return out
+
+_env.globals["pending_badges"] = _pending_badges
+
+
+# ── Breadcrumb ligero (Etapa 4): módulo › sección › hoja ───────────────────────
+_BREADCRUMB_MAP = [
+    ("/operations/arribos",   "Operación",      "Próximos Arribos"),
+    ("/operations/live",      "Operación",      "Operativos Live"),
+    ("/operations/daily",     "Operación",      "Operaciones Diarias"),
+    ("/operations",           "Operación",      "Operativos"),
+    ("/despachos",            "Operación",      "Despachos"),
+    ("/tarifario",            "Operación",      "Tarifas"),
+    ("/polinomica",           "Operación",      "Polinómica CNA"),
+    ("/transporte/nomina",    "Transporte",     "Nómina Madre"),
+    ("/transporte/historial", "Transporte",     "Historial"),
+    ("/purchases",            "Comercial",      "Compras"),
+    ("/quotes",               "Comercial",      "Cotizaciones"),
+    ("/suppliers",            "Comercial",      "Proveedores"),
+    ("/conciliation",         "Comercial",      "Conciliación"),
+    ("/maintenance",          "Mantenimiento",  "Mantenimiento"),
+    ("/equipment",            "Mantenimiento",  "Equipos"),
+    ("/fuel",                 "Mantenimiento",  "Combustible"),
+    ("/projects",             "Proyectos",      "Proyectos"),
+    ("/admin/users",          "Administración", "Usuarios"),
+]
+
+def _breadcrumb(path):
+    if not path:
+        return []
+    best = None
+    for prefix, module, section in _BREADCRUMB_MAP:
+        if path == prefix or path.startswith(prefix + "/"):
+            if best is None or len(prefix) > len(best[0]):
+                best = (prefix, module, section)
+    if not best:
+        return []
+    prefix, module, section = best
+    crumbs = [{"label": module, "href": None},
+              {"label": section, "href": prefix}]
+    tail = path[len(prefix):].strip("/")
+    if tail:
+        low = tail.lower()
+        if low == "new" or low.startswith("new/"):
+            leaf = "Nuevo"
+        elif "edit" in low:
+            leaf = "Editar"
+        elif low in ("import", "imports"):
+            leaf = "Importar"
+        elif low == "board":
+            leaf = "Vista compartible"
+        elif low == "reconciliation":
+            leaf = "Conciliación"
+        else:
+            leaf = "Detalle"
+        crumbs.append({"label": leaf, "href": None})
+    return crumbs
+
+_env.globals["breadcrumb"] = _breadcrumb
+
 templates = Jinja2Templates(env=_env)

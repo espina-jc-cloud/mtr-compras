@@ -22,6 +22,9 @@
 </head>
 <body class="h-full bg-gray-50 text-gray-900">
 
+{# Algunos routers pasan 'current_user' en vez de 'user': unificar para que el
+   shell (sidebar/breadcrumb) aparezca siempre que haya sesión. #}
+{% set user = user if (user is defined and user) else (current_user if current_user is defined else None) %}
 {% if user %}
 {% set p = request.url.path if request else "" %}
 <div class="h-full md:flex">
@@ -35,12 +38,15 @@
     </a>
 
     <nav class="flex-1 overflow-y-auto px-2.5 py-3">
-      {% macro item(href, label, active, icon) -%}
+      {% macro item(href, label, active, icon, badge=0) -%}
       <a href="{{ href }}" class="nav-item {{ 'nav-item-active' if active }}" {% if active %}aria-current="page"{% endif %}>
         <svg class="w-[18px] h-[18px] flex-shrink-0 {{ 'text-indigo-700' if active else 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="{{ icon }}"/></svg>
         <span class="sb-label truncate">{{ label }}</span>
+        {% if badge and badge > 0 %}<span class="sb-label ml-auto inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold leading-none">{{ badge }}</span>{% endif %}
       </a>
       {%- endmacro %}
+
+      {% set _badges = pending_badges(user) %}
 
       {{ item("/home", "Inicio", p == "/home" or p == "/dashboard",
               "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6") }}
@@ -48,7 +54,7 @@
       {% if can_module(user, "operaciones") %}
       <p class="nav-group-label sb-group">Operación</p>
       {% if can(user, "operaciones.arribos") %}{{ item("/operations/arribos", "Próximos Arribos", p.startswith("/operations/arribos"), "M13 10V3L4 14h7v7l9-11h-7z") }}{% endif %}
-      {% if can(user, "operaciones.live") %}{{ item("/operations/live", "Operativos Live", p.startswith("/operations/live"), "M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z") }}{% endif %}
+      {% if can(user, "operaciones.live") %}{{ item("/operations/live", "Operativos Live", p.startswith("/operations/live"), "M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z", _badges.turnos) }}{% endif %}
       {% if can(user, "operaciones.finalizados") %}{{ item("/operations", "Operativos", p == "/operations" or p.startswith("/operations/dashboard") or p.startswith("/operations/import"), "M5 13l4 4L19 7") }}{% endif %}
       {% if can(user, "operaciones.diarias") %}{{ item("/operations/daily", "Operaciones Diarias", p.startswith("/operations/daily"), "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z") }}{% endif %}
       {% if can(user, "operaciones.despachos") %}{{ item("/despachos", "Despachos", p.startswith("/despachos"), "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4") }}{% endif %}
@@ -64,7 +70,7 @@
 
       {% if can_module(user, "compras") %}
       <p class="nav-group-label sb-group">Comercial</p>
-      {% if can(user, "compras.compras") %}{{ item("/purchases", "Compras", p.startswith("/purchases"), "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2") }}{% endif %}
+      {% if can(user, "compras.compras") %}{{ item("/purchases", "Compras", p.startswith("/purchases"), "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2", _badges.compras) }}{% endif %}
       {% if can(user, "compras.cotizaciones") %}{{ item("/quotes", "Cotizaciones", p.startswith("/quotes"), "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z") }}{% endif %}
       {% if can(user, "compras.proveedores") %}{{ item("/suppliers", "Proveedores", p.startswith("/suppliers"), "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4") }}{% endif %}
       {% if can(user, "compras.conciliacion") %}{{ item("/conciliation", "Conciliación", p == "/conciliation", "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z") }}{% endif %}
@@ -127,6 +133,16 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 md:px-8 py-5 md:py-7 pb-24 md:pb-10">
+      {% set _crumbs = breadcrumb(p) %}
+      {% if _crumbs %}
+      <nav class="hidden md:flex items-center gap-1.5 text-xs text-gray-400 mb-4" aria-label="Ruta de navegación">
+        {% for c in _crumbs %}
+          {% if not loop.first %}<span class="text-gray-300 select-none">›</span>{% endif %}
+          {% if c.href and not loop.last %}<a href="{{ c.href }}" class="hover:text-gray-700 transition-colors">{{ c.label }}</a>
+          {% else %}<span class="{{ 'text-gray-600 font-medium' if loop.last else '' }}">{{ c.label }}</span>{% endif %}
+        {% endfor %}
+      </nav>
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>
