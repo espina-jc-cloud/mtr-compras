@@ -671,7 +671,7 @@ async def update_entry(
     entry.tareas_realizadas = tareas_realizadas.strip() or None
     entry.proximos_pasos    = proximos_pasos.strip() or None
     db.commit()
-    return RedirectResponse(url="/projects", status_code=303)
+    return RedirectResponse(url="/projects?ok=Entrada+guardada", status_code=303)
 
 
 # ── Bitácora: eliminar entrada (soft delete) ──────────────────────────────────

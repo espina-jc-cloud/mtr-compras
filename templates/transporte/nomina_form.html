@@ -2,7 +2,7 @@
 {% block title %}{% if item %}Editar transporte{% else %}Nuevo transporte{% endif %} — MTR{% endblock %}
 {% block content %}
 
-{% set is_edit = item is not none %}
+{% set is_edit = item and item.id %}
 {% set f = form if form is defined else item %}
 
 <div class="max-w-2xl mx-auto">

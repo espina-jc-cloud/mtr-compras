@@ -53,6 +53,7 @@
       {% if can(user, "operaciones.diarias") %}{{ item("/operations/daily", "Operaciones Diarias", p.startswith("/operations/daily"), "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z") }}{% endif %}
       {% if can(user, "operaciones.despachos") %}{{ item("/despachos", "Despachos", p.startswith("/despachos"), "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4") }}{% endif %}
       {% if can(user, "operaciones.tarifas_propias") %}{{ item("/tarifario", "Tarifas", p.startswith("/tarifario"), "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z") }}{% endif %}
+      {% if can(user, "operaciones.polinomica") %}{{ item("/polinomica", "Polinómica CNA", p.startswith("/polinomica"), "M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z") }}{% endif %}
       {% endif %}
 
       {% if can_module(user, "transporte") %}
@@ -164,6 +165,31 @@
 <main class="max-w-7xl mx-auto px-4 md:px-6 py-5">
   {{ self.content() }}
 </main>
+{% endif %}
+
+{# ── Toast global de feedback: lee ?ok= o ?err= de la URL ─────────────────── #}
+{% set _ok = request.query_params.get("ok") if request else None %}
+{% set _err = request.query_params.get("err") if request else None %}
+{% if _ok or _err %}
+<div id="mtr-toast" role="status" aria-live="polite"
+     class="fixed z-[60] bottom-20 md:bottom-6 right-4 left-4 md:left-auto md:right-6 max-w-md md:max-w-sm ml-auto
+            flex items-start gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium border
+            {% if _err %}bg-red-600 text-white border-red-700{% else %}bg-gray-900 text-white border-black/10{% endif %}">
+  <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    {% if _err %}<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    {% else %}<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>{% endif %}
+  </svg>
+  <span class="flex-1">{{ _err or _ok }}</span>
+  <button type="button" onclick="document.getElementById('mtr-toast').remove()" class="opacity-60 hover:opacity-100 flex-shrink-0" aria-label="Cerrar">✕</button>
+</div>
+<script>
+  (function () {
+    var t = document.getElementById("mtr-toast");
+    // Limpiar el parámetro de la URL para que un refresh no reabra el toast.
+    try { var u = new URL(location.href); u.searchParams.delete("ok"); u.searchParams.delete("err"); history.replaceState({}, "", u); } catch (e) {}
+    setTimeout(function () { if (t) { t.style.transition = "opacity .3s"; t.style.opacity = "0"; setTimeout(function () { t.remove(); }, 300); } }, {{ 6000 if _err else 3500 }});
+  })();
+</script>
 {% endif %}
 
 {% block scripts %}{% endblock %}

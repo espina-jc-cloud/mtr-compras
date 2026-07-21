@@ -301,7 +301,7 @@ async def create_daily_operation(
     if len(imported_day_ids) == 1:
         return RedirectResponse(url=f"/operations/daily/{imported_day_ids[0]}", status_code=303)
 
-    return RedirectResponse(url="/operations/daily", status_code=303)
+    return RedirectResponse(url="/operations/daily?ok=Operaciones+diarias+importadas", status_code=303)
 
 
 @router.get("/imports", response_class=HTMLResponse)
@@ -497,7 +497,7 @@ async def delete_legacy_daily_import_file(
 
     db.commit()
 
-    return RedirectResponse(url="/operations/daily/imports", status_code=303)
+    return RedirectResponse(url="/operations/daily/imports?ok=Import+eliminado", status_code=303)
 
 
 
@@ -534,7 +534,7 @@ async def delete_daily_import_group(
 
     db.commit()
 
-    return RedirectResponse(url="/operations/daily/imports", status_code=303)
+    return RedirectResponse(url="/operations/daily/imports?ok=Import+eliminado", status_code=303)
 
 
 
@@ -591,7 +591,7 @@ async def delete_daily_import(
         if day:
             db.delete(day)
             db.commit()
-        return RedirectResponse(url="/operations/daily", status_code=303)
+        return RedirectResponse(url="/operations/daily?ok=Dia+eliminado", status_code=303)
 
     return RedirectResponse(url=f"/operations/daily/{day_id}", status_code=303)
 
@@ -610,4 +610,4 @@ async def delete_daily_operation(
     db.delete(day)
     db.commit()
 
-    return RedirectResponse(url="/operations/daily", status_code=303)
+    return RedirectResponse(url="/operations/daily?ok=Dia+eliminado", status_code=303)

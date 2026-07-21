@@ -503,7 +503,7 @@ async def delete_maintenance(
     )
     db.add(log)
     db.commit()
-    return RedirectResponse(url="/maintenance", status_code=303)
+    return RedirectResponse(url="/maintenance?ok=Trabajo+eliminado", status_code=303)
 
 
 @router.post("/{record_id}/documents")

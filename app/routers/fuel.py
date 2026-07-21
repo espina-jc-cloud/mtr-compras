@@ -483,4 +483,4 @@ async def delete_fuel(
     load.deleted_at     = datetime.utcnow()
     load.deleted_reason = reason.strip() or "Sin motivo"
     db.commit()
-    return RedirectResponse(url="/fuel", status_code=303)
+    return RedirectResponse(url="/fuel?ok=Carga+eliminada", status_code=303)

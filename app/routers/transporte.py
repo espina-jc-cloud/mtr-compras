@@ -437,7 +437,7 @@ async def historial_delete(
     from datetime import datetime
     op.deleted_at = datetime.now()
     db.commit()
-    return RedirectResponse(url="/transporte/historial", status_code=303)
+    return RedirectResponse(url="/transporte/historial?ok=Operativo+eliminado", status_code=303)
 
 
 @router.get("/historial/{op_id}/exportar-word-puerto")

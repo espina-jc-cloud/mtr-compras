@@ -427,4 +427,4 @@ async def delete_arribo(arribo_id: int, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=404)
     a.deleted_at = datetime.utcnow()
     db.commit()
-    return RedirectResponse(url="/operations/arribos", status_code=303)
+    return RedirectResponse(url="/operations/arribos?ok=Arribo+eliminado", status_code=303)

@@ -212,7 +212,7 @@ async def crear_factura(
             remito.factura_id = invoice.id
 
     db.commit()
-    return RedirectResponse(url="/compras/facturas", status_code=303)
+    return RedirectResponse(url="/compras/facturas?ok=Factura+guardada", status_code=303)
 
 
 @router.get("/{invoice_id}/editar", response_class=HTMLResponse)
@@ -310,7 +310,7 @@ async def editar_factura(
             remito.factura_id = invoice.id
 
     db.commit()
-    return RedirectResponse(url="/compras/facturas", status_code=303)
+    return RedirectResponse(url="/compras/facturas?ok=Cambios+guardados", status_code=303)
 
 
 @router.post("/{invoice_id}/eliminar")
@@ -334,7 +334,7 @@ async def eliminar_factura(
     db.delete(invoice)
     db.commit()
 
-    return RedirectResponse(url="/compras/facturas", status_code=303)
+    return RedirectResponse(url="/compras/facturas?ok=Factura+eliminada", status_code=303)
 
 
 @router.post("/{invoice_id}/desvincular-remito/{remito_id}", response_class=HTMLResponse)

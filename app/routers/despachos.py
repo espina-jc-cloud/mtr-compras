@@ -1393,7 +1393,7 @@ async def change_status(
     back = str(form.get("back", "list"))
     if back == "detail":
         return RedirectResponse(url=f"/despachos/{rid}", status_code=303)
-    return RedirectResponse(url="/despachos", status_code=303)
+    return RedirectResponse(url="/despachos?ok=Estado+actualizado", status_code=303)
 
 
 @router.post("/{rid}/edit")

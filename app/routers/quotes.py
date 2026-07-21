@@ -463,7 +463,7 @@ async def delete_quote(
     quote.deleted_reason = deleted_reason or "Sin motivo indicado"
     add_quote_audit(db, quote.id, current_user.id, "deleted", quote.deleted_reason)
     db.commit()
-    return RedirectResponse(url="/quotes", status_code=303)
+    return RedirectResponse(url="/quotes?ok=Cotizacion+eliminada", status_code=303)
 
 
 # ── Upload document ───────────────────────────────────────────────────────────

@@ -97,14 +97,14 @@ async def create_user(
     )
     db.add(new_user)
     db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)
+    return RedirectResponse(url="/admin/users?ok=Usuario+creado", status_code=303)
 
 
 @router.get("/users/{user_id}/edit", response_class=HTMLResponse)
 async def edit_user_form(user_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(_guard)):
     u = db.query(models.User).filter(models.User.id == user_id).first()
     if not u:
-        return RedirectResponse(url="/admin/users", status_code=303)
+        return RedirectResponse(url="/admin/users?err=Usuario+no+encontrado", status_code=303)
     return templates.TemplateResponse(request, "admin/user_form.html", _form_ctx(current_user, edit_user=u))
 
 
@@ -123,7 +123,7 @@ async def update_user(
 ):
     u = db.query(models.User).filter(models.User.id == user_id).first()
     if not u:
-        return RedirectResponse(url="/admin/users", status_code=303)
+        return RedirectResponse(url="/admin/users?err=Usuario+no+encontrado", status_code=303)
 
     def _err(msg):
         return templates.TemplateResponse(request, "admin/user_form.html",
@@ -142,7 +142,7 @@ async def update_user(
     # superadmin nunca se restringe: se fuerza a defaults (= todo).
     u.permissions = None if role == "superadmin" else _parse_permissions(perm_mode, perms)
     db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)
+    return RedirectResponse(url="/admin/users?ok=Cambios+guardados", status_code=303)
 
 
 @router.post("/users/{user_id}/toggle")
@@ -150,4 +150,4 @@ async def toggle_user(user_id: int, db: Session = Depends(get_db), current_user=
     u = db.query(models.User).filter(models.User.id == user_id).first()
     u.active = not u.active
     db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)
+    return RedirectResponse(url="/admin/users?ok=Estado+del+usuario+actualizado", status_code=303)

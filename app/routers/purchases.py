@@ -386,7 +386,7 @@ async def delete_purchase(
     db.commit()
     _log.warning("SECURITY delete purchase=%d user=%d role=%s reason=%s",
                  purchase_id, current_user.id, current_user.role, p.deleted_reason[:80])
-    return RedirectResponse(url="/purchases", status_code=303)
+    return RedirectResponse(url="/purchases?ok=Compra+eliminada", status_code=303)
 
 
 # ── Edit purchase (admin/superadmin) ─────────────────────────────────────────

@@ -43,7 +43,7 @@ async def create_supplier(
     supplier = models.Supplier(name=name, cuit=cuit, contact_name=contact_name, contact_phone=contact_phone, email=email)
     db.add(supplier)
     db.commit()
-    return RedirectResponse(url="/suppliers", status_code=303)
+    return RedirectResponse(url="/suppliers?ok=Proveedor+creado", status_code=303)
 
 
 @router.get("/{supplier_id}", response_class=HTMLResponse)
@@ -188,4 +188,4 @@ async def update_supplier(
     supplier.email = email
     supplier.active = (active == "on")
     db.commit()
-    return RedirectResponse(url="/suppliers", status_code=303)
+    return RedirectResponse(url="/suppliers?ok=Cambios+guardados", status_code=303)

@@ -632,7 +632,7 @@ async def create_cliente(
     )
     db.add(c)
     db.commit()
-    return RedirectResponse(url="/tarifario/clientes", status_code=303)
+    return RedirectResponse(url="/tarifario/clientes?ok=Cliente+creado", status_code=303)
 
 
 @router.post("/clientes/{cid:int}/edit")
@@ -661,7 +661,7 @@ async def update_cliente(
     c.notas = notas.strip() or None
     c.activo = bool(activo)
     db.commit()
-    return RedirectResponse(url="/tarifario/clientes", status_code=303)
+    return RedirectResponse(url="/tarifario/clientes?ok=Cambios+guardados", status_code=303)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -704,7 +704,7 @@ async def create_servicio(
     )
     db.add(s)
     db.commit()
-    return RedirectResponse(url="/tarifario/servicios", status_code=303)
+    return RedirectResponse(url="/tarifario/servicios?ok=Servicio+creado", status_code=303)
 
 
 @router.post("/servicios/{sid:int}/edit")
@@ -729,4 +729,4 @@ async def update_servicio(
     s.orden = int(orden) if orden.strip().isdigit() else 100
     s.activo = bool(activo)
     db.commit()
-    return RedirectResponse(url="/tarifario/servicios", status_code=303)
+    return RedirectResponse(url="/tarifario/servicios?ok=Cambios+guardados", status_code=303)
