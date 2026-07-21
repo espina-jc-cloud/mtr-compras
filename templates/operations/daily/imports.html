@@ -37,7 +37,7 @@
             {% if imp.group_id %}
             <form method="post"
                   action="/operations/daily/imports/{{ imp.group_id }}/delete"
-                  onsubmit="return confirm('¿Eliminar este archivo completo? Se borrarán todos los días y viajes generados por este Excel.')">
+                  data-confirm="¿Eliminar este archivo completo? Se borrarán todos los días y viajes generados por este Excel.">
               <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700">
                 Eliminar archivo
               </button>
@@ -45,7 +45,7 @@
             {% else %}
             <form method="post"
                   action="/operations/daily/imports/legacy/{{ imp.filename }}/delete"
-                  onsubmit="return confirm('¿Eliminar este archivo viejo completo? Se borrarán todos los días y viajes generados por este archivo.')">
+                  data-confirm="¿Eliminar este archivo viejo completo? Se borrarán todos los días y viajes generados por este archivo.">
               <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700">
                 Eliminar archivo viejo
               </button>

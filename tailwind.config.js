@@ -17,6 +17,8 @@ module.exports = {
     "./templates/**/*.html",
     // Clases construidas en Python (estado_css, badges, etc.)
     "./app/**/*.py",
+    // Clases inyectadas por JS (diálogo de confirmación, etc.)
+    "./static/js/**/*.js",
   ],
   theme: {
     extend: {

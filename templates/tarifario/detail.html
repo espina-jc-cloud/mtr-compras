@@ -31,7 +31,7 @@
     <div class="flex items-center gap-2">
       <a href="/tarifario/{{ tarifa.id }}/edit" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-2">Editar</a>
       {% if tarifa.is_active %}
-      <form method="post" action="/tarifario/{{ tarifa.id }}/deactivate" onsubmit="return confirm('¿Dar de baja esta tarifa?')">
+      <form method="post" action="/tarifario/{{ tarifa.id }}/deactivate" data-confirm="¿Dar de baja esta tarifa?">
         <button type="submit" class="text-sm font-semibold text-red-500 hover:text-red-700 px-3 py-2">Dar de baja</button>
       </form>
       {% endif %}
@@ -121,7 +121,7 @@
           <td class="px-3 py-2 text-right font-mono text-gray-600">{{ tarifa.moneda }} {{ subtotal | fmt_num(2) }}</td>
           <td class="px-3 py-2 text-right">
             <form method="post" action="/tarifario/{{ tarifa.id }}/componentes/{{ comp.id }}/delete"
-                  onsubmit="return confirm('¿Eliminar componente?')">
+                  data-confirm="¿Eliminar componente?">
               <button type="submit" class="text-gray-300 hover:text-red-500 text-xs">✕</button>
             </form>
           </td>

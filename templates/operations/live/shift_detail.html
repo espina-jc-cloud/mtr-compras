@@ -242,7 +242,7 @@
       {% endif %}
       <form method="post" action="/operations/live/{{ session.id }}/photos/{{ photo.id }}/delete"
         class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-        onsubmit="return confirm('¿Borrar esta foto?')">
+        data-confirm="¿Borrar esta foto?">
         <button type="submit"
           class="w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
           ✕

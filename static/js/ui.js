@@ -113,4 +113,81 @@
       if (form && form.method.toLowerCase() === "post") form.requestSubmit();
     }
   });
+
+  /* ── Confirmación destructiva (reemplaza confirm() nativo) ───────────────────
+   *  form[data-confirm="mensaje"]   → intercepta el submit y pide confirmación
+   *                                   con un diálogo propio (rojo, foco atrapado).
+   *  [data-confirm] en link/botón    → idem para acciones que no son un form.
+   *  Fallback: si <dialog> no está soportado, usa confirm() nativo.
+   *  window.mtrConfirm(msg, onOk, opts) queda disponible para uso manual.
+   */
+  var _confirmDialog = null;
+  function ensureConfirmDialog() {
+    if (_confirmDialog) return _confirmDialog;
+    var d = document.createElement("dialog");
+    d.className = "mtr-confirm rounded-2xl shadow-2xl p-0 w-[90vw] max-w-sm backdrop:bg-black/50";
+    d.innerHTML =
+      '<div class="p-5">' +
+        '<div class="flex items-start gap-3">' +
+          '<span class="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0 text-lg">⚠</span>' +
+          '<div class="min-w-0">' +
+            '<p class="text-sm font-bold text-gray-900 mb-1">Confirmar acción</p>' +
+            '<p class="mtr-confirm-msg text-sm text-gray-600 break-words"></p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="flex gap-2 mt-5">' +
+          '<button type="button" class="mtr-confirm-cancel flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold py-2.5 rounded-xl">Cancelar</button>' +
+          '<button type="button" class="mtr-confirm-ok flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-xl">Eliminar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(d);
+    _confirmDialog = d;
+    return d;
+  }
+  function mtrConfirm(message, onOk, opts) {
+    opts = opts || {};
+    // Fallback sin <dialog>.
+    if (typeof HTMLDialogElement === "undefined" || !HTMLDialogElement.prototype.showModal) {
+      if (window.confirm(message || "¿Confirmás esta acción?")) onOk();
+      return;
+    }
+    var d = ensureConfirmDialog();
+    d.querySelector(".mtr-confirm-msg").textContent = message || "¿Confirmás esta acción?";
+    var okBtn = d.querySelector(".mtr-confirm-ok");
+    var cancel = d.querySelector(".mtr-confirm-cancel");
+    okBtn.textContent = opts.okLabel || "Eliminar";
+    function done(run) {
+      okBtn.onclick = cancel.onclick = d.onclick = d.oncancel = null;
+      try { d.close(); } catch (e) {}
+      if (run) onOk();
+    }
+    okBtn.onclick = function () { done(true); };
+    cancel.onclick = function () { done(false); };
+    d.onclick = function (e) { if (e.target === d) done(false); };   // click en backdrop
+    d.oncancel = function () { done(false); };                       // tecla Esc
+    d.showModal();
+    cancel.focus();
+  }
+  window.mtrConfirm = mtrConfirm;
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form.matches || !form.matches("form[data-confirm]") || form._mtrConfirmed) return;
+    e.preventDefault();
+    mtrConfirm(form.getAttribute("data-confirm"), function () {
+      form._mtrConfirmed = true;
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+    });
+  }, true);
+
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest && e.target.closest("[data-confirm]");
+    if (!el || el.tagName === "FORM") return;
+    if (el.closest("form[data-confirm]")) return;   // el form ya lo maneja
+    e.preventDefault();
+    mtrConfirm(el.getAttribute("data-confirm"), function () {
+      if (el.tagName === "A" && el.href) window.location.href = el.href;
+      else if (el.form) { el.form._mtrConfirmed = true; el.form.requestSubmit(); }
+    });
+  }, true);
 })();

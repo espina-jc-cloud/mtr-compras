@@ -9,7 +9,7 @@
       <p class="text-sm text-gray-500">Detalle de viajes por cliente.</p>
     </div>
 
-    <form method="post" action="/operations/daily/{{ day.id }}/delete" onsubmit="return confirm('¿Eliminar este día completo?')">
+    <form method="post" action="/operations/daily/{{ day.id }}/delete" data-confirm="¿Eliminar este día completo?">
       <button class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Eliminar día</button>
     </form>
   </div>
@@ -58,7 +58,7 @@
         </div>
 
         <form method="post" action="/operations/daily/{{ day.id }}/imports/{{ imp.id }}/delete"
-              onsubmit="return confirm('¿Eliminar este archivo importado? También se eliminarán todos sus viajes asociados.')">
+              data-confirm="¿Eliminar este archivo importado? También se eliminarán todos sus viajes asociados.">
           <button class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700">
             Eliminar archivo
           </button>
@@ -205,7 +205,7 @@
               <td class="col-planta p-2">{{ trip.planta or "-" }}</td>
               <td class="p-2 text-right">
                 <form method="post" action="/operations/daily/{{ day.id }}/trips/{{ trip.id }}/delete"
-                      onsubmit="return confirm('¿Eliminar este viaje?')">
+                      data-confirm="¿Eliminar este viaje?">
                   <button class="px-2 py-1 rounded bg-red-600 text-white text-[11px] hover:bg-red-700">
                     Eliminar
                   </button>

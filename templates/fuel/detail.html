@@ -146,12 +146,12 @@
         Eliminar registro
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </summary>
-      <form method="post" action="/fuel/{{ load.id }}/delete" class="px-5 pb-5 pt-3 border-t border-red-50">
+      <form method="post" action="/fuel/{{ load.id }}/delete" class="px-5 pb-5 pt-3 border-t border-red-50"
+        data-confirm="¿Eliminar esta carga de combustible?">
         <label class="block text-xs font-medium text-gray-500 mb-1.5">Motivo (opcional)</label>
         <input type="text" name="reason" placeholder="Carga duplicada, error de datos…"
           class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-3">
-        <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-xl"
-          onclick="return confirm('¿Eliminar esta carga de combustible?')">
+        <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-xl">
           Eliminar registro
         </button>
       </form>

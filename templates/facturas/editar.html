@@ -169,7 +169,7 @@
 
 <form method="post"
       action="/compras/facturas/{{ invoice.id }}/eliminar"
-      onsubmit="return confirm('¿Seguro que querés eliminar esta factura? Esta acción desvincula los remitos asociados.');"
+      data-confirm="¿Seguro que querés eliminar esta factura? Esta acción desvincula los remitos asociados."
       class="mt-6 pt-5 border-t border-gray-100">
   <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-800">
     Eliminar factura

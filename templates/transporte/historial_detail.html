@@ -78,7 +78,7 @@
         </a>
         <!-- Eliminar operativo -->
         <form action="/transporte/historial/{{ op.id }}/delete" method="POST" class="inline"
-              onsubmit="return confirm('¿Estás seguro de que querés eliminar este operativo?')">
+              data-confirm="¿Estás seguro de que querés eliminar este operativo?">
           <button type="submit"
                   class="inline-flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-700 border border-red-200 bg-white hover:bg-red-50 px-3 py-2.5 rounded-xl transition-colors"
                   title="Eliminar operativo">
@@ -147,7 +147,7 @@
             <td class="px-4 py-3 text-right">
               <form method="post"
                     action="/transporte/historial/{{ op.id }}/desasignar/{{ a.id }}"
-                    onsubmit="return confirm('¿Quitar a {{ a.nombre_chofer_snap }} de este operativo?')">
+                    data-confirm="¿Quitar a {{ a.nombre_chofer_snap }} de este operativo?">
                 <button type="submit"
                         class="inline-flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors border border-red-100 hover:border-red-200">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
