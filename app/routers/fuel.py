@@ -4,6 +4,7 @@ Reemplaza el Google Form de carga de combustible.
 """
 import re
 import calendar
+from types import SimpleNamespace
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -430,13 +431,33 @@ async def update_fuel(
     liters_dec    = _parse_decimal(liters)
     amount_dec    = _parse_decimal(amount)
 
+    def _edit_error(msg):
+        # Re-render del form con lo tipeado (no una página JSON que descarta todo).
+        try:
+            fecha_val = datetime.strptime(fuel_date, "%Y-%m-%d")
+        except ValueError:
+            fecha_val = load.fuel_date
+        shadow = SimpleNamespace(
+            id=load.id, receipt_url=load.receipt_url,
+            company=company, plant=plant, fuel_type=fuel_type,
+            vehicle_plate=vehicle_plate, liters=liters, amount=amount or "",
+            responsible_text=responsible_text, fuel_date=fecha_val,
+            station=station, order_number=order_number or "",
+            odometer_km=odometer_km or "", hourmeter=hourmeter or "", notes=notes or "",
+        )
+        return templates.TemplateResponse(request, "fuel/edit.html", {
+            "user": current_user, "load": shadow, "recent_plates": _recent_plates(db),
+            "companies": COMPANIES, "plants": PLANTS, "fuel_types": FUEL_TYPES,
+            "error": msg,
+        }, status_code=422)
+
     if not liters_dec or liters_dec <= 0:
-        raise HTTPException(status_code=422, detail="Litros inválidos")
+        return _edit_error("Ingresá una cantidad de litros válida (mayor a 0).")
 
     try:
         fuel_dt = datetime.strptime(fuel_date, "%Y-%m-%d")
     except ValueError:
-        raise HTTPException(status_code=422, detail="Fecha inválida")
+        return _edit_error("La fecha no es válida.")
 
     # Upload nuevo comprobante si se adjunta
     if receipt and receipt.filename and CLOUDINARY_AVAILABLE:

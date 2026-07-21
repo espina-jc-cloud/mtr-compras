@@ -901,7 +901,13 @@ async def edit_operation_form(
     if not op:
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(request, "operations/edit.html", {
-        "user": current_user, "op": op,
+        "user": current_user, "op": op, "error": None,
+        "v": {
+            "ship_name": op.ship_name, "operation_type": op.operation_type,
+            "client": op.client or "", "product": op.product or "",
+            "start_date": op.start_date.strftime("%Y-%m-%d") if op.start_date else "",
+            "end_date": op.end_date.strftime("%Y-%m-%d") if op.end_date else "",
+        },
     })
 
 
@@ -909,7 +915,7 @@ async def edit_operation_form(
 async def update_operation(
     op_id: int,
     request: Request,
-    ship_name: str = Form(...),
+    ship_name: str = Form(""),
     operation_type: str = Form("vessel"),
     client: str = Form(""),
     product: str = Form(""),
@@ -929,7 +935,15 @@ async def update_operation(
             return None
 
     if not ship_name.strip():
-        raise HTTPException(status_code=422, detail="El nombre del barco es obligatorio.")
+        return templates.TemplateResponse(request, "operations/edit.html", {
+            "user": current_user, "op": op,
+            "error": "El nombre del barco es obligatorio.",
+            "v": {
+                "ship_name": ship_name, "operation_type": operation_type,
+                "client": client, "product": product,
+                "start_date": start_date, "end_date": end_date,
+            },
+        }, status_code=422)
 
     op.ship_name      = ship_name.strip()
     op.operation_type = operation_type if operation_type in ("vessel", "special") else "vessel"
