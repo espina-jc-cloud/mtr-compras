@@ -169,7 +169,7 @@ async def new_arribo_form(request: Request, current_user=Depends(_guard)):
 @router.post("/new")
 async def create_arribo(
     request: Request,
-    buque: str = Form(...),
+    buque: str = Form(""),
     cliente: str = Form(""),
     mercaderia: str = Form(""),
     tonelaje_estimado: str = Form(""),
@@ -190,7 +190,18 @@ async def create_arribo(
     current_user=Depends(_guard),
 ):
     if not buque.strip():
-        raise HTTPException(status_code=422, detail="El nombre del buque es obligatorio.")
+        return templates.TemplateResponse(request, "operations/arribos/form.html", {
+            "user": current_user, "arribo": None, "estados": ARRIBO_ESTADOS,
+            "error": "El nombre del buque es obligatorio.",
+            "v": {
+                "buque": buque, "cliente": cliente, "mercaderia": mercaderia,
+                "tonelaje_estimado": tonelaje_estimado, "procedencia": procedencia,
+                "agencia": agencia, "operacion": operacion, "estado": estado,
+                "fecha_estimada": fecha_estimada, "etb": etb, "etc": etc, "ready": ready,
+                "muelle": muelle, "posicion": posicion, "amarre": amarre,
+                "observaciones": observaciones, "comentario_operativo": comentario_operativo,
+            },
+        }, status_code=422)
     a = ProximoArribo(
         buque=buque.strip(), buque_canon=canon_vessel(buque),
         cliente=cliente.strip() or None, mercaderia=mercaderia.strip() or None,
@@ -368,7 +379,7 @@ async def edit_arribo_form(arribo_id: int, request: Request, db: Session = Depen
 async def update_arribo(
     arribo_id: int,
     request: Request,
-    buque: str = Form(...),
+    buque: str = Form(""),
     cliente: str = Form(""),
     mercaderia: str = Form(""),
     tonelaje_estimado: str = Form(""),
@@ -392,7 +403,18 @@ async def update_arribo(
     if not a:
         raise HTTPException(status_code=404)
     if not buque.strip():
-        raise HTTPException(status_code=422, detail="El nombre del buque es obligatorio.")
+        return templates.TemplateResponse(request, "operations/arribos/form.html", {
+            "user": current_user, "arribo": a, "estados": ARRIBO_ESTADOS,
+            "error": "El nombre del buque es obligatorio.",
+            "v": {
+                "buque": buque, "cliente": cliente, "mercaderia": mercaderia,
+                "tonelaje_estimado": tonelaje_estimado, "procedencia": procedencia,
+                "agencia": agencia, "operacion": operacion, "estado": estado,
+                "fecha_estimada": fecha_estimada, "etb": etb, "etc": etc, "ready": ready,
+                "muelle": muelle, "posicion": posicion, "amarre": amarre,
+                "observaciones": observaciones, "comentario_operativo": comentario_operativo,
+            },
+        }, status_code=422)
 
     a.buque = buque.strip()
     a.buque_canon = canon_vessel(buque)

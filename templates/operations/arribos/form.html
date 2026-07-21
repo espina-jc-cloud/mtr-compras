@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ "Editar" if arribo else "Nuevo" }} arribo — MTR{% endblock %}
 {% block content %}
+{# v = valores del form (dict de strings) — repobla en GET y tras error 422. #}
+{% set v = v if v is defined and v else (arribo or {}) %}
 
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center gap-2 mb-6">
@@ -23,29 +25,29 @@
 
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Buque <span class="text-red-400">*</span></label>
-      <input type="text" name="buque" required value="{{ arribo.buque if arribo else '' }}" placeholder="Ej: NORD KAIZAN"
+      <input type="text" name="buque" required value="{{ v.buque or '' }}" placeholder="Ej: NORD KAIZAN"
         class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
     </div>
 
     <div class="grid grid-cols-2 gap-3">
-      {{ fld("cliente", "Cliente", arribo.cliente if arribo else "") }}
-      {{ fld("mercaderia", "Mercadería / Producto", arribo.mercaderia if arribo else "") }}
-      {{ fld("tonelaje_estimado", "Tonelaje estimado", arribo.tonelaje_estimado if arribo else "") }}
-      {{ fld("procedencia", "Procedencia", arribo.procedencia if arribo else "") }}
-      {{ fld("agencia", "Agencia", arribo.agencia if arribo else "") }}
-      {{ fld("operacion", "Operación", arribo.operacion if arribo else "", "CARGA / DESCARGA") }}
+      {{ fld("cliente", "Cliente", v.cliente) }}
+      {{ fld("mercaderia", "Mercadería / Producto", v.mercaderia) }}
+      {{ fld("tonelaje_estimado", "Tonelaje estimado", v.tonelaje_estimado) }}
+      {{ fld("procedencia", "Procedencia", v.procedencia) }}
+      {{ fld("agencia", "Agencia", v.agencia) }}
+      {{ fld("operacion", "Operación", v.operacion, "CARGA / DESCARGA") }}
     </div>
 
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Estado</label>
         <select name="estado" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50">
-          {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if arribo and arribo.estado == val }}>{{ label }}</option>{% endfor %}
+          {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if (v.estado or 'esperado') == val }}>{{ label }}</option>{% endfor %}
         </select>
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Fecha estimada (para ordenar)</label>
-        <input type="date" name="fecha_estimada" value="{{ arribo.fecha_estimada.isoformat() if arribo and arribo.fecha_estimada else '' }}"
+        <input type="date" name="fecha_estimada" value="{{ v.fecha_estimada or '' }}"
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50">
       </div>
     </div>
@@ -53,22 +55,22 @@
     <div class="border-t border-gray-100 pt-4">
       <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Datos operativos (se enriquecen del lineup)</p>
       <div class="grid grid-cols-2 gap-3">
-        {{ fld("etb", "ETB", arribo.etb if arribo else "") }}
-        {{ fld("etc", "ETC", arribo.etc if arribo else "") }}
-        {{ fld("ready", "Ready estimado", arribo.ready if arribo else "") }}
-        {{ fld("muelle", "Muelle", arribo.muelle if arribo else "") }}
-        {{ fld("posicion", "Posición / Sector", arribo.posicion if arribo else "") }}
-        {{ fld("amarre", "Amarre", arribo.amarre if arribo else "") }}
+        {{ fld("etb", "ETB", v.etb) }}
+        {{ fld("etc", "ETC", v.etc) }}
+        {{ fld("ready", "Ready estimado", v.ready) }}
+        {{ fld("muelle", "Muelle", v.muelle) }}
+        {{ fld("posicion", "Posición / Sector", v.posicion) }}
+        {{ fld("amarre", "Amarre", v.amarre) }}
       </div>
     </div>
 
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Observaciones</label>
-      <textarea name="observaciones" rows="2" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50">{{ arribo.observaciones if arribo else "" }}</textarea>
+      <textarea name="observaciones" rows="2" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50">{{ v.observaciones or "" }}</textarea>
     </div>
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1.5">Comentario operativo</label>
-      <textarea name="comentario_operativo" rows="2" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50">{{ arribo.comentario_operativo if arribo else "" }}</textarea>
+      <textarea name="comentario_operativo" rows="2" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50">{{ v.comentario_operativo or "" }}</textarea>
     </div>
 
     <div class="flex gap-3 pt-1">
