@@ -20,6 +20,7 @@ from app import models_tariffs      # noqa: F401 — registra tablas de Tarifari
 from app import models_transporte   # noqa: F401 — registra tablas de Transporte en Base.metadata
 from app import models_daily_ops    # noqa: F401 — registra tablas de Operaciones Diarias en Base.metadata
 from app import models_arribos       # noqa: F401 — registra tablas de Próximos Arribos en Base.metadata
+from app import models_polinomica    # noqa: F401 — registra tablas de Polinómica CNA en Base.metadata
 from app.auth import hash_password
 
 
@@ -210,6 +211,21 @@ def run():
     else:
         print("✓ Tarifario: catálogo de servicios ya existe")
     db_seed.close()
+
+
+    # ── Seed Polinómica CNA: historial inicial de índices (solo si está vacío) ─
+    db_pol = SessionLocal()
+    from app.models_polinomica import PolinomicaIndice
+    from app.polinomica_calc import HISTORIAL_SEED
+    if db_pol.query(PolinomicaIndice).count() == 0:
+        for i, (mes, supa, cam, ipc, comb, usd, fadeeac) in enumerate(HISTORIAL_SEED):
+            db_pol.add(PolinomicaIndice(mes=mes, orden=i + 1, supa=supa, cam=cam,
+                                        ipc=ipc, comb=comb, usd=usd, fadeeac=fadeeac))
+        db_pol.commit()
+        print(f"✓ Polinómica: {len(HISTORIAL_SEED)} meses de historial sembrados")
+    else:
+        print("✓ Polinómica: historial ya existe")
+    db_pol.close()
 
     db = SessionLocal()
     existing = db.query(models.User).filter(models.User.email == admin_email).first()

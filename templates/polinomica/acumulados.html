@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Acumulados — Polinómica CNA{% endblock %}
+{% block content %}
+{% include "polinomica/_polin.html" %}
+
+  <!-- 6 metric cards de acumulados -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:18px 0">
+    {% for k in indices %}
+    <div class="p-card metric">
+      <div class="l">{{ indice_labels[k] }}</div>
+      <div class="v">×{{ "%.4f" | format(acc[k]) }}</div>
+      <span class="chip g">+{{ "%.1f" | format((acc[k] - 1) * 100) }}% acumulado</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Detalle por categoría (navy) -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:16px">
+    <div class="acum-navy">
+      <h3>Granel — tarifas vigentes</h3>
+      {% for t in granel %}
+      <div class="row"><span style="opacity:.85;max-width:70%">{{ t.nombre }}</span><b>{{ fmt_ars(t.nueva) }}</b></div>
+      {% endfor %}
+    </div>
+    <div class="acum-navy">
+      <h3>Bolsones — tarifas vigentes</h3>
+      {% for t in bolsones %}
+      <div class="row"><span style="opacity:.85;max-width:70%">{{ t.nombre }}</span><b>{{ fmt_ars(t.nueva) }}</b></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Evolución de tarifas clave -->
+  <div class="p-card" style="padding:16px;margin-bottom:16px">
+    <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:0 0 10px">Evolución de tarifas clave</p>
+    <canvas id="chEvo" height="120"></canvas>
+  </div>
+</div>
+
+<script src="/static/js/chart.min.js"></script>
+<script>
+  var CLAVE = [
+    ["Desestiba de productos granel y carga de camiones Pto. San Nicolás", "#0B1F3A"],
+    ["Embolsado en bolsas de 25 kg y carga de camiones", "#C9A84C"],
+    ["Embolsado en bolsas de 50 kg y carga de camiones", "#1A5FAB"],
+    ["Desestiba de productos en bolsones y carga de camiones Pto. San Nicolás", "#1A7A4A"]
+  ];
+  fetch("/polinomica/api/acumulados").then(r => r.json()).then(function (d) {
+    var serie = d.serie || [];
+    new Chart(document.getElementById("chEvo"), {
+      type: "line",
+      data: {
+        labels: serie.map(function (p) { return p.mes; }),
+        datasets: CLAVE.map(function (c) {
+          return { label: c[0].length > 38 ? c[0].slice(0, 38) + "…" : c[0],
+            data: serie.map(function (p) { return p.tarifas[c[0]]; }),
+            borderColor: c[1], backgroundColor: c[1], tension: .25, pointRadius: 2, borderWidth: 2 };
+        })
+      },
+      options: { plugins: { legend: { position: "bottom", labels: { font: { size: 10 }, boxWidth: 14 } } },
+        scales: { y: { ticks: { callback: function (v) { return "$" + v.toLocaleString("es-AR"); } } },
+                  x: { ticks: { maxRotation: 60, font: { size: 10 } } } } }
+    });
+  });
+</script>
+{% endblock %}

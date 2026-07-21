@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Polinómica CNA — MTR{% endblock %}
+{% block content %}
+{% include "polinomica/_polin.html" %}
+
+  {% if request.query_params.get("ok") %}
+  <div style="background:#E7F3EC;border:1px solid #bfe3cf;color:#1A7A4A;border-radius:8px;padding:10px 16px;margin-top:16px;font-size:13.5px;font-weight:600">
+    ✓ {{ request.query_params.get("ok") }}
+  </div>
+  {% endif %}
+
+  <!-- Cards de métricas -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:18px 0">
+    <div class="p-card metric">
+      <div class="l">Aumento promedio acumulado</div>
+      <div class="v">+{{ "%.1f" | format(promedio) }}%</div>
+      <span class="chip g">sobre tarifas base</span>
+    </div>
+    <div class="p-card metric">
+      <div class="l">Período cubierto</div>
+      <div class="v" style="font-size:19px;padding-top:5px">{{ periodo }}</div>
+      <span class="chip b">{{ (acc | length) and "6 índices" }}</span>
+    </div>
+    <div class="p-card metric">
+      <div class="l">Combustible var. último mes</div>
+      {% set c = ultimo.comb * 100 if ultimo else 0 %}
+      <div class="v" style="color:{{ '#B03030' if c < 0 else '#1A7A4A' }}">{{ "%+.2f" | format(c) }}%</div>
+      <span class="chip a">{{ ultimo.mes if ultimo else "—" }}</span>
+    </div>
+    <div class="p-card metric">
+      <div class="l">USD BNA var. último mes</div>
+      {% set u = ultimo.usd * 100 if ultimo else 0 %}
+      <div class="v" style="color:{{ '#B03030' if u < 0 else '#1A7A4A' }}">{{ "%+.2f" | format(u) }}%</div>
+      <span class="chip a">{{ ultimo.mes if ultimo else "—" }}</span>
+    </div>
+  </div>
+
+  <!-- Tablas por categoría -->
+  {% for categoria in ["Granel", "Bolsones"] %}
+  <div class="p-card" style="margin-bottom:18px;overflow:hidden">
+    <div style="background:var(--navy);color:var(--gold-light);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:11px 16px">
+      {{ categoria }}
+    </div>
+    <div style="overflow-x:auto">
+    <table class="p-table">
+      <thead><tr>
+        <th style="border-radius:0">Servicio</th><th>Tarifa base</th><th>Tarifa vigente</th><th>Aumento acum.</th><th style="border-radius:0">Progreso</th>
+      </tr></thead>
+      <tbody>
+        {% for t in tarifas if t.cat == categoria %}
+        <tr>
+          <td style="max-width:380px">{{ t.nombre }}</td>
+          <td class="t-base">{{ fmt_ars(t.base) }}</td>
+          <td class="t-vig">{{ fmt_ars(t.nueva) }}</td>
+          <td class="t-aum">+{{ "%.1f" | format(t.aumento_pct) }}%</td>
+          <td style="width:130px"><div class="pbar"><i style="width:{{ (t.aumento_pct / max_aumento * 100) | round(0) }}%"></i></div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

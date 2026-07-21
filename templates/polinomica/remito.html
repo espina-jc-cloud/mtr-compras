@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Generar remito — Polinómica CNA{% endblock %}
+{% block content %}
+{% include "polinomica/_polin.html" %}
+
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #preview-doc, #preview-doc * { visibility: visible; }
+      #preview-doc { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: 0 !important; }
+    }
+    .pol .tarifa-check { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px;
+      cursor: pointer; transition: background .15s; font-size: 12.5px; }
+    .pol .tarifa-check:hover { background: #F7F9FC; }
+    .pol .tarifa-check .cat { font-size: 10px; font-weight: 700; color: var(--pmuted); text-transform: uppercase; }
+    .pol .tarifa-check .val { margin-left: auto; font-weight: 700; color: var(--navy); white-space: nowrap; font-size: 12.5px; }
+  </style>
+
+  <div style="display:grid;grid-template-columns:380px 1fr;gap:16px;margin-top:18px;align-items:start" id="remito-grid">
+    <!-- ── Formulario (sticky) ─────────────────────────────────────────────── -->
+    <div class="p-card" style="padding:18px;position:sticky;top:90px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:0 0 12px">Datos del remito</p>
+      <div style="display:grid;gap:10px">
+        <div>
+          <label style="font-size:11.5px;font-weight:600;color:var(--pmuted)">Nombre del operativo</label>
+          <input type="text" id="f-operativo" placeholder="Ej: MV PAX MUNDI — Descarga MOP">
+        </div>
+        <div>
+          <label style="font-size:11.5px;font-weight:600;color:var(--pmuted)">Producto / Mercadería</label>
+          <input type="text" id="f-producto" placeholder="Ej: MOP a granel">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11.5px;font-weight:600;color:var(--pmuted)">Fecha inicio</label>
+            <input type="date" id="f-ini" value="{{ hoy }}">
+          </div>
+          <div>
+            <label style="font-size:11.5px;font-weight:600;color:var(--pmuted)">Fecha fin</label>
+            <input type="date" id="f-fin">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11.5px;font-weight:600;color:var(--pmuted)">Observaciones (opcional)</label>
+          <input type="text" id="f-obs" placeholder="Condiciones, aclaraciones…">
+        </div>
+      </div>
+
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:16px 0 8px">Tarifas a incluir</p>
+      <div id="tarifas-list" style="max-height:330px;overflow-y:auto;border:1px solid var(--pborder);border-radius:8px;padding:4px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button type="button" class="p-btn ghost" style="padding:6px 12px;font-size:12px" onclick="setAll(true)">Todas</button>
+        <button type="button" class="p-btn ghost" style="padding:6px 12px;font-size:12px" onclick="setAll(false)">Limpiar</button>
+      </div>
+    </div>
+
+    <!-- ── Preview ─────────────────────────────────────────────────────────── -->
+    <div>
+      <div style="display:flex;gap:9px;margin-bottom:12px;flex-wrap:wrap">
+        <button type="button" class="p-btn red" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF</button>
+        <button type="button" class="p-btn navy" onclick="window.print()">🖨 Imprimir / Guardar</button>
+        <button type="button" class="p-btn ghost" id="btn-save" onclick="guardarRemito(false)">💾 Guardar remito</button>
+        <span id="save-msg" style="align-self:center;font-size:12.5px;font-weight:700;color:var(--pgreen)"></span>
+      </div>
+
+      <div class="p-card" id="preview-doc" style="padding:34px 38px">
+        <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--pborder);padding-bottom:14px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <img src="/static/logo_mtr.png" alt="MTR" style="width:52px;height:52px;object-fit:contain">
+            <span style="font-size:21px;font-weight:800;color:var(--navy)">MTR S.A.</span>
+          </div>
+          <span id="pv-numero" style="font-size:13px;font-weight:700;color:var(--pmuted)">TAR-—</span>
+        </div>
+
+        <div style="background:var(--navy);border-radius:8px;padding:13px 16px;margin:16px 0">
+          <span id="pv-operativo" style="color:var(--gold-light);font-size:15px;font-weight:700">Nombre del operativo</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+          <div style="background:var(--pbg);border:1px solid var(--pborder);border-radius:8px;padding:9px 12px">
+            <div style="font-size:9.5px;font-weight:700;color:var(--pmuted);text-transform:uppercase">Producto</div>
+            <div id="pv-producto" style="font-weight:700;font-size:13px">—</div>
+          </div>
+          <div style="background:var(--pbg);border:1px solid var(--pborder);border-radius:8px;padding:9px 12px">
+            <div style="font-size:9.5px;font-weight:700;color:var(--pmuted);text-transform:uppercase">Inicio</div>
+            <div id="pv-ini" style="font-weight:700;font-size:13px">—</div>
+          </div>
+          <div style="background:var(--pbg);border:1px solid var(--pborder);border-radius:8px;padding:9px 12px">
+            <div style="font-size:9.5px;font-weight:700;color:var(--pmuted);text-transform:uppercase">Fin</div>
+            <div id="pv-fin" style="font-weight:700;font-size:13px">—</div>
+          </div>
+        </div>
+
+        <table class="p-table">
+          <thead><tr><th style="border-radius:6px 0 0 0">Servicio</th><th style="border-radius:0 6px 0 0;text-align:right">Tarifa vigente</th></tr></thead>
+          <tbody id="pv-tarifas"><tr><td colspan="2" style="color:var(--pmuted);text-align:center;padding:22px">Seleccioná tarifas para incluir</td></tr></tbody>
+        </table>
+
+        <div id="pv-obs-wrap" style="display:none;margin-top:16px">
+          <div style="font-size:9.5px;font-weight:700;color:var(--pmuted);text-transform:uppercase;margin-bottom:3px">Observaciones</div>
+          <div id="pv-obs" style="font-size:13px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var TARIFAS = {{ tarifas_json | safe }};
+  var savedId = null;
+
+  function fmtARS(n) { return "$" + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtFecha(v) { if (!v) return "—"; var p = v.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+
+  // Render lista de checkboxes
+  var list = document.getElementById("tarifas-list");
+  TARIFAS.forEach(function (t) {
+    var lab = document.createElement("label");
+    lab.className = "tarifa-check";
+    lab.innerHTML = '<input type="checkbox" data-i="' + t.i + '" checked>' +
+      '<span><span class="cat">' + t.cat + '</span><br>' + t.nombre + "</span>" +
+      '<span class="val">' + fmtARS(t.nueva) + "</span>";
+    list.appendChild(lab);
+  });
+
+  function seleccion() {
+    var out = [];
+    list.querySelectorAll("input:checked").forEach(function (c) {
+      var t = TARIFAS[parseInt(c.dataset.i)];
+      out.push({ nombre: t.nombre, cat: t.cat, nueva: t.nueva });
+    });
+    return out;
+  }
+
+  function setAll(v) {
+    list.querySelectorAll("input").forEach(function (c) { c.checked = v; });
+    render();
+  }
+
+  function invalidarGuardado() { savedId = null; document.getElementById("save-msg").textContent = ""; }
+
+  function render() {
+    document.getElementById("pv-operativo").textContent =
+      document.getElementById("f-operativo").value.trim() || "Nombre del operativo";
+    document.getElementById("pv-producto").textContent = document.getElementById("f-producto").value.trim() || "—";
+    document.getElementById("pv-ini").textContent = fmtFecha(document.getElementById("f-ini").value);
+    document.getElementById("pv-fin").textContent = fmtFecha(document.getElementById("f-fin").value);
+    var obs = document.getElementById("f-obs").value.trim();
+    document.getElementById("pv-obs-wrap").style.display = obs ? "" : "none";
+    document.getElementById("pv-obs").textContent = obs;
+
+    var sel = seleccion();
+    var tb = document.getElementById("pv-tarifas");
+    tb.innerHTML = "";
+    if (!sel.length) {
+      tb.innerHTML = '<tr><td colspan="2" style="color:var(--pmuted);text-align:center;padding:22px">Seleccioná tarifas para incluir</td></tr>';
+      return;
+    }
+    sel.forEach(function (t) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>" + t.nombre + '</td><td style="text-align:right" class="t-vig">' + fmtARS(t.nueva) + "</td>";
+      tb.appendChild(tr);
+    });
+  }
+
+  document.querySelectorAll("#f-operativo,#f-producto,#f-ini,#f-fin,#f-obs").forEach(function (el) {
+    el.addEventListener("input", function () { invalidarGuardado(); render(); });
+  });
+  list.addEventListener("change", function () { invalidarGuardado(); render(); });
+
+  function guardarRemito(paraPdf) {
+    var operativo = document.getElementById("f-operativo").value.trim();
+    var sel = seleccion();
+    if (!operativo) { alert("Cargá el nombre del operativo."); return Promise.reject(); }
+    if (!sel.length) { alert("Seleccioná al menos una tarifa."); return Promise.reject(); }
+    return fetch("/polinomica/remito/guardar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operativo: operativo,
+        producto: document.getElementById("f-producto").value.trim(),
+        fecha_ini: document.getElementById("f-ini").value,
+        fecha_fin: document.getElementById("f-fin").value,
+        observaciones: document.getElementById("f-obs").value.trim(),
+        tarifas: sel
+      })
+    }).then(function (r) {
+      if (!r.ok) return r.json().then(function (e) { throw new Error(e.detail || "Error"); });
+      return r.json();
+    }).then(function (d) {
+      savedId = d.id;
+      document.getElementById("pv-numero").textContent = d.numero;
+      if (!paraPdf) document.getElementById("save-msg").textContent = "✓ Guardado " + d.numero;
+      return d;
+    }).catch(function (e) { alert(e.message || "No se pudo guardar."); throw e; });
+  }
+
+  function descargarPDF() {
+    (savedId ? Promise.resolve({ id: savedId }) : guardarRemito(true)).then(function (d) {
+      window.location.href = "/polinomica/remito/" + d.id + "/pdf";
+    }).catch(function () {});
+  }
+
+  render();
+  // Mobile: colapsar a una columna
+  if (window.innerWidth < 900) document.getElementById("remito-grid").style.gridTemplateColumns = "1fr";
+</script>
+{% endblock %}

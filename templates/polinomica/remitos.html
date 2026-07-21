@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Remitos guardados — Polinómica CNA{% endblock %}
+{% block content %}
+{% include "polinomica/_polin.html" %}
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 12px">
+    <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:0">
+      Remitos guardados · {{ filas | length }}
+    </p>
+    <a href="/polinomica/remito" class="p-btn navy" style="font-size:12.5px">📄 Nuevo remito</a>
+  </div>
+
+  <div class="p-card" style="overflow:hidden">
+    {% if filas %}
+    <div style="overflow-x:auto">
+    <table class="p-table" data-sort>
+      <thead><tr>
+        <th style="border-radius:0">N° remito</th><th>Operativo</th><th>Producto</th>
+        <th>Período</th><th>Tarifas</th><th style="border-radius:0">Acciones</th>
+      </tr></thead>
+      <tbody>
+        {% for r, n in filas %}
+        <tr>
+          <td style="font-weight:700;font-variant-numeric:tabular-nums">{{ r.numero }}</td>
+          <td>{{ r.operativo }}</td>
+          <td class="t-base">{{ r.producto or "—" }}</td>
+          <td class="t-base" style="white-space:nowrap">
+            {{ r.fecha_ini.strftime("%d/%m/%y") if r.fecha_ini else "—" }} → {{ r.fecha_fin.strftime("%d/%m/%y") if r.fecha_fin else "—" }}
+          </td>
+          <td><span class="chip b" style="margin-top:0">{{ n }} tarifa{{ "s" if n != 1 }}</span></td>
+          <td style="white-space:nowrap">
+            <a href="/polinomica/remito/{{ r.id }}/pdf" style="color:var(--pred);font-weight:700;font-size:12.5px;text-decoration:none">⬇ PDF</a>
+            <a href="/polinomica/remito/{{ r.id }}" style="color:var(--pblue);font-weight:700;font-size:12.5px;text-decoration:none;margin-left:12px">Ver detalle</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p style="color:var(--pmuted);text-align:center;padding:34px;font-size:13.5px">
+      Todavía no hay remitos guardados. <a href="/polinomica/remito" style="color:var(--pblue);font-weight:700">Generá el primero →</a>
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

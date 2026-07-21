@@ -14,6 +14,7 @@ from app.routers import tariffs
 from app.routers import projects
 from app.routers import transporte
 from app.routers import arribos
+from app.routers import polinomica
 from app.deps import require_role
 
 # ── Startup security check ─────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ app.include_router(arribos.router)   # /operations/arribos — antes que operati
 app.include_router(operations.router)
 app.include_router(despachos.router)
 app.include_router(tariffs.router)
+app.include_router(polinomica.router)
 app.include_router(operations.api_router)
 
 

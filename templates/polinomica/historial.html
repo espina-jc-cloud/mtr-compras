@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Historial — Polinómica CNA{% endblock %}
+{% block content %}
+{% include "polinomica/_polin.html" %}
+
+  <div class="p-card" style="margin-top:18px;overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="p-table">
+      <thead><tr>
+        <th style="border-radius:0">Mes</th>
+        {% for k in indices %}<th>{{ indice_labels[k] }}</th>{% endfor %}
+      </tr></thead>
+      <tbody>
+        {% for h in historial %}
+        <tr class="{{ 'hl-row' if loop.last }}">
+          <td style="font-weight:700">{{ h.mes }}</td>
+          {% for k in indices %}
+          {% set v = h[k] * 100 %}
+          <td style="color:{{ '#B03030' if v < 0 else '#1A2B3C' }};font-variant-numeric:tabular-nums">{{ "%+.2f" | format(v) }}%</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin:16px 0">
+    <div class="p-card" style="padding:16px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:0 0 10px">Combustible — variación mensual</p>
+      <canvas id="chComb" height="190"></canvas>
+    </div>
+    <div class="p-card" style="padding:16px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--pmuted);margin:0 0 10px">USD BNA — variación mensual</p>
+      <canvas id="chUsd" height="190"></canvas>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/chart.min.js"></script>
+<script>
+  fetch("/polinomica/api/historial").then(r => r.json()).then(function (hist) {
+    var labels = hist.map(function (h) { return h.mes; });
+    function bars(id, key, base) {
+      var data = hist.map(function (h) { return h[key] * 100; });
+      new Chart(document.getElementById(id), {
+        type: "bar",
+        data: { labels: labels, datasets: [{ data: data,
+          backgroundColor: data.map(function (v) { return v < 0 ? "#B03030" : base; }), borderRadius: 3 }] },
+        options: { plugins: { legend: { display: false } },
+          scales: { y: { ticks: { callback: function (v) { return v + "%"; } } },
+                    x: { ticks: { maxRotation: 60, font: { size: 10 } } } } }
+      });
+    }
+    bars("chComb", "comb", "#C9A84C");
+    bars("chUsd", "usd", "#1A5FAB");
+  });
+</script>
+{% endblock %}

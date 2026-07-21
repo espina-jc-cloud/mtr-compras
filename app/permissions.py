@@ -53,6 +53,7 @@ MODULES = [
             {"key": "operaciones.live",             "label": "Operativos Live",      "prefixes": ["/operations/live"]},
             {"key": "operaciones.finalizados",      "label": "Operativos Finalizados", "prefixes": ["/operations", "/api/operations"]},
             {"key": "operaciones.tarifas_propias",  "label": "Tarifas propias",      "prefixes": ["/tarifario"]},
+            {"key": "operaciones.polinomica",       "label": "Polinómica CNA",       "prefixes": ["/polinomica"]},
             {"key": "operaciones.tarifas_terceros", "label": "Tarifas de terceros",  "prefixes": []},
         ],
     },
@@ -92,7 +93,7 @@ _DEF = {
         "compras.compras", "compras.cotizaciones", "compras.facturas", "compras.proveedores",
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
-        "operaciones.tarifas_propias",
+        "operaciones.tarifas_propias", "operaciones.polinomica",
         "transporte.nomina", "transporte.historial",
     },
 
@@ -101,7 +102,7 @@ _DEF = {
         "compras.compras", "compras.cotizaciones", "compras.facturas", "compras.proveedores",
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
-        "operaciones.arribos", "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias",
+        "operaciones.arribos", "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias", "operaciones.polinomica",
         "transporte.nomina", "transporte.historial",
     },
 
