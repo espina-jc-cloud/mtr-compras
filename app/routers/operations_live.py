@@ -364,13 +364,22 @@ async def list_live_sessions(
 @router.get("/new", response_class=HTMLResponse)
 async def new_session_form(
     request: Request,
+    buque: str = "",
+    cliente: str = "",
+    producto: str = "",
     current_user=Depends(require_perm("operaciones.live")),
 ):
+    # Precarga opcional al venir desde un arribo (Etapa 5, reversible por query).
     return templates.TemplateResponse(
         request,
         "operations/live/new_session.html",
         {
             "current_user": current_user,
+            "prefill": {
+                "ship_name": (buque or "").strip(),
+                "product": (producto or "").strip(),
+                "client": (cliente or "").strip(),
+            },
         },
     )
 
