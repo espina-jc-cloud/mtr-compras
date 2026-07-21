@@ -119,7 +119,7 @@ async def list_maintenance(
     }
     return templates.TemplateResponse(request, "maintenance/list.html", {
         "user": current_user,
-        "records": records,
+        "records": records, "shown": len(records), "truncated": len(records) >= 200,
         "params": params,
         "plants": PLANTS,
         "statuses": STATUSES,

@@ -1,0 +1,8 @@
+{# Banner de truncado. Requiere en el contexto: truncated (bool), shown (int).
+   Se muestra solo cuando la lista alcanzó su límite y podría haber más registros. #}
+{% if truncated %}
+<div class="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 mb-4 text-sm">
+  <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Mostrando los primeros <b>{{ shown }}</b> registros. Refiná los filtros para ver el resto.
+</div>
+{% endif %}

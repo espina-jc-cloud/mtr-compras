@@ -771,7 +771,7 @@ async def list_despachos(
         "despachos/list.html",
         {
             "current_user":  current_user,
-            "registros":     camiones,
+            "registros":     camiones, "shown": len(camiones), "truncated": len(camiones) >= 500,
             "kpis":          kpis,
             "estados":       DESPACHO_ESTADOS,
             "estado_labels": DESPACHO_ESTADO_LABELS,

@@ -94,6 +94,7 @@
 {% if registros %}
 <div class="text-xs text-gray-400 mb-2">{{ registros | length }} camión{% if registros | length != 1 %}es{% endif %}</div>
 
+{% include "partials/_trunc.html" %}
 <!-- Desktop table -->
 <div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
   <table data-sort class="w-full text-sm">

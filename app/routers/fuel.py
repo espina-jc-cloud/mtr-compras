@@ -183,7 +183,7 @@ async def list_fuel(
 
     return templates.TemplateResponse(request, "fuel/list.html", {
         "user":         current_user,
-        "loads":        loads,
+        "loads":        loads, "shown": len(loads), "truncated": len(loads) >= 300,
         "params":       params,
         "companies":    COMPANIES,
         "plants":       PLANTS,

@@ -140,11 +140,11 @@ async def list_quotes(request: Request, db: Session = Depends(get_db), current_u
     is_htmx = request.headers.get("HX-Request")
     if is_htmx:
         return templates.TemplateResponse(request, "quotes/partials/results.html", {
-            "user": current_user, "quotes": quotes, "params": params, "now": now,
+            "user": current_user, "quotes": quotes, "shown": len(quotes), "truncated": len(quotes) >= 200, "params": params, "now": now,
         })
     return templates.TemplateResponse(request, "quotes/list.html", {
         "user": current_user,
-        "quotes": quotes, "suppliers": suppliers,
+        "quotes": quotes, "shown": len(quotes), "truncated": len(quotes) >= 200, "suppliers": suppliers,
         "params": params, "statuses": QUOTE_STATUSES, "now": now,
     })
 

@@ -196,11 +196,11 @@ async def list_purchases(request: Request, db: Session = Depends(get_db), curren
     is_htmx = request.headers.get("HX-Request")
     if is_htmx:
         return templates.TemplateResponse(request, "purchases/partials/results.html", {
-            "user": current_user, "purchases": purchases, "params": params, "statuses": STATUSES,
+            "user": current_user, "purchases": purchases, "shown": len(purchases), "truncated": len(purchases) >= 200, "params": params, "statuses": STATUSES,
         })
     return templates.TemplateResponse(request, "purchases/list.html", {
         "user": current_user,
-        "purchases": purchases, "suppliers": suppliers, "requesters": requesters,
+        "purchases": purchases, "shown": len(purchases), "truncated": len(purchases) >= 200, "suppliers": suppliers, "requesters": requesters,
         "params": params, "statuses": STATUSES,
     })
 
