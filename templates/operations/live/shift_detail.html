@@ -6,7 +6,7 @@
 <!-- Header -->
 <div class="flex items-center gap-3 mb-6">
   <a href="/operations/live/{{ session.id }}"
-    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
+    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0" aria-label="Volver">
     <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
     </svg>
@@ -232,8 +232,8 @@
       <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2
                   opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         {% if photo.caption %}<p class="text-[10px] text-white font-medium truncate">{{ photo.caption }}</p>{% endif %}
-        {% if photo.bodega_number %}<p class="text-[9px] text-gray-300">Bodega {{ photo.bodega_number }}</p>{% endif %}
-        <p class="text-[9px] text-gray-300">{{ photo.created_at | fmt_ar }}</p>
+        {% if photo.bodega_number %}<p class="text-[9px] text-gray-400">Bodega {{ photo.bodega_number }}</p>{% endif %}
+        <p class="text-[9px] text-gray-400">{{ photo.created_at | fmt_ar }}</p>
       </div>
       {% if photo.category %}
       <span class="absolute top-1 left-1 text-[9px] font-semibold bg-black/50 text-white px-1.5 py-0.5 rounded-full pointer-events-none">

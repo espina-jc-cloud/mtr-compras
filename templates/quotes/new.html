@@ -182,7 +182,7 @@ function addItem(desc, qty, unit, price) {
     <div class="col-span-1 text-right text-xs text-gray-500 font-mono subtotal-cell">—</div>
     <div class="col-span-1 flex justify-end">
       <button type="button" onclick="this.closest('.grid').remove(); recalcTotal()"
-        class="text-gray-300 hover:text-red-500 transition-colors">
+        class="text-gray-300 hover:text-red-500 transition-colors" aria-label="Quitar fila">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>`;

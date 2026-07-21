@@ -76,7 +76,7 @@
             Pausado
           </span>
           {% endif %}
-          <span class="text-[11px] text-gray-400">{{ session.created_at | fmt_date }}</span>
+          <span class="text-[11px] text-gray-500">{{ session.created_at | fmt_date }}</span>
         </div>
       </div>
 
@@ -170,7 +170,7 @@
     <div class="text-right flex-shrink-0 ml-3">
       {% if grand.kg_coop %}
       <p class="text-sm font-bold text-gray-700">{{ fmt_kg(grand.kg_coop) }} kg</p>
-      <p class="text-[11px] text-gray-400">coop total</p>
+      <p class="text-[11px] text-gray-500">coop total</p>
       {% else %}
       <p class="text-xs text-gray-300">Sin datos</p>
       {% endif %}

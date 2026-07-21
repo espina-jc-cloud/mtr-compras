@@ -4,7 +4,7 @@
 
 <!-- Back + header -->
 <div class="flex items-center gap-3 mb-5">
-  <a href="/operations" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 flex-shrink-0">
+  <a href="/operations" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 flex-shrink-0" aria-label="Volver">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
   </a>
   <div class="flex-1 min-w-0">
@@ -79,28 +79,28 @@
 <!-- Info secundaria — fila compacta -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 mb-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5 text-sm">
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Viajes a depósito</p>
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Viajes a depósito</p>
     <p class="font-semibold text-gray-800 mt-0.5">{{ actual_trips_display | fmt_num }}</p>
   </div>
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Ritmo (t/h)</p>
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Ritmo (t/h)</p>
     {% if has_cv %}
     <p class="font-semibold text-gray-400 mt-0.5 text-xs" title="Ritmo no disponible: el operativo incluye Costado Vapor y no se registran viajes individuales de CV.">Sin ritmo — incluye CV</p>
     {% elif rhythm_t_h %}
     <p class="font-semibold text-gray-800 mt-0.5">{{ rhythm_t_h | fmt_num(1) }} t/h</p>
-    {% if rhythm_duration_h %}<p class="text-[10px] text-gray-400 mt-0.5">{{ rhythm_duration_h | fmt_num(1) }} h operación</p>{% endif %}
+    {% if rhythm_duration_h %}<p class="text-[10px] text-gray-500 mt-0.5">{{ rhythm_duration_h | fmt_num(1) }} h operación</p>{% endif %}
     {% else %}
     <p class="font-semibold text-gray-800 mt-0.5">—</p>
     {% endif %}
   </div>
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Diferencia neta</p>
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Diferencia neta</p>
     <p class="font-semibold {% if op.total_diff_kg >= 0 %}text-emerald-600{% else %}text-orange-500{% endif %} mt-0.5">
       {% if op.total_diff_kg > 0 %}+{% endif %}{{ (op.total_diff_kg / 1000) | fmt_num(2) }} t
     </p>
   </div>
   <div>
-    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Producto</p>
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Producto</p>
     {% if display_product %}
     <p class="font-semibold text-gray-800 mt-0.5">{{ display_product }}</p>
     {% elif has_cv and discharge_list|length > 1 %}
@@ -272,7 +272,7 @@
     <div class="flex items-center justify-between">
       <h2 class="text-sm font-semibold text-gray-700">📋 Viajes — <span class="font-normal text-gray-400">{{ trips|length }} registros</span></h2>
       {% if trips|length > 100 %}
-      <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">Scroll horizontal disponible</span>
+      <span class="text-[10px] text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Scroll horizontal disponible</span>
       {% endif %}
     </div>
   </div>
