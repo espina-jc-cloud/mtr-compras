@@ -1,0 +1,14 @@
+{# Estado vacío unificado. Uso:
+     {% with msg="No hay X.", action_href="/x/new", action_label="Cargar el primero" %}
+       {% include "partials/_empty.html" %}
+     {% endwith %}
+   `action_href` y `action_label` son opcionales. #}
+<div class="text-center py-12 px-4">
+  <div class="mx-auto w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+  </div>
+  <p class="text-sm text-gray-500">{{ msg or "No hay registros." }}</p>
+  {% if action_href and action_label %}
+  <a href="{{ action_href }}" class="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-indigo-700 hover:text-indigo-900">{{ action_label }} →</a>
+  {% endif %}
+</div>

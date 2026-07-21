@@ -8,11 +8,7 @@
     <h1 class="text-xl font-semibold text-gray-900">Importar operativos finalizados</h1>
   </div>
 
-  {% if error %}
-  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
-    {{ error }}
-  </div>
-  {% endif %}
+  {% include "partials/_error.html" %}
 
   {% if not preview %}
   <!-- ── Paso 1: subir archivo ──────────────────────────────────────────── -->

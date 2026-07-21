@@ -65,7 +65,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-sm text-gray-400 py-8 text-center">No hay arribos cargados. Creá uno con <a href="/operations/arribos/new" class="text-indigo-600 underline">+ Nuevo</a> o importá un lineup.</p>
+  {% with msg="No hay arribos en seguimiento.", action_href="/operations/arribos/new", action_label="Cargar el primero" %}{% include "partials/_empty.html" %}{% endwith %}
   {% endif %}
 </div>
 
