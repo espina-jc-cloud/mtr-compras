@@ -1370,6 +1370,110 @@ async def import_confirm(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Carga manual + borrado
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/new", response_class=HTMLResponse)
+async def new_form(request: Request, current_user=Depends(_guard), error: str = ""):
+    return templates.TemplateResponse(request, "despachos/new.html", {
+        "current_user": current_user, "error": error or None, "v": {},
+        "estados": DESPACHO_ESTADOS,
+    })
+
+
+@router.post("/new")
+async def create_manual(request: Request, db: Session = Depends(get_db),
+                        current_user=Depends(_guard)):
+    form = await request.form()
+
+    def g(k):
+        return str(form.get(k, "") or "").strip()
+
+    source = g("source_type") or "nutrien"
+    producto = g("producto")
+    dest = g("destinatario")
+
+    if not producto or not dest:
+        return templates.TemplateResponse(request, "despachos/new.html", {
+            "current_user": current_user,
+            "error": "Producto y destinatario/cliente son obligatorios.",
+            "v": {k: g(k) for k in (
+                "source_type", "scheduled_date", "st_sd_od", "destinatario",
+                "producto", "cantidad_mt", "presentacion", "bolsa_kg", "npk",
+                "transporte", "chofer", "patente_chasis", "patente_acoplado",
+                "remito", "notes")},
+            "estados": DESPACHO_ESTADOS,
+        }, status_code=422)
+
+    def to_date(s):
+        try:
+            return date.fromisoformat(s) if s else None
+        except ValueError:
+            return None
+
+    def to_num(s):
+        try:
+            return float(s.replace(",", ".")) if s else None
+        except ValueError:
+            return None
+
+    cd = CupoDespacho(
+        batch_id       = None,
+        source_type    = source,
+        document_type  = "cupo",
+        scheduled_date = to_date(g("scheduled_date")),
+        st_sd_od       = g("st_sd_od") or None,
+        external_ref   = g("st_sd_od") or None,
+        destinatario   = dest if source == "nutrien" else None,
+        cliente        = dest if source != "nutrien" else None,
+        producto       = producto,
+        cantidad_mt    = to_num(g("cantidad_mt")) if source == "nutrien" else None,
+        kg_oc          = to_num(g("cantidad_mt")) if source != "nutrien" else None,
+        presentacion   = g("presentacion") or None,
+        bolsa_kg       = int(to_num(g("bolsa_kg"))) if to_num(g("bolsa_kg")) else None,
+        npk            = g("npk") or None,
+        transporte     = g("transporte") or None,
+        chofer         = g("chofer") or None,
+        patente_chasis = g("patente_chasis") or None,
+        patente_acoplado = g("patente_acoplado") or None,
+        remito         = g("remito") or None,
+        notes          = g("notes") or None,
+        status         = "programado",
+        camion_grupo   = None,   # manual = camión individual
+        imported_by    = current_user.name + " (manual)",
+    )
+    db.add(cd)
+    db.commit()
+    return RedirectResponse(url=f"/despachos/{cd.id}?ok=Cupo+cargado", status_code=303)
+
+
+@router.post("/delete_all")
+async def delete_all(request: Request, db: Session = Depends(get_db),
+                     current_user=Depends(_guard)):
+    n = db.query(CupoDespacho).delete()
+    db.query(ImportBatch).delete()
+    db.commit()
+    return RedirectResponse(
+        url=f"/despachos?ok={n}+registros+eliminados", status_code=303)
+
+
+@router.post("/{rid}/delete")
+async def delete_one(request: Request, rid: int, db: Session = Depends(get_db),
+                     current_user=Depends(_guard)):
+    reg = db.query(CupoDespacho).filter_by(id=rid).first()
+    if not reg:
+        raise HTTPException(404, "Registro no encontrado")
+    # Borrar el camión completo (todas las filas del mismo grupo).
+    if reg.camion_grupo is not None:
+        db.query(CupoDespacho).filter_by(
+            batch_id=reg.batch_id, camion_grupo=reg.camion_grupo).delete()
+    else:
+        db.delete(reg)
+    db.commit()
+    return RedirectResponse(url="/despachos?ok=Camión+eliminado", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Vista 3 — Detalle / Edición
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1384,12 +1488,26 @@ async def detail(
     if not reg:
         raise HTTPException(404, "Registro no encontrado")
 
+    # Camión completo: si el registro es parte de un camión multi-fila (mezcla,
+    # embolsado, consolidado), traer todas las filas hermanas para mostrar el
+    # detalle completo (productos + bolsa + bolsones), igual que la lista.
+    if reg.camion_grupo is not None:
+        hermanos = (db.query(CupoDespacho)
+                    .filter_by(batch_id=reg.batch_id, camion_grupo=reg.camion_grupo)
+                    .order_by(CupoDespacho.id)
+                    .all())
+    else:
+        hermanos = [reg]
+    camion = _agrupar_camiones(hermanos)[0] if hermanos else None
+
     return templates.TemplateResponse(
         request,
         "despachos/detail.html",
         {
             "current_user":  current_user,
             "reg":           reg,
+            "camion":        camion,
+            "hermanos":      hermanos,
             "estados":       DESPACHO_ESTADOS,
             "estado_labels": DESPACHO_ESTADO_LABELS,
             "estado_css":    ESTADO_CSS,

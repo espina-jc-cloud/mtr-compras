@@ -31,7 +31,64 @@
       Importado {{ reg.created_at | fmt_ar }} por {{ reg.imported_by or '—' }}
     </p>
   </div>
+  <form method="post" action="/despachos/{{ reg.id }}/delete" class="flex-shrink-0"
+    data-confirm="¿Borrar este camión ({{ reg.destinatario or reg.cliente or 'sin destinatario' }})?">
+    <button type="submit"
+      class="inline-flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      Borrar
+    </button>
+  </form>
 </div>
+
+<!-- ── Camión completo: productos + presentación (mezcla / bolsa / bolsones) ── -->
+{% if camion and (camion.productos | length > 1 or (camion.productos and camion.productos[0].presentacion)) %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">
+      {% if camion.productos | length > 1 %}Camión — {{ camion.productos | length }} productos{% else %}Detalle del cupo{% endif %}
+    </p>
+    <span class="text-sm font-bold text-gray-900">{{ camion.total_t }} t</span>
+  </div>
+  <div class="border border-gray-100 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 text-gray-500 text-xs font-semibold">
+          <th class="text-left px-3 py-2">Producto</th>
+          <th class="text-right px-3 py-2">Cantidad</th>
+          <th class="text-left px-3 py-2">Presentación</th>
+          <th class="text-left px-3 py-2">N-P-K</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for p in camion.productos %}
+        <tr>
+          <td class="px-3 py-2 font-medium text-gray-800">{{ p.producto or "—" }}</td>
+          <td class="px-3 py-2 text-right font-mono text-gray-700">
+            {% if p.cantidad_mt %}{{ "%.2f"|format(p.cantidad_mt) }} t{% elif p.kg_oc %}{{ p.kg_oc | fmt_num(0) }} kg{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2">
+            {% if p.presentacion %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+              {% if 'Bolson' in p.presentacion or 'Bolsón' in p.presentacion %}bg-amber-50 text-amber-700 border border-amber-200
+              {% elif 'Bolsa' in p.presentacion %}bg-orange-50 text-orange-700 border border-orange-200
+              {% elif 'Mezcla' in p.presentacion %}bg-green-50 text-green-700 border border-green-200
+              {% else %}bg-gray-100 text-gray-600{% endif %}">
+              {{ p.presentacion }}{% if p.bolsa_kg %} · {{ p.bolsa_kg }}kg{% endif %}
+            </span>
+            {% else %}<span class="text-gray-300">—</span>{% endif %}
+          </td>
+          <td class="px-3 py-2 font-mono text-xs text-gray-500">{{ p.npk or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if camion.productos | length > 1 %}
+  <p class="text-[11px] text-gray-400 mt-2">Este camión agrupa varias filas del archivo (mismo camión). Los estados y datos de abajo aplican a la fila #{{ reg.id }}.</p>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- ── Cambio rápido de estado ───────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">

@@ -8,15 +8,34 @@
     <h1 class="text-xl font-semibold text-gray-900">Cupos y Despachos</h1>
     <p class="text-sm text-gray-500 mt-0.5">Programación y seguimiento operativo de camiones</p>
   </div>
-  <a href="/despachos/import"
-    class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white
-           text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex-shrink-0">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
-    </svg>
-    Importar Excel
-  </a>
+  <div class="flex items-center gap-2 flex-shrink-0">
+    {% if registros %}
+    <form method="post" action="/despachos/delete_all"
+      data-confirm="¿Borrar TODOS los cupos y despachos? Esta acción no se puede deshacer.">
+      <button type="submit"
+        class="inline-flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50
+               text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Borrar todo
+      </button>
+    </form>
+    {% endif %}
+    <a href="/despachos/new"
+      class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white
+             text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Nuevo cupo
+    </a>
+    <a href="/despachos/import"
+      class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white
+             text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+      </svg>
+      Importar Excel
+    </a>
+  </div>
 </div>
 
 {% if request.query_params.get('import_ok') %}
@@ -168,9 +187,17 @@
           </span>
         </td>
         <td class="px-3 py-2.5">
-          <a href="/despachos/{{ r.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">
-            Ver →
-          </a>
+          <div class="flex items-center gap-2 justify-end">
+            <a href="/despachos/{{ r.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">
+              Ver →
+            </a>
+            <form method="post" action="/despachos/{{ r.id }}/delete" class="inline"
+              data-confirm="¿Borrar este camión ({{ r.destinatario or r.cliente or 'sin destinatario' }})?">
+              <button type="submit" class="text-gray-300 hover:text-red-500 transition-colors" aria-label="Borrar camión" title="Borrar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}
@@ -211,7 +238,15 @@
       <span>🏢 {{ r.transporte or '—' }}</span>
       <span>👤 {{ r.chofer or '—' }}</span>
     </div>
-    <a href="/despachos/{{ r.id }}" class="text-indigo-600 text-xs font-medium">Ver detalle →</a>
+    <div class="flex items-center justify-between">
+      <a href="/despachos/{{ r.id }}" class="text-indigo-600 text-xs font-medium">Ver detalle →</a>
+      <form method="post" action="/despachos/{{ r.id }}/delete" class="inline"
+        data-confirm="¿Borrar este camión ({{ r.destinatario or r.cliente or 'sin destinatario' }})?">
+        <button type="submit" class="text-gray-300 hover:text-red-500 transition-colors" aria-label="Borrar camión" title="Borrar">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </form>
+    </div>
   </div>
   {% endfor %}
 </div>
