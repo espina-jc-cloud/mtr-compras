@@ -23,6 +23,7 @@ import openpyxl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.deps import require_role
@@ -461,7 +462,7 @@ def _parse_nutrien(
 
             rows.append({
                 "source_type":    "nutrien",
-                "document_type":  "cupo",
+                "document_type":  "mezcla" if is_sm else "cupo",
                 "source_sheet":   sheet_name,
                 "scheduled_date": fecha,
                 "st_sd_od":       st,
@@ -666,8 +667,9 @@ def _agrupar_camiones(registros: list) -> list:
     orden_grupos: list = []
 
     for r in registros:
-        if r.source_type == "nutrien" and r.camion_grupo is not None:
-            key = ("nutrien", r.camion_grupo)
+        # Clave por (batch, grupo) para no fusionar camiones de imports distintos.
+        if r.camion_grupo is not None:
+            key = ("grp", r.batch_id, r.camion_grupo)
         else:
             key = ("single", r.id)
         if key not in grupos:
@@ -679,17 +681,37 @@ def _agrupar_camiones(registros: list) -> list:
         filas = grupos[key]
         rep = filas[0]  # fila representativa para datos del camión
         total_t = sum(float(f.cantidad_mt or 0) + float(f.kg_oc or 0) / 1000 for f in filas)
-        productos = [
-            {
+
+        # ¿Es mezcla física? (marcado en import/carga manual). Consolidado =
+        # varios productos NO mezclados; simple = un producto.
+        es_mezcla = any(
+            (f.document_type == "mezcla")
+            or (f.presentacion and "Mezcla" in f.presentacion)
+            or f.componentes_mezcla
+            for f in filas
+        )
+
+        productos = []
+        for f in filas:
+            cant = float(f.cantidad_mt or 0) + float(f.kg_oc or 0) / 1000
+            productos.append({
                 "producto":     f.producto,
                 "cantidad_mt":  f.cantidad_mt,
                 "kg_oc":        f.kg_oc,
                 "presentacion": f.presentacion,
                 "bolsa_kg":     f.bolsa_kg,
                 "npk":          f.npk,
-            }
-            for f in filas
-        ]
+                # % del componente sobre el total del camión (para mezclas).
+                "pct":          round(cant / total_t * 100, 1) if (es_mezcla and total_t) else None,
+            })
+
+        if es_mezcla:
+            tipo = "mezcla"
+        elif len(filas) > 1:
+            tipo = "consolidado"
+        else:
+            tipo = "simple"
+
         camiones.append({
             "id":            rep.id,
             "ids":           [f.id for f in filas],
@@ -706,6 +728,9 @@ def _agrupar_camiones(registros: list) -> list:
             "total_t":       round(total_t, 1),
             "productos":     productos,
             "multi":         len(filas) > 1,
+            "es_mezcla":     es_mezcla,
+            "tipo":          tipo,
+            "npk":           next((f.npk for f in filas if f.npk), None) if es_mezcla else None,
             "camion_grupo":  rep.camion_grupo,
         })
     return camiones
@@ -1376,9 +1401,13 @@ async def import_confirm(
 @router.get("/new", response_class=HTMLResponse)
 async def new_form(request: Request, current_user=Depends(_guard), error: str = ""):
     return templates.TemplateResponse(request, "despachos/new.html", {
-        "current_user": current_user, "error": error or None, "v": {},
-        "estados": DESPACHO_ESTADOS,
+        "current_user": current_user, "error": error or None, "v": {}, "lineas": [],
+        "estados": DESPACHO_ESTADOS, "presentaciones": _PRESENTACIONES,
     })
+
+
+_PRESENTACIONES = ["Granel", "Bolsones 1000kg", "Bolsas 50kg", "Bolsas 25kg"]
+_BOLSA_KG = {"Bolsones 1000kg": 1000, "Bolsas 50kg": 50, "Bolsas 25kg": 25}
 
 
 @router.post("/new")
@@ -1389,22 +1418,6 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
     def g(k):
         return str(form.get(k, "") or "").strip()
 
-    source = g("source_type") or "nutrien"
-    producto = g("producto")
-    dest = g("destinatario")
-
-    if not producto or not dest:
-        return templates.TemplateResponse(request, "despachos/new.html", {
-            "current_user": current_user,
-            "error": "Producto y destinatario/cliente son obligatorios.",
-            "v": {k: g(k) for k in (
-                "source_type", "scheduled_date", "st_sd_od", "destinatario",
-                "producto", "cantidad_mt", "presentacion", "bolsa_kg", "npk",
-                "transporte", "chofer", "patente_chasis", "patente_acoplado",
-                "remito", "notes")},
-            "estados": DESPACHO_ESTADOS,
-        }, status_code=422)
-
     def to_date(s):
         try:
             return date.fromisoformat(s) if s else None
@@ -1413,38 +1426,85 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
 
     def to_num(s):
         try:
-            return float(s.replace(",", ".")) if s else None
+            return float(str(s).replace(",", ".")) if s else None
         except ValueError:
             return None
 
-    cd = CupoDespacho(
-        batch_id       = None,
-        source_type    = source,
-        document_type  = "cupo",
-        scheduled_date = to_date(g("scheduled_date")),
-        st_sd_od       = g("st_sd_od") or None,
-        external_ref   = g("st_sd_od") or None,
-        destinatario   = dest if source == "nutrien" else None,
-        cliente        = dest if source != "nutrien" else None,
-        producto       = producto,
-        cantidad_mt    = to_num(g("cantidad_mt")) if source == "nutrien" else None,
-        kg_oc          = to_num(g("cantidad_mt")) if source != "nutrien" else None,
-        presentacion   = g("presentacion") or None,
-        bolsa_kg       = int(to_num(g("bolsa_kg"))) if to_num(g("bolsa_kg")) else None,
-        npk            = g("npk") or None,
-        transporte     = g("transporte") or None,
-        chofer         = g("chofer") or None,
-        patente_chasis = g("patente_chasis") or None,
-        patente_acoplado = g("patente_acoplado") or None,
-        remito         = g("remito") or None,
-        notes          = g("notes") or None,
-        status         = "programado",
-        camion_grupo   = None,   # manual = camión individual
-        imported_by    = current_user.name + " (manual)",
-    )
-    db.add(cd)
+    source = g("source_type") or "nutrien"
+    tipo   = g("tipo") or "simple"          # simple | consolidado | mezcla
+    dest   = g("destinatario")
+
+    # Recolectar las líneas de producto (producto_0, cantidad_0, presentacion_0…)
+    lineas = []
+    for i in range(0, 40):
+        prod = g(f"producto_{i}")
+        if not prod:
+            continue
+        lineas.append({
+            "producto":     prod,
+            "cantidad_mt":  to_num(g(f"cantidad_{i}")),
+            "presentacion": g(f"presentacion_{i}") or None,
+        })
+
+    def _rerender(msg):
+        return templates.TemplateResponse(request, "despachos/new.html", {
+            "current_user": current_user, "error": msg,
+            "v": {k: g(k) for k in (
+                "source_type", "tipo", "scheduled_date", "st_sd_od", "destinatario",
+                "npk", "transporte", "chofer", "patente_chasis", "patente_acoplado",
+                "remito", "notes")},
+            "lineas": lineas,
+            "estados": DESPACHO_ESTADOS, "presentaciones": _PRESENTACIONES,
+        }, status_code=422)
+
+    if not dest:
+        return _rerender("El destinatario / cliente es obligatorio.")
+    if not lineas:
+        return _rerender("Cargá al menos un producto.")
+
+    # camion_grupo: solo si hay más de una línea (consolidado o mezcla).
+    grupo = None
+    if len(lineas) > 1:
+        maxg = db.query(func.max(CupoDespacho.camion_grupo)).filter(
+            CupoDespacho.batch_id.is_(None)).scalar() or 0
+        grupo = maxg + 1
+
+    doc_type = "mezcla" if tipo == "mezcla" else "cupo"
+    npk = g("npk") or None
+    primer_id = None
+    for ln in lineas:
+        pres = ln["presentacion"]
+        cd = CupoDespacho(
+            batch_id       = None,
+            source_type    = source,
+            document_type  = doc_type,
+            scheduled_date = to_date(g("scheduled_date")),
+            st_sd_od       = g("st_sd_od") or None,
+            external_ref   = g("st_sd_od") or None,
+            destinatario   = dest if source == "nutrien" else None,
+            cliente        = dest if source != "nutrien" else None,
+            producto       = ln["producto"],
+            cantidad_mt    = ln["cantidad_mt"] if source == "nutrien" else None,
+            kg_oc          = ln["cantidad_mt"] if source != "nutrien" else None,
+            presentacion   = pres,
+            bolsa_kg       = _BOLSA_KG.get(pres),
+            npk            = npk if tipo == "mezcla" else None,
+            transporte     = g("transporte") or None,
+            chofer         = g("chofer") or None,
+            patente_chasis = g("patente_chasis") or None,
+            patente_acoplado = g("patente_acoplado") or None,
+            remito         = g("remito") or None,
+            notes          = g("notes") or None,
+            status         = "programado",
+            camion_grupo   = grupo,
+            imported_by    = current_user.name + " (manual)",
+        )
+        db.add(cd)
+        db.flush()
+        if primer_id is None:
+            primer_id = cd.id
     db.commit()
-    return RedirectResponse(url=f"/despachos/{cd.id}?ok=Cupo+cargado", status_code=303)
+    return RedirectResponse(url=f"/despachos/{primer_id}?ok=Cupo+cargado", status_code=303)
 
 
 @router.post("/delete_all")
