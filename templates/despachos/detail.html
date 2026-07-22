@@ -146,10 +146,31 @@
 {% endif %}
 
 <!-- ── Datos del registro ─────────────────────────────────────────────────── -->
+{% if hermanos and hermanos | length > 1 %}
+<!-- Selector de fila del camión (cada producto es una fila editable aparte) -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-3">
+  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+    Editar fila del camión ({{ hermanos | length }} productos)
+  </p>
+  <div class="flex flex-wrap gap-2">
+    {% for h in hermanos %}
+    <a href="/despachos/{{ h.id }}"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
+        {% if h.id == reg.id %}bg-indigo-600 text-white border-indigo-600{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+      {{ h.producto or '—' }}
+      <span class="opacity-70">{% if h.cantidad_mt %}{{ "%.0f"|format(h.cantidad_mt) }}t{% elif h.kg_oc %}{{ h.kg_oc|fmt_num(0) }}kg{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <form method="post" action="/despachos/{{ reg.id }}/edit"
   class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
   <div class="flex items-center justify-between mb-4">
-    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Datos del registro</p>
+    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">
+      {% if hermanos and hermanos | length > 1 %}Datos de la fila — <span class="text-gray-800">{{ reg.producto }}</span>{% else %}Datos del registro{% endif %}
+    </p>
     <button type="submit"
       class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-1.5
              rounded-lg transition-colors">
