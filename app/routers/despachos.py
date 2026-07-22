@@ -1398,21 +1398,25 @@ async def import_confirm(
 # Carga manual + borrado
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/new", response_class=HTMLResponse)
-async def new_form(request: Request, current_user=Depends(_guard), error: str = ""):
-    return templates.TemplateResponse(request, "despachos/new.html", {
-        "current_user": current_user, "error": error or None, "v": {}, "lineas": [],
-        "estados": DESPACHO_ESTADOS, "presentaciones": _PRESENTACIONES,
-    })
-
-
 _PRESENTACIONES = ["Granel", "Bolsones 1000kg", "Bolsas 50kg", "Bolsas 25kg"]
 _BOLSA_KG = {"Bolsones 1000kg": 1000, "Bolsas 50kg": 50, "Bolsas 25kg": 25}
+_CLIENTES_FIJOS = ["NUTRIEN", "CNA"]
+
+
+@router.get("/new", response_class=HTMLResponse)
+async def new_form(request: Request, current_user=Depends(_guard)):
+    import json as _json
+    return templates.TemplateResponse(request, "despachos/new.html", {
+        "current_user": current_user, "error": None, "v": {},
+        "items_json": _json.dumps([]),
+        "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
+    })
 
 
 @router.post("/new")
 async def create_manual(request: Request, db: Session = Depends(get_db),
                         current_user=Depends(_guard)):
+    import json as _json
     form = await request.form()
 
     def g(k):
@@ -1430,65 +1434,127 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
         except ValueError:
             return None
 
-    source = g("source_type") or "nutrien"
-    tipo   = g("tipo") or "simple"          # simple | consolidado | mezcla
-    dest   = g("destinatario")
+    # ── Cliente: NUTRIEN / CNA / spot (nombre libre) ─────────────────────────
+    cliente_tipo   = g("cliente_tipo") or "NUTRIEN"
+    cliente_nombre = g("cliente_nombre")
+    if cliente_tipo == "SPOT":
+        cliente = cliente_nombre
+        source  = "spot"
+    else:
+        cliente = cliente_tipo
+        source  = "nutrien" if cliente_tipo == "NUTRIEN" else "cna"
 
-    # Recolectar las líneas de producto (producto_0, cantidad_0, presentacion_0…)
-    lineas = []
-    for i in range(0, 40):
-        prod = g(f"producto_{i}")
-        if not prod:
+    dest = g("destinatario")
+
+    # ── Ítems del camión ─────────────────────────────────────────────────────
+    # item_on_{i}=1 · item_pres_{i} · item_mezcla_{i} ("1" si es mezcla)
+    #   simple → item_prod_{i} + item_cant_{i}
+    #   mezcla → item_total_{i} + item_npk_{i} + item_modo_{i} (t|pct)
+    #            + comp_prod_{i}_{j} + comp_val_{i}_{j}
+    items = []
+    for i in range(0, 20):
+        if g(f"item_on_{i}") != "1":
             continue
-        lineas.append({
-            "producto":     prod,
-            "cantidad_mt":  to_num(g(f"cantidad_{i}")),
-            "presentacion": g(f"presentacion_{i}") or None,
-        })
+        it = {
+            "pres":   g(f"item_pres_{i}") or "Granel",
+            "mezcla": g(f"item_mezcla_{i}") == "1",
+            "prod":   g(f"item_prod_{i}"),
+            "cant":   g(f"item_cant_{i}"),
+            "total":  g(f"item_total_{i}"),
+            "npk":    g(f"item_npk_{i}"),
+            "modo":   g(f"item_modo_{i}") or "t",
+            "comps":  [],
+        }
+        for j in range(0, 12):
+            cp = g(f"comp_prod_{i}_{j}")
+            cv = g(f"comp_val_{i}_{j}")
+            if cp:
+                it["comps"].append({"prod": cp, "val": cv})
+        items.append(it)
 
     def _rerender(msg):
         return templates.TemplateResponse(request, "despachos/new.html", {
             "current_user": current_user, "error": msg,
             "v": {k: g(k) for k in (
-                "source_type", "tipo", "scheduled_date", "st_sd_od", "destinatario",
-                "npk", "transporte", "chofer", "patente_chasis", "patente_acoplado",
-                "remito", "notes")},
-            "lineas": lineas,
-            "estados": DESPACHO_ESTADOS, "presentaciones": _PRESENTACIONES,
+                "cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
+                "destinatario", "transporte", "chofer", "patente_chasis",
+                "patente_acoplado", "remito", "notes")},
+            "items_json": _json.dumps(items),
+            "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
         }, status_code=422)
 
+    if cliente_tipo == "SPOT" and not cliente:
+        return _rerender("Poné el nombre del cliente spot.")
     if not dest:
-        return _rerender("El destinatario / cliente es obligatorio.")
-    if not lineas:
-        return _rerender("Cargá al menos un producto.")
+        return _rerender("El destinatario es obligatorio.")
+    if not items:
+        return _rerender("Cargá al menos un ítem.")
 
-    # camion_grupo: solo si hay más de una línea (consolidado o mezcla).
+    # ── Validar y armar filas a insertar ─────────────────────────────────────
+    filas = []
+    for n, it in enumerate(items, 1):
+        pres = it["pres"] if it["pres"] in _PRESENTACIONES else "Granel"
+        if not it["mezcla"]:
+            if not it["prod"]:
+                return _rerender(f"Ítem {n}: falta el producto.")
+            filas.append({
+                "producto": it["prod"].upper(), "cantidad_mt": to_num(it["cant"]),
+                "presentacion": pres, "doc": "cupo", "npk": None, "componentes": None,
+            })
+            continue
+        # Mezcla (en cualquier presentación: granel, bolsones o bolsas)
+        comps = [c for c in it["comps"] if c["prod"]]
+        if len(comps) < 2:
+            return _rerender(f"Ítem {n}: una mezcla necesita al menos 2 componentes.")
+        total = to_num(it["total"])
+        if it["modo"] == "pct":
+            if not total or total <= 0:
+                return _rerender(f"Ítem {n}: para cargar por porcentaje poné el total en toneladas.")
+            suma_pct = sum(to_num(c["val"]) or 0 for c in comps)
+            if abs(suma_pct - 100) > 1:
+                return _rerender(f"Ítem {n}: los porcentajes suman {suma_pct:g}%, deben sumar 100%.")
+            detalle = [{"producto": c["prod"].upper(),
+                        "cant_mt": round(total * (to_num(c["val"]) or 0) / 100, 3),
+                        "pct": round(to_num(c["val"]) or 0, 1)} for c in comps]
+        else:
+            cants = [to_num(c["val"]) or 0 for c in comps]
+            if not any(cants):
+                return _rerender(f"Ítem {n}: cargá las toneladas de los componentes.")
+            total = round(sum(cants), 3)
+            detalle = [{"producto": c["prod"].upper(),
+                        "cant_mt": round(to_num(c["val"]) or 0, 3),
+                        "pct": round((to_num(c["val"]) or 0) / total * 100, 1)} for c in comps]
+        nombre = "MEZCLA " + " + ".join(d["producto"] for d in detalle)
+        filas.append({
+            "producto": nombre[:190], "cantidad_mt": total, "presentacion": pres,
+            "doc": "mezcla", "npk": it["npk"] or None,
+            "componentes": _json.dumps(detalle, ensure_ascii=False),
+        })
+
+    # camion_grupo si el camión tiene más de un ítem
     grupo = None
-    if len(lineas) > 1:
+    if len(filas) > 1:
         maxg = db.query(func.max(CupoDespacho.camion_grupo)).filter(
             CupoDespacho.batch_id.is_(None)).scalar() or 0
         grupo = maxg + 1
 
-    doc_type = "mezcla" if tipo == "mezcla" else "cupo"
-    npk = g("npk") or None
     primer_id = None
-    for ln in lineas:
-        pres = ln["presentacion"]
+    for f in filas:
         cd = CupoDespacho(
             batch_id       = None,
             source_type    = source,
-            document_type  = doc_type,
+            document_type  = f["doc"],
             scheduled_date = to_date(g("scheduled_date")),
             st_sd_od       = g("st_sd_od") or None,
             external_ref   = g("st_sd_od") or None,
-            destinatario   = dest if source == "nutrien" else None,
-            cliente        = dest if source != "nutrien" else None,
-            producto       = ln["producto"],
-            cantidad_mt    = ln["cantidad_mt"] if source == "nutrien" else None,
-            kg_oc          = ln["cantidad_mt"] if source != "nutrien" else None,
-            presentacion   = pres,
-            bolsa_kg       = _BOLSA_KG.get(pres),
-            npk            = npk if tipo == "mezcla" else None,
+            cliente        = cliente,
+            destinatario   = dest,
+            producto       = f["producto"],
+            cantidad_mt    = f["cantidad_mt"],
+            presentacion   = f["presentacion"],
+            bolsa_kg       = _BOLSA_KG.get(f["presentacion"]),
+            npk            = f["npk"],
+            componentes_mezcla = f["componentes"],
             transporte     = g("transporte") or None,
             chofer         = g("chofer") or None,
             patente_chasis = g("patente_chasis") or None,

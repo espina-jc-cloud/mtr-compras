@@ -87,6 +87,7 @@
       <option value="">Todas las fuentes</option>
       <option value="nutrien" {% if f_source == 'nutrien' %}selected{% endif %}>Nutrien</option>
       <option value="cna"     {% if f_source == 'cna'     %}selected{% endif %}>CNA</option>
+      <option value="spot"    {% if f_source == 'spot'    %}selected{% endif %}>Spot</option>
     </select>
 
     <input type="text" name="producto" value="{{ f_producto }}" placeholder="Producto…"
@@ -148,6 +149,8 @@
         <td class="px-3 py-2.5">
           {% if r.source_type == 'nutrien' %}
           <span class="text-[11px] font-semibold bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">Nutrien</span>
+          {% elif r.source_type == 'spot' %}
+          <span class="text-[11px] font-semibold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full">{{ r.cliente or "Spot" }}</span>
           {% else %}
           <span class="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full">CNA</span>
           {% endif %}
@@ -227,6 +230,8 @@
         </span>
         {% if r.source_type == 'nutrien' %}
         <span class="text-[10px] font-semibold bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">Nutrien</span>
+        {% elif r.source_type == 'spot' %}
+        <span class="text-[10px] font-semibold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full">{{ r.cliente or "Spot" }}</span>
         {% else %}
         <span class="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full">CNA</span>
         {% endif %}

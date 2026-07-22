@@ -14,11 +14,13 @@
   <div class="flex-1">
     <div class="flex items-center gap-2 flex-wrap">
       <h1 class="text-xl font-semibold text-gray-900">
-        {% if reg.source_type == 'nutrien' %}Cupo{% else %}Despacho{% endif %}
+        {% if reg.source_type == 'cna' %}Despacho{% else %}Cupo{% endif %}
         #{{ reg.id }}
       </h1>
       {% if reg.source_type == 'nutrien' %}
       <span class="text-xs font-semibold bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-200">Nutrien</span>
+      {% elif reg.source_type == 'spot' %}
+      <span class="text-xs font-semibold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">{{ reg.cliente or "Spot" }}</span>
       {% else %}
       <span class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">CNA</span>
       {% endif %}
