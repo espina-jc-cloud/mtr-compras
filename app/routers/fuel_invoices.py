@@ -254,6 +254,94 @@ async def eliminar_fuel_factura(
     return RedirectResponse(url="/fuel/invoices?ok=Factura+eliminada", status_code=303)
 
 
+@router.get("/{invoice_id}/editar", response_class=HTMLResponse)
+async def editar_fuel_factura_form(
+    invoice_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    invoice = db.query(models.FuelInvoice).filter(models.FuelInvoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura de combustible no encontrada.")
+
+    # Cargas ya vinculadas a ESTA factura + cargas libres (para vincular).
+    vinculadas = (
+        db.query(models.FuelLoad)
+        .filter(models.FuelLoad.fuel_invoice_id == invoice_id,
+                models.FuelLoad.deleted_at.is_(None))
+        .order_by(models.FuelLoad.fuel_date.desc())
+        .all()
+    )
+    libres = _free_fuel_loads_query(db).limit(400).all()
+
+    return templates.TemplateResponse(request, "fuel/facturas/editar.html", {
+        "request": request, "user": current_user, "current_user": current_user,
+        "invoice": invoice, "vinculadas": vinculadas, "libres": libres,
+        "companies": ["MTR SA", "INGEE"], "tipos_comprobante": TIPOS_COMPROBANTE,
+    })
+
+
+@router.post("/{invoice_id}/editar")
+async def editar_fuel_factura(
+    invoice_id: int,
+    numero_factura: str = Form(""),
+    company: str = Form(...),
+    supplier_name: str = Form(""),
+    tipo_comprobante: str = Form("Factura A"),
+    fecha_emision: str = Form(""),
+    monto_total: str = Form(""),
+    cuit_proveedor: str = Form(""),
+    observaciones: str = Form(""),
+    carga_ids: List[int] = Form([]),
+    archivo: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    invoice = db.query(models.FuelInvoice).filter(models.FuelInvoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura de combustible no encontrada.")
+
+    invoice.numero_factura   = numero_factura.strip() or None
+    invoice.company          = company
+    invoice.supplier_name    = supplier_name.strip() or None
+    invoice.tipo_comprobante = tipo_comprobante or "Factura A"
+    invoice.fecha_emision    = _parse_date(fecha_emision)
+    invoice.monto_total      = _parse_amount(monto_total)
+    invoice.cuit_proveedor   = cuit_proveedor.strip() or None
+    invoice.observaciones    = observaciones.strip() or None
+
+    # Reemplazar archivo si se sube uno nuevo.
+    if archivo and archivo.filename and CLOUDINARY_AVAILABLE:
+        content = await archivo.read()
+        if content:
+            try:
+                res = cloud_upload(content, archivo.filename, folder="mtr-facturas-combustible")
+                invoice.archivo_url = res["url"]
+                invoice.archivo_public_id = res["public_id"]
+                invoice.archivo_nombre = archivo.filename
+            except Exception:
+                pass
+
+    # Reconciliar vínculos: las tildadas quedan en esta factura; las que estaban
+    # y se destildaron se liberan. Se pueden sumar cargas libres o ya vinculadas.
+    seleccion = set(carga_ids or [])
+    # Desvincular las que estaban en esta factura y ya no están tildadas.
+    for carga in db.query(models.FuelLoad).filter(
+            models.FuelLoad.fuel_invoice_id == invoice_id).all():
+        if carga.id not in seleccion:
+            carga.fuel_invoice_id = None
+    # Vincular las tildadas (libres o de otra factura → se mueven a ésta).
+    if seleccion:
+        for carga in db.query(models.FuelLoad).filter(
+                models.FuelLoad.id.in_(seleccion),
+                models.FuelLoad.deleted_at.is_(None)).all():
+            carga.fuel_invoice_id = invoice_id
+
+    db.commit()
+    return RedirectResponse(url="/fuel/invoices?ok=Factura+actualizada", status_code=303)
+
+
 @router.post("/{invoice_id}/desvincular-carga/{load_id}", response_class=HTMLResponse)
 async def desvincular_carga(
     invoice_id: int,

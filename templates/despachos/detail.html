@@ -346,6 +346,15 @@
         disabled>
     </div>
 
+    <!-- Agrocentro (solo Nutrien) -->
+    {% if reg.source_type == 'nutrien' %}
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Agrocentro</label>
+      <input type="text" name="ac" value="{{ reg.ac or '' }}" placeholder="Ej: CUYO"
+        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 uppercase">
+    </div>
+    {% endif %}
+
     <!-- Notas -->
     <div class="sm:col-span-2">
       <label class="block text-xs font-semibold text-gray-500 mb-1">Observaciones / Notas</label>

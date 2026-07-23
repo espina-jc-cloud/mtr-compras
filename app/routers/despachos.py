@@ -1445,6 +1445,7 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
         source  = "nutrien" if cliente_tipo == "NUTRIEN" else "cna"
 
     dest = g("destinatario")
+    agrocentro = g("ac") if source == "nutrien" else None
 
     # ── Ítems del camión ─────────────────────────────────────────────────────
     # item_on_{i}=1 · item_pres_{i} · item_mezcla_{i} ("1" si es mezcla)
@@ -1477,7 +1478,7 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
             "current_user": current_user, "error": msg,
             "v": {k: g(k) for k in (
                 "cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
-                "destinatario", "transporte", "chofer", "patente_chasis",
+                "destinatario", "ac", "transporte", "chofer", "patente_chasis",
                 "patente_acoplado", "remito", "notes")},
             "items_json": _json.dumps(items),
             "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
@@ -1549,6 +1550,7 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
             external_ref   = g("st_sd_od") or None,
             cliente        = cliente,
             destinatario   = dest,
+            ac             = agrocentro,
             producto       = f["producto"],
             cantidad_mt    = f["cantidad_mt"],
             presentacion   = f["presentacion"],
@@ -1721,6 +1723,8 @@ async def edit_registro(
     reg.patente_chasis   = fget("patente_chasis")  or reg.patente_chasis
     reg.patente_acoplado = fget("patente_acoplado") or reg.patente_acoplado
     reg.remito           = fget("remito")       or reg.remito
+    if reg.source_type == "nutrien":
+        reg.ac           = fget("ac") or None    # Agrocentro (solo Nutrien)
     reg.notes            = fget("notes")        # puede ser None para borrar
 
     new_status = fget("status")
