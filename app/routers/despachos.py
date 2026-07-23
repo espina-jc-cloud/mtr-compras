@@ -731,6 +731,9 @@ def _agrupar_camiones(registros: list) -> list:
             "es_mezcla":     es_mezcla,
             "tipo":          tipo,
             "npk":           next((f.npk for f in filas if f.npk), None) if es_mezcla else None,
+            "st_sd_od":      next((f.st_sd_od for f in filas if f.st_sd_od), None),
+            "remito":        next((f.remito for f in filas if f.remito), None),
+            "ac":            next((f.ac for f in filas if f.ac), None),
             "camion_grupo":  rep.camion_grupo,
         })
     return camiones
@@ -1403,30 +1406,65 @@ _BOLSA_KG = {"Bolsones 1000kg": 1000, "Bolsas 50kg": 50, "Bolsas 25kg": 25}
 _CLIENTES_FIJOS = ["NUTRIEN", "CNA"]
 
 
-@router.get("/new", response_class=HTMLResponse)
-async def new_form(request: Request, current_user=Depends(_guard)):
-    import json as _json
-    return templates.TemplateResponse(request, "despachos/new.html", {
-        "current_user": current_user, "error": None, "v": {},
-        "items_json": _json.dumps([]),
-        "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
-    })
+def _pres_norm(pres):
+    """Mapea la presentación guardada a una del selector (mezclas viejas usan
+    'Granel Mezcla')."""
+    p = (pres or "").strip()
+    if p in _PRESENTACIONES:
+        return p
+    if "Mezcla" in p:
+        return "Granel"
+    return "Granel"
 
 
-@router.post("/new")
-async def create_manual(request: Request, db: Session = Depends(get_db),
-                        current_user=Depends(_guard)):
+def _camion_a_items(hermanos):
+    """Reconstruye los ítems del constructor a partir de las filas del camión,
+    para precargar el form de edición. Maneja mezclas manuales (JSON) e
+    importadas (filas hermanas)."""
     import json as _json
-    form = await request.form()
+    items = []
+    mezcla_import = []
+    for r in hermanos:
+        if r.document_type == "mezcla" and r.componentes_mezcla:
+            try:
+                comps = _json.loads(r.componentes_mezcla)
+            except Exception:
+                comps = []
+            items.append({
+                "pres": _pres_norm(r.presentacion), "mezcla": True, "modo": "t",
+                "total": str(r.cantidad_mt or ""), "npk": r.npk or "",
+                "prod": "", "cant": "",
+                "comps": [{"prod": c.get("producto", ""),
+                           "val": str(c.get("cant_mt") or "")} for c in comps],
+            })
+        elif r.document_type == "mezcla":
+            mezcla_import.append(r)
+        else:
+            items.append({
+                "pres": _pres_norm(r.presentacion), "mezcla": False, "modo": "t",
+                "prod": r.producto or "", "cant": str(r.cantidad_mt or ""),
+                "total": "", "npk": "", "comps": [],
+            })
+    if mezcla_import:
+        items.append({
+            "pres": _pres_norm(mezcla_import[0].presentacion), "mezcla": True,
+            "modo": "t", "total": "",
+            "npk": next((r.npk for r in mezcla_import if r.npk), "") or "",
+            "prod": "", "cant": "",
+            "comps": [{"prod": r.producto or "", "val": str(r.cantidad_mt or "")}
+                      for r in mezcla_import],
+        })
+    return items
+
+
+def _parse_cupo_form(form):
+    """Parsea el constructor de ítems del cupo (form manual y edición).
+    Devuelve (error_msg | None, data). data trae cliente/source/dest/agrocentro,
+    general (dict), filas (list para CupoDespacho), v e items (para re-render)."""
+    import json as _json
 
     def g(k):
         return str(form.get(k, "") or "").strip()
-
-    def to_date(s):
-        try:
-            return date.fromisoformat(s) if s else None
-        except ValueError:
-            return None
 
     def to_num(s):
         try:
@@ -1434,24 +1472,17 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
         except ValueError:
             return None
 
-    # ── Cliente: NUTRIEN / CNA / spot (nombre libre) ─────────────────────────
     cliente_tipo   = g("cliente_tipo") or "NUTRIEN"
     cliente_nombre = g("cliente_nombre")
     if cliente_tipo == "SPOT":
-        cliente = cliente_nombre
-        source  = "spot"
+        cliente, source = cliente_nombre, "spot"
     else:
         cliente = cliente_tipo
-        source  = "nutrien" if cliente_tipo == "NUTRIEN" else "cna"
+        source = "nutrien" if cliente_tipo == "NUTRIEN" else "cna"
 
     dest = g("destinatario")
     agrocentro = g("ac") if source == "nutrien" else None
 
-    # ── Ítems del camión ─────────────────────────────────────────────────────
-    # item_on_{i}=1 · item_pres_{i} · item_mezcla_{i} ("1" si es mezcla)
-    #   simple → item_prod_{i} + item_cant_{i}
-    #   mezcla → item_total_{i} + item_npk_{i} + item_modo_{i} (t|pct)
-    #            + comp_prod_{i}_{j} + comp_val_{i}_{j}
     items = []
     for i in range(0, 20):
         if g(f"item_on_{i}") != "1":
@@ -1459,113 +1490,126 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
         it = {
             "pres":   g(f"item_pres_{i}") or "Granel",
             "mezcla": g(f"item_mezcla_{i}") == "1",
-            "prod":   g(f"item_prod_{i}"),
-            "cant":   g(f"item_cant_{i}"),
-            "total":  g(f"item_total_{i}"),
-            "npk":    g(f"item_npk_{i}"),
-            "modo":   g(f"item_modo_{i}") or "t",
-            "comps":  [],
+            "prod":   g(f"item_prod_{i}"), "cant": g(f"item_cant_{i}"),
+            "total":  g(f"item_total_{i}"), "npk": g(f"item_npk_{i}"),
+            "modo":   g(f"item_modo_{i}") or "t", "comps": [],
         }
         for j in range(0, 12):
-            cp = g(f"comp_prod_{i}_{j}")
-            cv = g(f"comp_val_{i}_{j}")
+            cp, cv = g(f"comp_prod_{i}_{j}"), g(f"comp_val_{i}_{j}")
             if cp:
                 it["comps"].append({"prod": cp, "val": cv})
         items.append(it)
 
-    def _rerender(msg):
-        return templates.TemplateResponse(request, "despachos/new.html", {
-            "current_user": current_user, "error": msg,
-            "v": {k: g(k) for k in (
-                "cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
-                "destinatario", "ac", "transporte", "chofer", "patente_chasis",
-                "patente_acoplado", "remito", "notes")},
-            "items_json": _json.dumps(items),
-            "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
-        }, status_code=422)
+    v = {k: g(k) for k in (
+        "cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
+        "destinatario", "ac", "transporte", "chofer", "patente_chasis",
+        "patente_acoplado", "remito", "notes")}
+    data = {"cliente": cliente, "source": source, "dest": dest,
+            "agrocentro": agrocentro, "general": {k: g(k) for k in (
+                "scheduled_date", "st_sd_od", "transporte", "chofer",
+                "patente_chasis", "patente_acoplado", "remito", "notes")},
+            "v": v, "items": items, "filas": []}
 
     if cliente_tipo == "SPOT" and not cliente:
-        return _rerender("Poné el nombre del cliente spot.")
+        return "Poné el nombre del cliente spot.", data
     if not dest:
-        return _rerender("El destinatario es obligatorio.")
+        return "El destinatario es obligatorio.", data
     if not items:
-        return _rerender("Cargá al menos un ítem.")
+        return "Cargá al menos un ítem.", data
 
-    # ── Validar y armar filas a insertar ─────────────────────────────────────
     filas = []
     for n, it in enumerate(items, 1):
         pres = it["pres"] if it["pres"] in _PRESENTACIONES else "Granel"
         if not it["mezcla"]:
             if not it["prod"]:
-                return _rerender(f"Ítem {n}: falta el producto.")
-            filas.append({
-                "producto": it["prod"].upper(), "cantidad_mt": to_num(it["cant"]),
-                "presentacion": pres, "doc": "cupo", "npk": None, "componentes": None,
-            })
+                return f"Ítem {n}: falta el producto.", data
+            filas.append({"producto": it["prod"].upper(), "cantidad_mt": to_num(it["cant"]),
+                          "presentacion": pres, "doc": "cupo", "npk": None, "componentes": None})
             continue
-        # Mezcla (en cualquier presentación: granel, bolsones o bolsas)
         comps = [c for c in it["comps"] if c["prod"]]
         if len(comps) < 2:
-            return _rerender(f"Ítem {n}: una mezcla necesita al menos 2 componentes.")
+            return f"Ítem {n}: una mezcla necesita al menos 2 componentes.", data
         total = to_num(it["total"])
         if it["modo"] == "pct":
             if not total or total <= 0:
-                return _rerender(f"Ítem {n}: para cargar por porcentaje poné el total en toneladas.")
+                return f"Ítem {n}: para cargar por porcentaje poné el total en toneladas.", data
             suma_pct = sum(to_num(c["val"]) or 0 for c in comps)
             if abs(suma_pct - 100) > 1:
-                return _rerender(f"Ítem {n}: los porcentajes suman {suma_pct:g}%, deben sumar 100%.")
+                return f"Ítem {n}: los porcentajes suman {suma_pct:g}%, deben sumar 100%.", data
             detalle = [{"producto": c["prod"].upper(),
                         "cant_mt": round(total * (to_num(c["val"]) or 0) / 100, 3),
                         "pct": round(to_num(c["val"]) or 0, 1)} for c in comps]
         else:
             cants = [to_num(c["val"]) or 0 for c in comps]
             if not any(cants):
-                return _rerender(f"Ítem {n}: cargá las toneladas de los componentes.")
+                return f"Ítem {n}: cargá las toneladas de los componentes.", data
             total = round(sum(cants), 3)
             detalle = [{"producto": c["prod"].upper(),
                         "cant_mt": round(to_num(c["val"]) or 0, 3),
                         "pct": round((to_num(c["val"]) or 0) / total * 100, 1)} for c in comps]
         nombre = "MEZCLA " + " + ".join(d["producto"] for d in detalle)
-        filas.append({
-            "producto": nombre[:190], "cantidad_mt": total, "presentacion": pres,
-            "doc": "mezcla", "npk": it["npk"] or None,
-            "componentes": _json.dumps(detalle, ensure_ascii=False),
-        })
+        filas.append({"producto": nombre[:190], "cantidad_mt": total, "presentacion": pres,
+                      "doc": "mezcla", "npk": it["npk"] or None,
+                      "componentes": _json.dumps(detalle, ensure_ascii=False)})
 
-    # camion_grupo si el camión tiene más de un ítem
+    data["filas"] = filas
+    return None, data
+
+
+@router.get("/new", response_class=HTMLResponse)
+async def new_form(request: Request, current_user=Depends(_guard)):
+    import json as _json
+    return templates.TemplateResponse(request, "despachos/new.html", {
+        "current_user": current_user, "error": None, "v": {},
+        "items_json": _json.dumps([]), "form_action": "/despachos/new", "edit_id": None,
+        "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
+    })
+
+
+def _to_date(s):
+    try:
+        return date.fromisoformat(s) if s else None
+    except ValueError:
+        return None
+
+
+@router.post("/new")
+async def create_manual(request: Request, db: Session = Depends(get_db),
+                        current_user=Depends(_guard)):
+    import json as _json
+    form = await request.form()
+    err, data = _parse_cupo_form(form)
+    if err:
+        return templates.TemplateResponse(request, "despachos/new.html", {
+            "current_user": current_user, "error": err, "v": data["v"],
+            "items_json": _json.dumps(data["items"]), "form_action": "/despachos/new",
+            "edit_id": None, "presentaciones": _PRESENTACIONES,
+            "clientes_fijos": _CLIENTES_FIJOS,
+        }, status_code=422)
+
+    gen = data["general"]
     grupo = None
-    if len(filas) > 1:
+    if len(data["filas"]) > 1:
         maxg = db.query(func.max(CupoDespacho.camion_grupo)).filter(
             CupoDespacho.batch_id.is_(None)).scalar() or 0
         grupo = maxg + 1
 
     primer_id = None
-    for f in filas:
+    for f in data["filas"]:
         cd = CupoDespacho(
-            batch_id       = None,
-            source_type    = source,
-            document_type  = f["doc"],
-            scheduled_date = to_date(g("scheduled_date")),
-            st_sd_od       = g("st_sd_od") or None,
-            external_ref   = g("st_sd_od") or None,
-            cliente        = cliente,
-            destinatario   = dest,
-            ac             = agrocentro,
-            producto       = f["producto"],
-            cantidad_mt    = f["cantidad_mt"],
-            presentacion   = f["presentacion"],
-            bolsa_kg       = _BOLSA_KG.get(f["presentacion"]),
-            npk            = f["npk"],
-            componentes_mezcla = f["componentes"],
-            transporte     = g("transporte") or None,
-            chofer         = g("chofer") or None,
-            patente_chasis = g("patente_chasis") or None,
-            patente_acoplado = g("patente_acoplado") or None,
-            remito         = g("remito") or None,
-            notes          = g("notes") or None,
-            status         = "programado",
-            camion_grupo   = grupo,
-            imported_by    = current_user.name + " (manual)",
+            batch_id=None, source_type=data["source"], document_type=f["doc"],
+            scheduled_date=_to_date(gen["scheduled_date"]),
+            st_sd_od=gen["st_sd_od"] or None, external_ref=gen["st_sd_od"] or None,
+            cliente=data["cliente"], destinatario=data["dest"], ac=data["agrocentro"],
+            producto=f["producto"], cantidad_mt=f["cantidad_mt"],
+            presentacion=f["presentacion"], bolsa_kg=_BOLSA_KG.get(f["presentacion"]),
+            npk=f["npk"], componentes_mezcla=f["componentes"],
+            transporte=gen["transporte"] or None, chofer=gen["chofer"] or None,
+            patente_chasis=gen["patente_chasis"] or None,
+            patente_acoplado=gen["patente_acoplado"] or None,
+            remito=gen["remito"] or None, notes=gen["notes"] or None,
+            status="programado", camion_grupo=grupo,
+            imported_by=current_user.name + " (manual)",
         )
         db.add(cd)
         db.flush()
@@ -1573,6 +1617,105 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
             primer_id = cd.id
     db.commit()
     return RedirectResponse(url=f"/despachos/{primer_id}?ok=Cupo+cargado", status_code=303)
+
+
+@router.get("/{rid}/editar", response_class=HTMLResponse)
+async def editar_cupo_form(rid: int, request: Request, db: Session = Depends(get_db),
+                           current_user=Depends(_guard)):
+    import json as _json
+    reg = db.query(CupoDespacho).filter_by(id=rid).first()
+    if not reg:
+        raise HTTPException(404, "Registro no encontrado")
+    if reg.camion_grupo is not None:
+        hermanos = (db.query(CupoDespacho)
+                    .filter_by(batch_id=reg.batch_id, camion_grupo=reg.camion_grupo)
+                    .order_by(CupoDespacho.id).all())
+    else:
+        hermanos = [reg]
+
+    if reg.source_type == "spot":
+        cliente_tipo, cliente_nombre = "SPOT", (reg.cliente or "")
+    elif reg.source_type == "cna":
+        cliente_tipo, cliente_nombre = "CNA", ""
+    else:
+        cliente_tipo, cliente_nombre = "NUTRIEN", ""
+
+    v = {
+        "cliente_tipo": cliente_tipo, "cliente_nombre": cliente_nombre,
+        "scheduled_date": reg.scheduled_date.isoformat() if reg.scheduled_date else "",
+        "st_sd_od": reg.st_sd_od or "", "destinatario": reg.destinatario or reg.cliente or "",
+        "ac": reg.ac or "", "transporte": reg.transporte or "", "chofer": reg.chofer or "",
+        "patente_chasis": reg.patente_chasis or "", "patente_acoplado": reg.patente_acoplado or "",
+        "remito": reg.remito or "", "notes": reg.notes or "",
+    }
+    return templates.TemplateResponse(request, "despachos/new.html", {
+        "current_user": current_user, "error": None, "v": v,
+        "items_json": _json.dumps(_camion_a_items(hermanos)),
+        "form_action": f"/despachos/{rid}/editar", "edit_id": rid,
+        "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
+    })
+
+
+@router.post("/{rid}/editar")
+async def editar_cupo(rid: int, request: Request, db: Session = Depends(get_db),
+                      current_user=Depends(_guard)):
+    import json as _json
+    reg = db.query(CupoDespacho).filter_by(id=rid).first()
+    if not reg:
+        raise HTTPException(404, "Registro no encontrado")
+
+    form = await request.form()
+    err, data = _parse_cupo_form(form)
+    if err:
+        return templates.TemplateResponse(request, "despachos/new.html", {
+            "current_user": current_user, "error": err, "v": data["v"],
+            "items_json": _json.dumps(data["items"]),
+            "form_action": f"/despachos/{rid}/editar", "edit_id": rid,
+            "presentaciones": _PRESENTACIONES, "clientes_fijos": _CLIENTES_FIJOS,
+        }, status_code=422)
+
+    # Conservar identidad y estado del camión existente.
+    batch_id = reg.batch_id
+    grupo    = reg.camion_grupo
+    status   = reg.status
+    actual   = reg.actual_date
+    if len(data["filas"]) > 1 and grupo is None:
+        maxg = db.query(func.max(CupoDespacho.camion_grupo)).filter(
+            CupoDespacho.batch_id.is_(batch_id)).scalar() or 0
+        grupo = maxg + 1
+
+    # Borrar las filas actuales del camión y recrear desde el form.
+    if reg.camion_grupo is not None:
+        db.query(CupoDespacho).filter_by(
+            batch_id=reg.batch_id, camion_grupo=reg.camion_grupo).delete()
+    else:
+        db.delete(reg)
+    db.flush()
+
+    gen = data["general"]
+    primer_id = None
+    for f in data["filas"]:
+        cd = CupoDespacho(
+            batch_id=batch_id, source_type=data["source"], document_type=f["doc"],
+            scheduled_date=_to_date(gen["scheduled_date"]), actual_date=actual,
+            st_sd_od=gen["st_sd_od"] or None, external_ref=gen["st_sd_od"] or None,
+            cliente=data["cliente"], destinatario=data["dest"], ac=data["agrocentro"],
+            producto=f["producto"], cantidad_mt=f["cantidad_mt"],
+            presentacion=f["presentacion"], bolsa_kg=_BOLSA_KG.get(f["presentacion"]),
+            npk=f["npk"], componentes_mezcla=f["componentes"],
+            transporte=gen["transporte"] or None, chofer=gen["chofer"] or None,
+            patente_chasis=gen["patente_chasis"] or None,
+            patente_acoplado=gen["patente_acoplado"] or None,
+            remito=gen["remito"] or None, notes=gen["notes"] or None,
+            status=status, camion_grupo=grupo,
+            imported_by=current_user.name + " (editado)",
+        )
+        db.add(cd)
+        db.flush()
+        if primer_id is None:
+            primer_id = cd.id
+    db.commit()
+    return RedirectResponse(url=f"/despachos/{primer_id}?ok=Cupo+actualizado", status_code=303)
 
 
 @router.post("/delete_all")

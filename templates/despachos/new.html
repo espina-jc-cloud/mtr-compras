@@ -4,18 +4,18 @@
 
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center gap-3 mb-6">
-    <a href="/despachos" class="text-gray-400 hover:text-gray-600" aria-label="Volver">
+    <a href="{{ ('/despachos/' ~ edit_id) if edit_id else '/despachos' }}" class="text-gray-400 hover:text-gray-600" aria-label="Volver">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <div>
-      <h1 class="text-xl font-semibold text-gray-900">Nuevo cupo</h1>
-      <p class="text-sm text-gray-400 mt-0.5">Cargá un camión a mano, como viene en la planilla</p>
+      <h1 class="text-xl font-semibold text-gray-900">{{ "Editar cupo" if edit_id else "Nuevo cupo" }}</h1>
+      <p class="text-sm text-gray-400 mt-0.5">{% if edit_id %}Cambiá productos, presentaciones o cantidades{% else %}Cargá un camión a mano, como viene en la planilla{% endif %}</p>
     </div>
   </div>
 
   {% include "partials/_error.html" %}
 
-  <form method="post" action="/despachos/new" class="space-y-4">
+  <form method="post" action="{{ form_action }}" class="space-y-4">
 
     <!-- ── Cliente ─────────────────────────────────────────────────────────── -->
     <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
@@ -123,7 +123,7 @@
 
     <div class="flex gap-3">
       <a href="/despachos" class="flex-1 flex items-center justify-center border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</a>
-      <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">Crear cupo</button>
+      <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">{{ "Guardar cambios" if edit_id else "Crear cupo" }}</button>
     </div>
   </form>
 </div>
