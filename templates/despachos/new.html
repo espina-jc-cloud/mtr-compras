@@ -43,7 +43,7 @@
       <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Destino</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="sm:col-span-2">
-          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Destinatario <span class="text-red-400">*</span></label>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5"><span id="dest-label">Destinatario</span> <span class="text-red-400">*</span></label>
           <input type="text" name="destinatario" required value="{{ v.destinatario or '' }}" placeholder="Ej: CHAPUY"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase">
         </div>
@@ -52,7 +52,7 @@
           <input type="date" name="scheduled_date" value="{{ v.scheduled_date or '' }}"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
-        <div>
+        <div id="st-box">
           <label class="block text-xs font-semibold text-gray-500 mb-1.5">ST / SD / OD <span class="text-gray-400 font-normal">(opcional)</span></label>
           <input type="text" name="st_sd_od" value="{{ v.st_sd_od or '' }}" placeholder="26003937 / SP … / SM …"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -61,6 +61,54 @@
           <label class="block text-xs font-semibold text-gray-500 mb-1.5">Agrocentro <span class="text-gray-400 font-normal">(Nutrien)</span></label>
           <input type="text" name="ac" value="{{ v.ac or '' }}" placeholder="Ej: CUYO"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Datos del despacho CNA (solo CNA) ─────────────────────────────────── -->
+    <div id="cna-box" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 hidden">
+      <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Datos del despacho (CNA)</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Destino <span class="text-gray-400 font-normal">(lugar de entrega)</span></label>
+          <input type="text" name="destino" value="{{ v.destino or '' }}" placeholder="Ej: Arrecifes"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">NP o FC</label>
+          <input type="text" name="np_fc" value="{{ v.np_fc or '' }}" placeholder="Ej: 546"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">OC</label>
+          <input type="text" name="oc" value="{{ v.oc or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">CUIT cliente</label>
+          <input type="text" name="cuit_cliente" value="{{ v.cuit_cliente or '' }}" placeholder="30-xxxxxxxx-x"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">CUIT transporte</label>
+          <input type="text" name="cuit_transporte" value="{{ v.cuit_transporte or '' }}" placeholder="30-xxxxxxxx-x"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">DNI chofer</label>
+          <input type="text" name="dni_chofer" value="{{ v.dni_chofer or '' }}"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">IN / OUT</label>
+          <select name="in_out" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for op in ["Out", "In"] %}<option value="{{ op }}" {{ "selected" if v.in_out == op }}>{{ op }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Neto (kg)</label>
+          <input type="text" name="neto" value="{{ v.neto or '' }}" inputmode="decimal" placeholder="Ej: 22060"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
       </div>
     </div>
@@ -297,6 +345,10 @@
     var val = (document.querySelector('input[name="cliente_tipo"]:checked') || {}).value;
     document.getElementById('spot-box').classList.toggle('hidden', val !== 'SPOT');
     document.getElementById('ac-box').classList.toggle('hidden', val !== 'NUTRIEN');
+    document.getElementById('st-box').classList.toggle('hidden', val !== 'NUTRIEN');
+    document.getElementById('cna-box').classList.toggle('hidden', val !== 'CNA');
+    var dl = document.getElementById('dest-label');
+    if (dl) dl.textContent = (val === 'CNA') ? 'Cliente' : 'Destinatario';
     document.querySelectorAll('#cli-group .cli-chip').forEach(function (l) {
       var on = l.querySelector('input').checked;
       l.className = 'cli-chip flex items-center justify-center border rounded-xl px-2 py-2.5 text-sm cursor-pointer select-none font-medium ' +

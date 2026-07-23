@@ -1466,9 +1466,13 @@ def _camion_a_items(hermanos):
         elif r.document_type == "mezcla":
             mezcla_import.append(r)
         else:
+            # CNA guarda kg_oc (no cantidad_mt) → mostrar en toneladas en el ítem.
+            cant = r.cantidad_mt
+            if cant is None and r.kg_oc:
+                cant = round(float(r.kg_oc) / 1000, 3)
             items.append({
                 "pres": _pres_norm(r.presentacion), "mezcla": False, "modo": "t",
-                "prod": r.producto or "", "cant": str(r.cantidad_mt or ""),
+                "prod": r.producto or "", "cant": str(cant or ""),
                 "total": "", "npk": "", "comps": [],
             })
     if mezcla_import:
@@ -1500,13 +1504,14 @@ def _parse_cupo_form(form):
 
     cliente_tipo   = g("cliente_tipo") or "NUTRIEN"
     cliente_nombre = g("cliente_nombre")
+    dest = g("destinatario")
     if cliente_tipo == "SPOT":
         cliente, source = cliente_nombre, "spot"
+    elif cliente_tipo == "CNA":
+        cliente, source = dest, "cna"     # en CNA el destinatario ES el cliente
     else:
-        cliente = cliente_tipo
-        source = "nutrien" if cliente_tipo == "NUTRIEN" else "cna"
+        cliente, source = "NUTRIEN", "nutrien"
 
-    dest = g("destinatario")
     agrocentro = g("ac") if source == "nutrien" else None
 
     items = []
@@ -1526,14 +1531,20 @@ def _parse_cupo_form(form):
                 it["comps"].append({"prod": cp, "val": cv})
         items.append(it)
 
-    v = {k: g(k) for k in (
-        "cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
-        "destinatario", "ac", "transporte", "chofer", "patente_chasis",
-        "patente_acoplado", "remito", "notes")}
+    _campos = ("cliente_tipo", "cliente_nombre", "scheduled_date", "st_sd_od",
+               "destinatario", "ac", "transporte", "chofer", "patente_chasis",
+               "patente_acoplado", "remito", "notes",
+               # CNA:
+               "destino", "np_fc", "oc", "cuit_cliente", "cuit_transporte",
+               "dni_chofer", "in_out", "neto")
+    v = {k: g(k) for k in _campos}
+    general = {k: g(k) for k in (
+        "scheduled_date", "st_sd_od", "transporte", "chofer", "patente_chasis",
+        "patente_acoplado", "remito", "notes",
+        "destino", "np_fc", "oc", "cuit_cliente", "cuit_transporte",
+        "dni_chofer", "in_out", "neto")}
     data = {"cliente": cliente, "source": source, "dest": dest,
-            "agrocentro": agrocentro, "general": {k: g(k) for k in (
-                "scheduled_date", "st_sd_od", "transporte", "chofer",
-                "patente_chasis", "patente_acoplado", "remito", "notes")},
+            "agrocentro": agrocentro, "general": general,
             "v": v, "items": items, "filas": []}
 
     if cliente_tipo == "SPOT" and not cliente:
@@ -1599,6 +1610,32 @@ def _to_date(s):
         return None
 
 
+def _cupo_general_kwargs(data):
+    """kwargs comunes del CupoDespacho (no dependen del ítem). Mapea los campos
+    específicos de CNA (destino, NP/FC, OC, CUITs, DNI, IN/OUT, neto) y de
+    Nutrien (ST/SD/OD)."""
+    gen = data["general"]
+    is_cna = data["source"] == "cna"
+    return dict(
+        scheduled_date=_to_date(gen["scheduled_date"]),
+        st_sd_od=(None if is_cna else (gen["st_sd_od"] or None)),
+        external_ref=((gen["np_fc"] or None) if is_cna else (gen["st_sd_od"] or None)),
+        order_number=(gen["oc"] or None) if is_cna else None,
+        destino=(gen["destino"] or None) if is_cna else None,
+        cuit_cliente=(gen["cuit_cliente"] or None) if is_cna else None,
+        cuit_transporte=(gen["cuit_transporte"] or None) if is_cna else None,
+        dni_chofer=(gen["dni_chofer"] or None) if is_cna else None,
+        in_out=(gen["in_out"] or None) if is_cna else None,
+        neto=(_normalize_kg(gen["neto"]) if is_cna else None),
+        transporte=gen["transporte"] or None,
+        chofer=gen["chofer"] or None,
+        patente_chasis=gen["patente_chasis"] or None,
+        patente_acoplado=gen["patente_acoplado"] or None,
+        remito=gen["remito"] or None,
+        notes=gen["notes"] or None,
+    )
+
+
 @router.post("/new")
 async def create_manual(request: Request, db: Session = Depends(get_db),
                         current_user=Depends(_guard)):
@@ -1620,22 +1657,23 @@ async def create_manual(request: Request, db: Session = Depends(get_db),
             CupoDespacho.batch_id.is_(None)).scalar() or 0
         grupo = maxg + 1
 
+    kw = _cupo_general_kwargs(data)
+    # CNA = despacho consumado → estado 'cargado'; Nutrien/spot → 'programado'.
+    estado = "cargado" if data["source"] == "cna" else "programado"
+    doc_default = "despacho" if data["source"] == "cna" else "cupo"
     primer_id = None
     for f in data["filas"]:
         cd = CupoDespacho(
-            batch_id=None, source_type=data["source"], document_type=f["doc"],
-            scheduled_date=_to_date(gen["scheduled_date"]),
-            st_sd_od=gen["st_sd_od"] or None, external_ref=gen["st_sd_od"] or None,
+            batch_id=None, source_type=data["source"],
+            document_type=(f["doc"] if f["doc"] != "cupo" else doc_default),
             cliente=data["cliente"], destinatario=data["dest"], ac=data["agrocentro"],
-            producto=f["producto"], cantidad_mt=f["cantidad_mt"],
+            producto=f["producto"],
+            cantidad_mt=(None if data["source"] == "cna" else f["cantidad_mt"]),
+            kg_oc=((f["cantidad_mt"] * 1000) if (data["source"] == "cna" and f["cantidad_mt"]) else None),
             presentacion=f["presentacion"], bolsa_kg=_BOLSA_KG.get(f["presentacion"]),
             npk=f["npk"], componentes_mezcla=f["componentes"],
-            transporte=gen["transporte"] or None, chofer=gen["chofer"] or None,
-            patente_chasis=gen["patente_chasis"] or None,
-            patente_acoplado=gen["patente_acoplado"] or None,
-            remito=gen["remito"] or None, notes=gen["notes"] or None,
-            status="programado", camion_grupo=grupo,
-            imported_by=current_user.name + " (manual)",
+            status=estado, camion_grupo=grupo,
+            imported_by=current_user.name + " (manual)", **kw,
         )
         db.add(cd)
         db.flush()
@@ -1673,6 +1711,12 @@ async def editar_cupo_form(rid: int, request: Request, db: Session = Depends(get
         "ac": reg.ac or "", "transporte": reg.transporte or "", "chofer": reg.chofer or "",
         "patente_chasis": reg.patente_chasis or "", "patente_acoplado": reg.patente_acoplado or "",
         "remito": reg.remito or "", "notes": reg.notes or "",
+        # CNA
+        "destino": reg.destino or "", "np_fc": reg.external_ref or "",
+        "oc": reg.order_number or "", "cuit_cliente": reg.cuit_cliente or "",
+        "cuit_transporte": reg.cuit_transporte or "", "dni_chofer": reg.dni_chofer or "",
+        "in_out": reg.in_out or "Out",
+        "neto": (str(int(reg.neto)) if reg.neto else ""),
     }
     return templates.TemplateResponse(request, "despachos/new.html", {
         "current_user": current_user, "error": None, "v": v,
@@ -1718,23 +1762,22 @@ async def editar_cupo(rid: int, request: Request, db: Session = Depends(get_db),
         db.delete(reg)
     db.flush()
 
-    gen = data["general"]
+    kw = _cupo_general_kwargs(data)
+    doc_default = "despacho" if data["source"] == "cna" else "cupo"
     primer_id = None
     for f in data["filas"]:
         cd = CupoDespacho(
-            batch_id=batch_id, source_type=data["source"], document_type=f["doc"],
-            scheduled_date=_to_date(gen["scheduled_date"]), actual_date=actual,
-            st_sd_od=gen["st_sd_od"] or None, external_ref=gen["st_sd_od"] or None,
+            batch_id=batch_id, source_type=data["source"],
+            document_type=(f["doc"] if f["doc"] != "cupo" else doc_default),
+            actual_date=actual,
             cliente=data["cliente"], destinatario=data["dest"], ac=data["agrocentro"],
-            producto=f["producto"], cantidad_mt=f["cantidad_mt"],
+            producto=f["producto"],
+            cantidad_mt=(None if data["source"] == "cna" else f["cantidad_mt"]),
+            kg_oc=((f["cantidad_mt"] * 1000) if (data["source"] == "cna" and f["cantidad_mt"]) else None),
             presentacion=f["presentacion"], bolsa_kg=_BOLSA_KG.get(f["presentacion"]),
             npk=f["npk"], componentes_mezcla=f["componentes"],
-            transporte=gen["transporte"] or None, chofer=gen["chofer"] or None,
-            patente_chasis=gen["patente_chasis"] or None,
-            patente_acoplado=gen["patente_acoplado"] or None,
-            remito=gen["remito"] or None, notes=gen["notes"] or None,
             status=status, camion_grupo=grupo,
-            imported_by=current_user.name + " (editado)",
+            imported_by=current_user.name + " (editado)", **kw,
         )
         db.add(cd)
         db.flush()
