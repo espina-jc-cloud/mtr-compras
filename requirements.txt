@@ -16,3 +16,4 @@ pdfplumber
 reportlab
 
 anthropic
+openai
