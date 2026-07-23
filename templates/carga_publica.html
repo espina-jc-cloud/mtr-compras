@@ -31,9 +31,12 @@
         <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-6 cursor-pointer hover:border-orange-400 hover:bg-orange-50/40 transition-colors" id="photo-label">
           <svg class="w-9 h-9 text-gray-300 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span class="text-sm text-gray-500 font-medium" id="photo-text">Tocá para sacar la foto</span>
-          <input type="file" name="receipt" accept="image/*" capture="environment" class="hidden"
-                 onchange="var n=this.files[0]?this.files[0].name:'';document.getElementById('photo-text').textContent=n?('✓ '+n):'Tocá para sacar la foto';document.getElementById('photo-label').classList.toggle('border-orange-400', !!n);">
+          <input type="file" name="receipt" id="receipt-input" accept="image/*" capture="environment" class="hidden" onchange="onPhoto(this)">
         </label>
+        {% if ocr_on %}
+        <div id="ocr-status" class="hidden mt-3 flex items-center gap-2 text-sm rounded-xl px-3 py-2"></div>
+        <p class="text-[11px] text-gray-400 mt-2 text-center">Al sacar la foto, leemos el remito y completamos lo que podamos. Revisá siempre los datos.</p>
+        {% endif %}
       </div>
 
       <!-- Datos -->
@@ -105,6 +108,57 @@
 
     <p class="text-center text-xs text-gray-400 mt-5">MTR · Carga de combustible</p>
   </div>
+
+  <script>
+    var OCR_ON = {{ 'true' if ocr_on else 'false' }};
+
+    function onPhoto(input) {
+      var f = input.files[0];
+      document.getElementById('photo-text').textContent = f ? ('✓ ' + f.name) : 'Tocá para sacar la foto';
+      document.getElementById('photo-label').classList.toggle('border-orange-400', !!f);
+      if (f && OCR_ON) leerRemito(f);
+    }
+
+    function _set(name, val) {
+      if (val === undefined || val === null || val === '') return false;
+      var el = document.querySelector('[name="' + name + '"]');
+      if (!el) return false;
+      el.value = val;
+      return true;
+    }
+    function _setCompany(val) {
+      var r = document.querySelector('input[name="company"][value="' + val + '"]');
+      if (r) { r.checked = true; r.dispatchEvent(new Event('change')); return true; }
+      return false;
+    }
+
+    function status(html, cls) {
+      var s = document.getElementById('ocr-status');
+      if (!s) return;
+      s.className = 'mt-3 flex items-center gap-2 text-sm rounded-xl px-3 py-2 ' + cls;
+      s.innerHTML = html;
+      s.classList.remove('hidden');
+    }
+
+    function leerRemito(file) {
+      status('<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> Leyendo el remito…', 'bg-blue-50 text-blue-700');
+      var fd = new FormData();
+      fd.append('receipt', file);
+      fetch('/carga/leer-remito', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.ok || !d.fields) { status('No pude leer el remito. Completá los datos a mano.', 'bg-amber-50 text-amber-700'); return; }
+          var fx = d.fields, campos = [];
+          if (_set('vehicle_plate', fx.vehicle_plate)) campos.push('patente');
+          if (_set('liters', fx.liters)) campos.push('litros');
+          if (_set('amount', fx.amount)) campos.push('monto');
+          if (fx.fuel_type && _set('fuel_type', fx.fuel_type)) campos.push('combustible');
+          if (campos.length) status('✓ Leí del remito: ' + campos.join(', ') + '. Revisá y completá tu nombre y empresa.', 'bg-emerald-50 text-emerald-700');
+          else status('No encontré datos claros. Completá a mano.', 'bg-amber-50 text-amber-700');
+        })
+        .catch(function () { status('No pude leer el remito. Completá a mano.', 'bg-amber-50 text-amber-700'); });
+    }
+  </script>
 
 </body>
 </html>

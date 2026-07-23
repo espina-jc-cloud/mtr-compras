@@ -14,10 +14,13 @@ from fastapi import APIRouter, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from fastapi.responses import JSONResponse
+
 from app.database import get_db
 from app import models
 from app.auth import hash_password
 from app.templates import templates
+from app import fuel_ocr
 from app.routers.fuel import (
     COMPANIES, PLANTS, FUEL_TYPES, _infer_vehicle_type,
     CLOUDINARY_AVAILABLE, cloud_upload, _parse_decimal,
@@ -47,8 +50,21 @@ def _sistema_user(db: Session) -> models.User:
 async def form(request: Request):
     return templates.TemplateResponse(request, "carga_publica.html", {
         "companies": COMPANIES, "plants": PLANTS, "fuel_types": FUEL_TYPES,
-        "error": None, "prefill": {},
+        "error": None, "prefill": {}, "ocr_on": fuel_ocr.available(),
     })
+
+
+@router.post("/leer-remito")
+async def leer_remito(receipt: UploadFile = File(None)):
+    """Lee la foto del remito y devuelve los campos detectados (JSON).
+    Público: no guarda nada, solo pre-llena el form del operario."""
+    if not receipt or not receipt.filename:
+        return JSONResponse({"ok": False, "fields": {}})
+    content = await receipt.read()
+    if not content or len(content) > 12_000_000:   # límite 12MB
+        return JSONResponse({"ok": False, "fields": {}})
+    fields = fuel_ocr.parse_remito(content, receipt.filename)
+    return JSONResponse({"ok": bool(fields), "fields": fields})
 
 
 @router.post("")
