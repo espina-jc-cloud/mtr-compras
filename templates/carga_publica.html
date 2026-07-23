@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Cargar combustible — MTR</title>
+  <link rel="icon" href="/static/logo_mtr.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="h-full bg-gray-100">
+
+  <div class="max-w-md mx-auto px-4 py-6">
+    <div class="text-center mb-5">
+      <img src="/static/logo_mtr.png" alt="MTR" class="w-14 h-14 object-contain mx-auto mb-2">
+      <h1 class="text-xl font-bold text-gray-900">Cargar combustible</h1>
+      <p class="text-sm text-gray-500">Sacale una foto al remito y completá los datos</p>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/carga" enctype="multipart/form-data" class="space-y-4">
+      <!-- honeypot anti-bots (oculto) -->
+      <input type="text" name="website" tabindex="-1" autocomplete="off"
+             class="hidden" aria-hidden="true">
+
+      <!-- Foto del remito -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">📷 Foto del remito</label>
+        <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-6 cursor-pointer hover:border-orange-400 hover:bg-orange-50/40 transition-colors" id="photo-label">
+          <svg class="w-9 h-9 text-gray-300 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span class="text-sm text-gray-500 font-medium" id="photo-text">Tocá para sacar la foto</span>
+          <input type="file" name="receipt" accept="image/*" capture="environment" class="hidden"
+                 onchange="var n=this.files[0]?this.files[0].name:'';document.getElementById('photo-text').textContent=n?('✓ '+n):'Tocá para sacar la foto';document.getElementById('photo-label').classList.toggle('border-orange-400', !!n);">
+        </label>
+      </div>
+
+      <!-- Datos -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Tu nombre</label>
+          <input type="text" name="responsible_text" required value="{{ prefill.responsible_text or '' }}"
+            placeholder="Ej: Juan Pérez" autocomplete="name"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Empresa</label>
+          <div class="grid grid-cols-2 gap-2">
+            {% for c in companies %}
+            <label class="flex items-center justify-center border rounded-xl px-3 py-3 text-base cursor-pointer select-none
+              {% if prefill.company == c %}border-orange-500 bg-orange-50 text-orange-700 font-semibold{% else %}border-gray-200 text-gray-600{% endif %}">
+              <input type="radio" name="company" value="{{ c }}" class="sr-only" onchange="this.closest('.grid').querySelectorAll('label').forEach(function(l){l.className='flex items-center justify-center border rounded-xl px-3 py-3 text-base cursor-pointer select-none border-gray-200 text-gray-600'});this.closest('label').className='flex items-center justify-center border rounded-xl px-3 py-3 text-base cursor-pointer select-none border-orange-500 bg-orange-50 text-orange-700 font-semibold'"
+                {{ "checked" if prefill.company == c }} required>
+              {{ c }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Patente / Equipo</label>
+          <input type="text" name="vehicle_plate" required value="{{ prefill.vehicle_plate or '' }}"
+            placeholder="Ej: AB123CD o Bidón" autocapitalize="characters"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 uppercase focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Litros</label>
+            <input type="text" name="liters" required value="{{ prefill.liters or '' }}"
+              inputmode="decimal" placeholder="Ej: 150"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Combustible</label>
+            <select name="fuel_type"
+              class="w-full border border-gray-200 rounded-xl px-3 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              {% for key, label in fuel_types.items() %}
+              <option value="{{ key }}" {{ "selected" if prefill.fuel_type == key or (not prefill.fuel_type and key == 'gasoil_comun') }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Monto ARS <span class="text-gray-400 font-normal">(opcional)</span></label>
+          <input type="text" name="amount" value="{{ prefill.amount or '' }}" inputmode="decimal" placeholder="Ej: 90000"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Observaciones <span class="text-gray-400 font-normal">(opcional)</span></label>
+          <input type="text" name="notes" value="{{ prefill.notes or '' }}" placeholder="Ej: cargó en Hipólito"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+      </div>
+
+      <button type="submit"
+        class="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-lg py-4 rounded-2xl shadow-sm">
+        Enviar carga
+      </button>
+    </form>
+
+    <p class="text-center text-xs text-gray-400 mt-5">MTR · Carga de combustible</p>
+  </div>
+
+</body>
+</html>

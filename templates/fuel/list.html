@@ -9,6 +9,12 @@
     <p class="text-sm text-gray-500 mt-0.5">Registro de cargas</p>
   </div>
   <div class="flex items-center gap-2">
+    <button type="button" onclick="mtrCopiarLinkCarga(this)"
+      class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm"
+      title="Link para que los operarios carguen desde el celular, sin usuario">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+      <span data-label>Link operarios</span>
+    </button>
     <a href="/fuel/invoices"
       class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-orange-700 border border-orange-200 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
       Dashboard facturas
@@ -242,5 +248,18 @@
     </table>
   </div>
 </div>
+
+<script>
+function mtrCopiarLinkCarga(btn) {
+  var url = location.origin + "/carga";
+  var lbl = btn.querySelector("[data-label]");
+  function ok() { if (lbl) { var t = lbl.textContent; lbl.textContent = "✓ Link copiado"; setTimeout(function(){ lbl.textContent = t; }, 2000); } }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(ok, function(){ window.prompt("Copiá el link para los operarios:", url); });
+  } else {
+    window.prompt("Copiá el link para los operarios:", url);
+  }
+}
+</script>
 
 {% endblock %}
