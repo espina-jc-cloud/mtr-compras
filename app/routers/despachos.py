@@ -133,6 +133,30 @@ def _normalize_num(v) -> Optional[float]:
         return None
 
 
+def _normalize_kg(v) -> Optional[float]:
+    """Cantidad en kg tolerando el formato argentino de miles.
+    - Número de Excel (22000): se usa tal cual.
+    - Texto '22.000' → 22000 (punto = separador de miles).
+    - Texto '22.000,50' → 22000.5 (coma = decimal).
+    Los kg de un camión son enteros, así que un punto siempre es miles.
+    """
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return None
+    if "," in s:                       # '1.234,5' → miles + decimal
+        s = s.replace(".", "").replace(",", ".")
+    else:                              # '22.000' → miles (kg entero)
+        s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def _row_hash(*parts) -> str:
     joined = "|".join(str(p or "").strip().upper() for p in parts)
     return hashlib.sha256(joined.encode()).hexdigest()[:32]
@@ -591,7 +615,7 @@ def _parse_cna(
             "external_ref":   np_fc,
             "order_number":   _normalize_str(ws.cell(r, c_oc).value if c_oc else None),
             "producto":       prod,
-            "kg_oc":          _normalize_num(ws.cell(r, c_kg_oc).value if c_kg_oc else None),
+            "kg_oc":          _normalize_kg(ws.cell(r, c_kg_oc).value if c_kg_oc else None),
             "presentacion":   _normalize_str(ws.cell(r, c_pres).value if c_pres else None),
             "destino":        _normalize_str(ws.cell(r, c_dest).value if c_dest else None),
             "transporte":     trans,
@@ -601,7 +625,7 @@ def _parse_cna(
             "patente_chasis":  chasis,
             "patente_acoplado": _normalize_str(ws.cell(r, c_acop).value if c_acop else None),
             "notes":          _normalize_str(ws.cell(r, c_obs).value if c_obs else None),
-            "neto":           _normalize_num(ws.cell(r, c_neto).value if c_neto else None),
+            "neto":           _normalize_kg(ws.cell(r, c_neto).value if c_neto else None),
             "remito":         _normalize_str(ws.cell(r, c_remito).value if c_remito else None),
             "row_hash":       _row_hash("cna", fecha, np_fc, prod, trans, chasis),
             # CNA = registro consumado → estado cargado por defecto
@@ -732,6 +756,8 @@ def _agrupar_camiones(registros: list) -> list:
             "tipo":          tipo,
             "npk":           next((f.npk for f in filas if f.npk), None) if es_mezcla else None,
             "st_sd_od":      next((f.st_sd_od for f in filas if f.st_sd_od), None),
+            "external_ref":  next((f.external_ref for f in filas if f.external_ref), None),
+            "order_number":  next((f.order_number for f in filas if f.order_number), None),
             "remito":        next((f.remito for f in filas if f.remito), None),
             "ac":            next((f.ac for f in filas if f.ac), None),
             "camion_grupo":  rep.camion_grupo,
