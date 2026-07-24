@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Conciliar despachos del día — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+  <div class="flex items-center gap-3 mb-5">
+    <a href="/despachos" class="text-gray-400 hover:text-gray-600" aria-label="Volver">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Conciliar despachos del día</h1>
+      <p class="text-sm text-gray-400 mt-0.5">Subí el reporte de balanza y marco qué cupos vinieron</p>
+    </div>
+  </div>
+
+  {% if error %}<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ error }}</div>{% endif %}
+
+  {% if not preview %}
+  <form method="post" action="/despachos/conciliar" enctype="multipart/form-data"
+    class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+    <p class="text-sm text-gray-600 mb-4">
+      Descargá el <strong>reporte de despachos de balanza (Nutrien)</strong> del día anterior y subilo acá.
+      Comparo por el número de cupo (OC/Remito): los que ya tenías los marco como <strong>vinieron</strong> con el peso real,
+      y los que no estaban los creo con el cartel <strong>“vino sin cupo”</strong>.
+    </p>
+    <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors">
+      <svg class="w-9 h-9 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+      <span class="text-sm text-gray-500 font-medium" id="ft">Tocá para elegir el reporte (.xls)</span>
+      <input type="file" name="file" accept=".xls,.xlsx,.html,.htm" required class="hidden"
+        onchange="document.getElementById('ft').textContent = this.files[0] ? ('✓ ' + this.files[0].name) : 'Tocá para elegir el reporte';">
+    </label>
+    <button type="submit" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">
+      Analizar reporte
+    </button>
+  </form>
+
+  {% else %}
+  <!-- ── Preview ─────────────────────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
+    <div class="grid grid-cols-3 gap-2 text-center">
+      <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+        <p class="text-2xl font-black text-emerald-700">{{ preview.vinieron | length }}</p>
+        <p class="text-xs text-emerald-600 font-medium">Vinieron (con cupo)</p>
+      </div>
+      <div class="rounded-xl bg-amber-50 border border-amber-100 p-3">
+        <p class="text-2xl font-black text-amber-700">{{ preview.sin_cupo | length }}</p>
+        <p class="text-xs text-amber-600 font-medium">Vinieron sin cupo</p>
+      </div>
+      <div class="rounded-xl bg-gray-50 border border-gray-100 p-3">
+        <p class="text-2xl font-black text-gray-600">{{ preview.no_aparecieron | length }}</p>
+        <p class="text-xs text-gray-500 font-medium">No aparecieron</p>
+      </div>
+    </div>
+    {% if preview.fecha %}<p class="text-xs text-gray-400 text-center mt-3">Reporte del {{ preview.fecha }} · {{ preview.filename }}</p>{% endif %}
+  </div>
+
+  {% if preview.vinieron %}
+  <h2 class="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">✓ Vinieron — se marcan como cargados</h2>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 mb-5">
+    {% for v in preview.vinieron %}
+    <div class="px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900">{{ v.destinatario }}
+          {% if v.ya_cargado %}<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full ml-1">ya estaba</span>{% endif %}
+        </p>
+        <p class="text-xs text-gray-400 font-mono">{{ v.code }} · {{ v.productos }}{% if v.pesadas > 1 %} · {{ v.pesadas }} pesadas{% endif %}</p>
+        <p class="text-[11px] text-gray-400">{{ v.chasis }}{% if v.acoplado %}/{{ v.acoplado }}{% endif %} · {{ v.chofer }} · {{ v.transporte }}</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-sm font-bold text-gray-800">{{ v.neto | fmt_num(0) }} kg</p>
+        {% if v.bolsas %}<p class="text-[11px] text-gray-400">{{ v.bolsas | fmt_num(0) }} bolsas</p>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if preview.sin_cupo %}
+  <h2 class="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">⚠ Vinieron sin cupo — se crean nuevos</h2>
+  <div class="bg-amber-50/40 rounded-2xl border border-amber-100 divide-y divide-amber-100 mb-5">
+    {% for v in preview.sin_cupo %}
+    <div class="px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900 font-mono">{{ v.code }}</p>
+        <p class="text-xs text-gray-500">{{ v.productos }} · {{ v.transporte }}</p>
+        <p class="text-[11px] text-gray-400">{{ v.chasis }}{% if v.acoplado %}/{{ v.acoplado }}{% endif %} · {{ v.chofer }}</p>
+      </div>
+      <p class="text-sm font-bold text-gray-800 flex-shrink-0">{{ v.neto | fmt_num(0) }} kg</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if preview.no_aparecieron %}
+  <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">No aparecieron en el reporte (revisá a mano)</h2>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 mb-5">
+    {% for v in preview.no_aparecieron %}
+    <a href="/despachos/{{ v.id }}" class="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
+      <div>
+        <p class="text-sm text-gray-800">{{ v.destinatario }} <span class="text-gray-400 text-xs">· {{ v.producto }}</span></p>
+        <p class="text-[11px] text-gray-400 font-mono">{{ v.code }}</p>
+      </div>
+      <span class="text-gray-300 text-xs">ver →</span>
+    </a>
+    {% endfor %}
+  </div>
+  <p class="text-[11px] text-gray-400 mb-5">Estos no cambian de estado automáticamente — decidí vos si marcarlos “no vino” o reprogramarlos.</p>
+  {% endif %}
+
+  <form method="post" action="/despachos/conciliar/confirmar" class="flex gap-3">
+    <input type="hidden" name="grupos_json" value="{{ preview.grupos_json }}">
+    <a href="/despachos/conciliar" class="flex-1 text-center border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</a>
+    <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">
+      Aplicar conciliación
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% endblock %}

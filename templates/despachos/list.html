@@ -26,6 +26,13 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       Nuevo cupo
     </a>
+    <a href="/despachos/conciliar"
+      class="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 text-emerald-700 border border-emerald-200
+             text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
+      title="Subir el reporte de balanza y marcar qué cupos vinieron">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Conciliar día
+    </a>
     <a href="/despachos/import"
       class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white
              text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
@@ -164,6 +171,7 @@
         </td>
         <td class="px-3 py-2.5 max-w-[180px] truncate text-gray-800 font-medium text-xs">
           {{ r.cliente or r.destinatario or '—' }}
+          {% if r.sin_cupo %}<span class="ml-1 text-[9px] font-bold text-amber-700 bg-amber-100 px-1 py-0.5 rounded-full align-middle">SIN CUPO</span>{% endif %}
         </td>
         <td class="px-3 py-2.5 text-gray-700 text-xs max-w-[200px]">
           {% if r.multi %}

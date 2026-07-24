@@ -13,6 +13,7 @@ Endpoints:
 """
 
 import io
+import re
 import hashlib
 import uuid
 import os
@@ -677,6 +678,104 @@ def _parse_excel(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Conciliación diaria (reporte de balanza Nutrien)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _canon_code(s) -> str:
+    """Código canónico del cupo: los últimos 8 dígitos (descarta prefijos
+    D1/D2/SP/SM y su dígito). Ej: 'D1 26000800' → '26000800'."""
+    d = re.sub(r"\D", "", str(s or ""))
+    return d[-8:] if len(d) > 8 else d
+
+
+def _parse_reporte_balanza(content: bytes):
+    """Lee el reporte de balanza de Nutrien (HTML disfrazado de .xls) y agrupa
+    las pesadas por código de cupo (OC/Remito). Devuelve (fecha_reporte, grupos)."""
+    from bs4 import BeautifulSoup
+    from collections import defaultdict
+
+    html = None
+    for enc in ("utf-8", "latin-1", "cp1252"):
+        try:
+            html = content.decode(enc)
+            break
+        except Exception:
+            continue
+    if not html:
+        return None, []
+
+    soup = BeautifulSoup(html, "html.parser")
+    tables = soup.find_all("table")
+    if not tables:
+        return None, []
+    t = max(tables, key=lambda x: len(x.find_all("tr")))
+    rows = [[c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
+            for tr in t.find_all("tr")]
+
+    hi = None
+    for i, r in enumerate(rows):
+        if "Neto" in r and "OC/Remito" in r:
+            hi = i
+            break
+    if hi is None:
+        return None, []
+    idx = {h: i for i, h in enumerate(rows[hi])}
+
+    def cell(r, name):
+        i = idx.get(name)
+        return r[i] if (i is not None and i < len(r)) else ""
+
+    def num(s):
+        s = re.sub(r"[^\d.,]", "", str(s or "")).replace(".", "").replace(",", ".")
+        try:
+            return float(s) if s else 0.0
+        except ValueError:
+            return 0.0
+
+    grupos = defaultdict(lambda: {
+        "neto": 0.0, "bolsas": 0.0, "productos": [], "pesadas": 0,
+        "fecha": "", "chasis": "", "acoplado": "", "chofer": "",
+        "transporte": "", "cliente": "", "code": "", "nros": [],
+    })
+    orden = []
+    fecha_rep = None
+    for r in rows[hi + 1:]:
+        nro = cell(r, "Nro.")
+        if not nro.isdigit():
+            continue
+        code = cell(r, "OC/Remito")
+        canon = _canon_code(code)
+        if not canon:
+            continue
+        if canon not in grupos:
+            orden.append(canon)
+        g = grupos[canon]
+        g["neto"] += num(cell(r, "Neto"))
+        g["bolsas"] += num(cell(r, "Bolsas"))
+        prod = cell(r, "Producto")
+        if prod and prod not in g["productos"]:
+            g["productos"].append(prod)
+        g["pesadas"] += 1
+        g["nros"].append(nro)
+        g["fecha"] = cell(r, "Fecha Sal.") or cell(r, "Fecha Ent.") or g["fecha"]
+        g["chasis"] = cell(r, "Pat. Cam.") or g["chasis"]
+        g["acoplado"] = re.sub(r"\s*\(.*\)", "", cell(r, "Pat. Acop")) or g["acoplado"]
+        g["chofer"] = cell(r, "Chofer") or g["chofer"]
+        g["transporte"] = cell(r, "Transporte") or g["transporte"]
+        g["cliente"] = cell(r, "Cliente") or g["cliente"]
+        g["code"] = code or g["code"]
+        fecha_rep = fecha_rep or g["fecha"]
+
+    grupos_ord = []
+    for c in orden:
+        g = grupos[c]
+        g["canon"] = c
+        g["fecha_date"] = _normalize_date(g["fecha"])
+        grupos_ord.append(g)
+    return fecha_rep, grupos_ord
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Helpers de KPIs
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -760,6 +859,7 @@ def _agrupar_camiones(registros: list) -> list:
             "order_number":  next((f.order_number for f in filas if f.order_number), None),
             "remito":        next((f.remito for f in filas if f.remito), None),
             "ac":            next((f.ac for f in filas if f.ac), None),
+            "sin_cupo":      any("SIN CUPO" in (f.notes or "") for f in filas),
             "camion_grupo":  rep.camion_grupo,
         })
     return camiones
@@ -1421,6 +1521,147 @@ async def import_confirm(
         url=f"/despachos?import_ok=1&inserted={inserted}&skipped={skipped}",
         status_code=303,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Conciliación diaria: subo el reporte de balanza y marco quién vino
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _nutrien_por_canon(db):
+    from collections import defaultdict
+    m = defaultdict(list)
+    for c in db.query(CupoDespacho).filter(CupoDespacho.source_type == "nutrien").all():
+        k = _canon_code(c.st_sd_od)
+        if k:
+            m[k].append(c)
+    return m
+
+
+@router.get("/conciliar", response_class=HTMLResponse)
+async def conciliar_form(request: Request, current_user=Depends(_guard)):
+    return templates.TemplateResponse(request, "despachos/conciliar.html", {
+        "current_user": current_user, "preview": None, "error": None,
+    })
+
+
+@router.post("/conciliar", response_class=HTMLResponse)
+async def conciliar_preview(request: Request, db: Session = Depends(get_db),
+                            current_user=Depends(_guard),
+                            file: UploadFile = File(...)):
+    import json as _json
+    content = await file.read()
+    fecha_rep, grupos = _parse_reporte_balanza(content)
+    if not grupos:
+        return templates.TemplateResponse(request, "despachos/conciliar.html", {
+            "current_user": current_user, "preview": None,
+            "error": "No pude leer el reporte. ¿Es el Excel de balanza de Nutrien?",
+        })
+
+    by_canon = _nutrien_por_canon(db)
+    vinieron, sin_cupo = [], []
+    for g in grupos:
+        cupos = by_canon.get(g["canon"], [])
+        item = {
+            "canon": g["canon"], "code": g["code"], "fecha": g["fecha"],
+            "neto": round(g["neto"]), "bolsas": round(g["bolsas"]),
+            "productos": ", ".join(g["productos"]), "chasis": g["chasis"],
+            "acoplado": g["acoplado"], "chofer": g["chofer"],
+            "transporte": g["transporte"], "pesadas": g["pesadas"],
+        }
+        if cupos:
+            rep = cupos[0]
+            item["destinatario"] = rep.destinatario or rep.cliente or "—"
+            item["ya_cargado"] = (rep.status == "cargado")
+            vinieron.append(item)
+        else:
+            sin_cupo.append(item)
+
+    # Planificados de esa fecha que NO aparecieron (informativo).
+    no_aparecieron = []
+    fecha_date = _normalize_date(fecha_rep)
+    canons_reporte = {g["canon"] for g in grupos}
+    if fecha_date:
+        planificados = (db.query(CupoDespacho)
+                        .filter(CupoDespacho.source_type == "nutrien",
+                                CupoDespacho.scheduled_date == fecha_date,
+                                CupoDespacho.status != "cargado").all())
+        vistos = set()
+        for c in planificados:
+            k = _canon_code(c.st_sd_od)
+            if k in canons_reporte or (c.batch_id, c.camion_grupo, k) in vistos:
+                continue
+            vistos.add((c.batch_id, c.camion_grupo, k))
+            no_aparecieron.append({
+                "id": c.id, "code": c.st_sd_od or "—",
+                "destinatario": c.destinatario or c.cliente or "—",
+                "producto": c.producto or "—",
+            })
+
+    return templates.TemplateResponse(request, "despachos/conciliar.html", {
+        "current_user": current_user, "error": None,
+        "preview": {
+            "fecha": fecha_rep, "vinieron": vinieron, "sin_cupo": sin_cupo,
+            "no_aparecieron": no_aparecieron,
+            "grupos_json": _json.dumps(grupos, default=str),
+            "filename": file.filename,
+        },
+    })
+
+
+@router.post("/conciliar/confirmar")
+async def conciliar_confirmar(request: Request, db: Session = Depends(get_db),
+                              current_user=Depends(_guard)):
+    import json as _json
+    form = await request.form()
+    try:
+        grupos = _json.loads(form.get("grupos_json", "[]"))
+    except Exception:
+        raise HTTPException(400, "Datos de conciliación inválidos.")
+
+    by_canon = _nutrien_por_canon(db)
+    marcados = creados = 0
+
+    for g in grupos:
+        canon = g.get("canon")
+        fecha = _normalize_date(g.get("fecha"))
+        neto  = round(float(g.get("neto") or 0)) or None
+        cupos = by_canon.get(canon, [])
+
+        if cupos:
+            # Ya tenía cupo → marcar que vino + datos reales de la balanza.
+            for c in cupos:
+                c.status = "cargado"
+                c.actual_date = fecha or c.actual_date
+                c.chofer = g.get("chofer") or c.chofer
+                c.transporte = g.get("transporte") or c.transporte
+                c.patente_chasis = g.get("chasis") or c.patente_chasis
+                c.patente_acoplado = g.get("acoplado") or c.patente_acoplado
+                c.updated_at = datetime.utcnow()
+            cupos[0].neto = neto or cupos[0].neto
+            marcados += 1
+        else:
+            # No tenía cupo → crearlo con el disclaimer "VINO SIN CUPO".
+            cd = CupoDespacho(
+                batch_id=None, source_type="nutrien", document_type="cupo",
+                scheduled_date=fecha, actual_date=fecha,
+                st_sd_od=g.get("code") or None, external_ref=g.get("code") or None,
+                cliente="NUTRIEN", destinatario=(g.get("transporte") or None),
+                producto=", ".join(g.get("productos", [])) or None,
+                kg_oc=(neto * 1) if neto else None, neto=neto,
+                presentacion="Granel",
+                transporte=g.get("transporte") or None, chofer=g.get("chofer") or None,
+                patente_chasis=g.get("chasis") or None,
+                patente_acoplado=g.get("acoplado") or None,
+                status="cargado", notes="⚠ VINO SIN CUPO (detectado en la balanza)",
+                imported_by=current_user.name + " (conciliación)",
+            )
+            db.add(cd)
+            creados += 1
+
+    db.commit()
+    return RedirectResponse(
+        url=f"/despachos?ok={marcados}+marcados+como+vinieron,+{creados}+sin+cupo",
+        status_code=303)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
