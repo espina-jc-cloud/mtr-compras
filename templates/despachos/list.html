@@ -123,8 +123,8 @@
 
 {% include "partials/_trunc.html" %}
 <!-- Desktop table -->
-<div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-  <table data-sort class="w-full text-sm">
+<div class="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+  <table data-sort class="min-w-full text-sm">
     <thead>
       <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
         <th class="px-3 py-2.5">Fecha prog.</th>
@@ -138,7 +138,7 @@
         <th class="px-3 py-2.5">Chofer</th>
         <th class="px-3 py-2.5">Chasis</th>
         <th class="px-3 py-2.5">Estado</th>
-        <th class="px-3 py-2.5"></th>
+        <th class="px-3 py-2.5 sticky right-0 bg-gray-50 border-l border-gray-200">Acciones</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
@@ -204,10 +204,11 @@
             {{ estado_labels.get(r.status, r.status) }}
           </span>
         </td>
-        <td class="px-3 py-2.5">
-          <div class="flex items-center gap-2 justify-end">
-            <a href="/despachos/{{ r.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">
-              Ver →
+        <td class="px-3 py-2.5 sticky right-0 bg-white border-l border-gray-200">
+          <div class="flex items-center gap-2.5 justify-end">
+            <a href="/despachos/{{ r.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium" title="Ver / detalle">Ver</a>
+            <a href="/despachos/{{ r.id }}/editar" class="text-gray-400 hover:text-indigo-600 transition-colors" aria-label="Editar cupo" title="Editar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </a>
             <form method="post" action="/despachos/{{ r.id }}/delete" class="inline"
               data-confirm="¿Borrar este camión ({{ r.destinatario or r.cliente or 'sin destinatario' }})?">
