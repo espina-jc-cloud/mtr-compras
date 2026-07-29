@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Importar Word — Nómina Madre{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+  <div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-400 mb-1">
+      <a href="/transporte/historial" class="hover:text-gray-600">Transporte</a>
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <a href="/transporte/nomina" class="hover:text-gray-600">Nómina Madre</a>
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <span class="text-gray-600 font-medium">Importar Word</span>
+    </div>
+    <h1 class="text-xl font-semibold text-gray-900">Importar nómina desde Word</h1>
+    <p class="text-sm text-gray-400 mt-0.5">Subí el Word con la nómina actualizada. Se compara con la actual y confirmás los cambios antes de aplicarlos.</p>
+  </div>
+
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">{{ error }}</div>
+  {% endif %}
+
+  {% if plan is none %}
+  <!-- Paso 1: subir archivo -->
+  <form method="post" action="/transporte/nomina/importar" enctype="multipart/form-data"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+    <label class="block text-sm font-medium text-gray-700 mb-2">Archivo Word (.docx)</label>
+    <input type="file" name="file" accept=".docx" required
+           class="block w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 border border-gray-200 rounded-xl p-2 bg-gray-50">
+    <p class="text-xs text-gray-400 mt-2">
+      El Word debe tener una tabla con encabezados como: Empresa, Apellido y nombre, DNI, Camión, Patente camión, Patente acoplado.
+    </p>
+    <div class="mt-5 flex items-center gap-2">
+      <button type="submit"
+              class="bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+        Analizar Word
+      </button>
+      <a href="/transporte/nomina" class="text-sm text-gray-400 hover:text-gray-600 px-3 py-2.5">Cancelar</a>
+    </div>
+  </form>
+
+  {% else %}
+  <!-- Paso 2: resumen y confirmación -->
+  {% set n_altas = plan.altas|length %}
+  {% set n_mod   = plan.modificaciones|length %}
+  {% set n_bajas = plan.bajas|length %}
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+      <div class="text-2xl font-semibold text-emerald-600">{{ n_altas }}</div>
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Altas</div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+      <div class="text-2xl font-semibold text-amber-600">{{ n_mod }}</div>
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Modificaciones</div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+      <div class="text-2xl font-semibold text-red-600">{{ n_bajas }}</div>
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Bajas</div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+      <div class="text-2xl font-semibold text-gray-400">{{ plan.sin_cambios }}</div>
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Sin cambios</div>
+    </div>
+  </div>
+
+  <p class="text-sm text-gray-500 mb-4">
+    Archivo <span class="font-medium text-gray-700">{{ filename }}</span> — {{ total_word }} fila(s) leída(s).
+  </p>
+
+  {% if warnings %}
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 mb-5 text-sm">
+    <p class="font-semibold mb-1">Avisos:</p>
+    <ul class="list-disc list-inside space-y-0.5">
+      {% for w in warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Altas -->
+  {% if plan.altas %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-5">
+    <div class="px-4 py-3 border-b border-gray-100 bg-emerald-50/50">
+      <h2 class="text-sm font-semibold text-emerald-700">Nuevos transportes ({{ n_altas }})</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <th class="text-left px-4 py-2 font-semibold">Empresa</th>
+          <th class="text-left px-4 py-2 font-semibold">Chofer</th>
+          <th class="text-left px-4 py-2 font-semibold">DNI</th>
+          <th class="text-left px-4 py-2 font-semibold">Marca</th>
+          <th class="text-left px-4 py-2 font-semibold">Patente camión</th>
+          <th class="text-left px-4 py-2 font-semibold">Pat. acoplado</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for a in plan.altas %}
+        <tr>
+          <td class="px-4 py-2 font-medium text-gray-900">{{ a.empresa or "—" }}</td>
+          <td class="px-4 py-2 text-gray-700">{{ a.nombre_chofer or "—" }}</td>
+          <td class="px-4 py-2 font-mono text-xs text-gray-500">{{ a.dni or "—" }}</td>
+          <td class="px-4 py-2 text-gray-500">{{ a.marca_camion or "—" }}</td>
+          <td class="px-4 py-2 font-mono text-xs text-gray-700">{{ a.patente_camion or "—" }}</td>
+          <td class="px-4 py-2 font-mono text-xs text-gray-500">{{ a.patente_acoplado or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Modificaciones -->
+  {% if plan.modificaciones %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-5">
+    <div class="px-4 py-3 border-b border-gray-100 bg-amber-50/50">
+      <h2 class="text-sm font-semibold text-amber-700">Modificaciones ({{ n_mod }})</h2>
+    </div>
+    <div class="divide-y divide-gray-50">
+      {% for m in plan.modificaciones %}
+      <div class="px-4 py-3">
+        <div class="text-sm font-medium text-gray-900 mb-1.5">
+          {{ m.after.nombre_chofer or m.before.nombre_chofer }}
+          <span class="text-gray-400 font-normal">— {{ m.after.empresa or m.before.empresa }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {% for f in m.cambios %}
+          <span class="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 text-xs">
+            <span class="text-gray-400">{{ labels.get(f, f) }}:</span>
+            <span class="text-red-500 line-through">{{ m.before.get(f) or "—" }}</span>
+            <svg class="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            <span class="text-emerald-600 font-medium">{{ m.after.get(f) or "—" }}</span>
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Bajas -->
+  {% if plan.bajas %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-5">
+    <div class="px-4 py-3 border-b border-gray-100 bg-red-50/50">
+      <h2 class="text-sm font-semibold text-red-700">Bajas ({{ n_bajas }})</h2>
+      <p class="text-xs text-gray-400 mt-0.5">Transportes vigentes que no aparecen en el Word.</p>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <th class="text-left px-4 py-2 font-semibold">Empresa</th>
+          <th class="text-left px-4 py-2 font-semibold">Chofer</th>
+          <th class="text-left px-4 py-2 font-semibold">DNI</th>
+          <th class="text-left px-4 py-2 font-semibold">Patente camión</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for b in plan.bajas %}
+        <tr>
+          <td class="px-4 py-2 font-medium text-gray-900">{{ b.data.empresa or "—" }}</td>
+          <td class="px-4 py-2 text-gray-700">{{ b.data.nombre_chofer or "—" }}</td>
+          <td class="px-4 py-2 font-mono text-xs text-gray-500">{{ b.data.dni or "—" }}</td>
+          <td class="px-4 py-2 font-mono text-xs text-gray-700">{{ b.data.patente_camion or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if not plan.altas and not plan.modificaciones and not plan.bajas %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-10 text-center text-gray-400 mb-5">
+    No hay cambios respecto a la nómina actual.
+  </div>
+  {% endif %}
+
+  <!-- Confirmación -->
+  <form method="post" action="/transporte/nomina/importar/confirmar"
+        class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"
+        onsubmit="return confirm('¿Aplicar estos cambios a la nómina?')">
+    <input type="hidden" name="plan_json" value="{{ plan_json }}">
+
+    {% if plan.bajas %}
+    <label class="flex items-start gap-2 mb-4 text-sm text-gray-700">
+      <input type="checkbox" name="aplicar_bajas" value="1" checked class="mt-0.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+      <span>Dar de baja los {{ n_bajas }} transporte(s) que no están en el Word.
+        <span class="block text-xs text-gray-400">Destildá esto si solo querés agregar y modificar, sin borrar.</span>
+      </span>
+    </label>
+    {% endif %}
+
+    <div class="flex items-center gap-2">
+      <button type="submit"
+              {% if not plan.altas and not plan.modificaciones and not plan.bajas %}disabled{% endif %}
+              class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+        Confirmar y aplicar
+      </button>
+      <a href="/transporte/nomina/importar" class="text-sm text-gray-400 hover:text-gray-600 px-3 py-2.5">Subir otro archivo</a>
+      <a href="/transporte/nomina" class="text-sm text-gray-400 hover:text-gray-600 px-3 py-2.5">Cancelar</a>
+    </div>
+  </form>
+  {% endif %}
+</div>
+
+{% endblock %}
