@@ -126,6 +126,7 @@ _BREADCRUMB_MAP = [
     ("/despachos",            "Operación",      "Despachos"),
     ("/tarifario",            "Operación",      "Tarifas"),
     ("/polinomica",           "Operación",      "Polinómica CNA"),
+    ("/servicios",            "Operación",      "Servicios de equipo"),
     ("/transporte/nomina",    "Transporte",     "Nómina Madre"),
     ("/transporte/historial", "Transporte",     "Historial"),
     ("/purchases",            "Comercial",      "Compras"),

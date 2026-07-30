@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Servicios de equipo — MTR{% endblock %}
+{% block content %}
+
+<div class="flex items-start justify-between mb-5 gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Servicios de equipo</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Trabajos esporádicos de alquiler (autoelevador, etc.)</p>
+  </div>
+  <a href="/servicios/nuevo"
+    class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Nuevo servicio
+  </a>
+</div>
+
+<!-- KPIs -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+  {% set kpi_items = [
+    ('Servicios', kpis.total, 'text-gray-700', 'bg-gray-50'),
+    ('Horas', kpis.horas, 'text-indigo-700', 'bg-indigo-50'),
+    ('Por facturar', kpis.por_facturar, 'text-amber-700', 'bg-amber-50'),
+    ('A cobrar $', kpis.a_cobrar, 'text-emerald-700', 'bg-emerald-50'),
+  ] %}
+  {% for label, val, tc, bg in kpi_items %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5 text-center">
+    <p class="text-xs text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }}">{{ val | fmt_num(0) if val is number else val }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filtros -->
+<form method="get" action="/servicios" data-autofilter data-remember="servicios" class="flex flex-wrap gap-2 items-center mb-4 text-sm">
+  <select name="estado" class="border border-gray-200 rounded-lg px-3 py-2 bg-white">
+    <option value="">Todos los estados</option>
+    {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if f_estado == val }}>{{ label }}</option>{% endfor %}
+  </select>
+  <input type="text" name="q" value="{{ f_q }}" placeholder="Cliente, conductor, trabajo…" class="border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 min-w-[180px]">
+</form>
+
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  {% if servicios %}
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5 whitespace-nowrap">Fecha</th>
+        <th class="px-4 py-2.5">Cliente</th>
+        <th class="px-4 py-2.5">Equipo</th>
+        <th class="px-4 py-2.5">Conductor</th>
+        <th class="px-4 py-2.5 whitespace-nowrap">Horario</th>
+        <th class="px-4 py-2.5 text-right">Horas</th>
+        <th class="px-4 py-2.5">Trabajo</th>
+        <th class="px-4 py-2.5 text-right">Importe</th>
+        <th class="px-4 py-2.5">Estado</th>
+        <th class="px-4 py-2.5 sticky right-0 bg-gray-50 border-l border-gray-200">Acciones</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for s in servicios %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2.5 whitespace-nowrap text-gray-700">{{ s.fecha | fmt_date if s.fecha else '—' }}</td>
+        <td class="px-4 py-2.5 font-medium text-gray-800">{{ s.cliente or '—' }}</td>
+        <td class="px-4 py-2.5 text-gray-600 text-xs">{{ s.equipo or '—' }}</td>
+        <td class="px-4 py-2.5 text-gray-600 text-xs">{{ s.conductor or '—' }}</td>
+        <td class="px-4 py-2.5 whitespace-nowrap text-gray-500 text-xs">{% if s.hora_inicio %}{{ s.hora_inicio }}–{{ s.hora_fin or '?' }}{% else %}—{% endif %}</td>
+        <td class="px-4 py-2.5 text-right font-semibold text-gray-700">{{ s.horas_facturadas | fmt_num(1) if s.horas_facturadas else '—' }}</td>
+        <td class="px-4 py-2.5 text-gray-500 text-xs max-w-[220px] truncate" title="{{ s.descripcion or '' }}">
+          {% if s.origen or s.destino %}{{ s.origen or '?' }} → {{ s.destino or '?' }}{% else %}{{ (s.descripcion or '—')[:40] }}{% endif %}
+        </td>
+        <td class="px-4 py-2.5 text-right text-gray-700">{% if s.importe %}$ {{ s.importe | fmt_num(0) }}{% else %}<span class="text-gray-300">—</span>{% endif %}</td>
+        <td class="px-4 py-2.5"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(s.estado, 'bg-gray-100 text-gray-600') }}">{{ dict(estados).get(s.estado, s.estado) }}</span></td>
+        <td class="px-4 py-2.5 sticky right-0 bg-white border-l border-gray-200">
+          <div class="flex items-center gap-2.5 justify-end">
+            <a href="/servicios/{{ s.id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Editar</a>
+            <form method="post" action="/servicios/{{ s.id }}/borrar" class="inline" data-confirm="¿Borrar este servicio?">
+              <button type="submit" class="text-gray-300 hover:text-red-500 transition-colors" aria-label="Borrar" title="Borrar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  {% with msg="Todavía no cargaste servicios. Pegá el mensaje de WhatsApp del supervisor para documentar el primero.", action_href="/servicios/nuevo", action_label="Cargar el primero" %}{% include "partials/_empty.html" %}{% endwith %}
+  {% endif %}
+</div>
+
+{% endblock %}

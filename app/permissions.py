@@ -54,6 +54,7 @@ MODULES = [
             {"key": "operaciones.finalizados",      "label": "Operativos Finalizados", "prefixes": ["/operations", "/api/operations"]},
             {"key": "operaciones.tarifas_propias",  "label": "Tarifas propias",      "prefixes": ["/tarifario"]},
             {"key": "operaciones.polinomica",       "label": "Polinómica CNA",       "prefixes": ["/polinomica"]},
+            {"key": "operaciones.servicios",        "label": "Servicios de equipo",  "prefixes": ["/servicios"]},
             {"key": "operaciones.tarifas_terceros", "label": "Tarifas de terceros",  "prefixes": []},
         ],
     },
@@ -103,6 +104,7 @@ _DEF = {
         "mantenimiento.mantenimiento", "mantenimiento.equipos", "mantenimiento.combustible",
         "proyectos.proyectos",
         "operaciones.arribos", "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias", "operaciones.polinomica",
+        "operaciones.servicios",
         "transporte.nomina", "transporte.historial",
     },
 

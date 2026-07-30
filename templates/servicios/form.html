@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{{ "Servicio #" ~ s.id if s and s.id else "Nuevo servicio" }} — MTR{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center justify-between gap-3 mb-6">
+    <div class="flex items-center gap-3">
+      <a href="/servicios" class="text-gray-400 hover:text-gray-600" aria-label="Volver">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">{{ ("Servicio #" ~ s.id) if s and s.id else "Nuevo servicio" }}</h1>
+        <p class="text-sm text-gray-400 mt-0.5">Trabajo esporádico de equipo (autoelevador, etc.)</p>
+      </div>
+    </div>
+    {% if s and s.id %}
+    <form method="post" action="/servicios/{{ s.id }}/borrar" data-confirm="¿Borrar este servicio?">
+      <button type="submit" class="text-sm font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-xl">Borrar</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% include "partials/_error.html" %}
+
+  {% if not (s and s.id) %}
+  <!-- Pegar mensaje de WhatsApp -->
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
+    <label class="block text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">📋 Pegá el mensaje de WhatsApp</label>
+    <textarea id="wa-msg" rows="3" placeholder="Ej: hola te paso lo de rasa 23/7/2026 yale de 10 tn de 8 a 11 horas se cargo un delta en rasa y se descargo en DiGrazia"
+      class="w-full border border-emerald-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"></textarea>
+    <button type="button" onclick="parseWA()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">Completar campos ↓</button>
+    <span id="wa-ok" class="ml-2 text-xs font-medium text-emerald-700 hidden">✓ Completado — revisá abajo</span>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ form_action }}" class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
+    <input type="hidden" name="mensaje_original" id="mensaje_original" value="{{ s.mensaje_original if s else '' }}">
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Fecha</label>
+        <input type="date" name="fecha" id="f_fecha" value="{{ s.fecha.isoformat() if s and s.fecha else '' }}"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Cliente</label>
+        <input type="text" name="cliente" id="f_cliente" value="{{ s.cliente or '' }}" placeholder="Ej: RASA"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Equipo</label>
+        <input type="text" name="equipo" id="f_equipo" value="{{ s.equipo or '' }}" placeholder="Ej: Yale 10 tn"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Conductor</label>
+        <input type="text" name="conductor" id="f_conductor" value="{{ s.conductor or '' }}" placeholder="Ej: Achabal"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div class="grid grid-cols-3 gap-2 sm:col-span-2">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Desde</label>
+          <input type="text" name="hora_inicio" id="f_hi" value="{{ s.hora_inicio or '' }}" placeholder="08:00"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Hasta</label>
+          <input type="text" name="hora_fin" id="f_hf" value="{{ s.hora_fin or '' }}" placeholder="11:00"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Horas a facturar</label>
+          <input type="text" name="horas_facturadas" id="f_horas" value="{{ s.horas_facturadas or '' }}" inputmode="decimal" placeholder="3"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Cargó en (origen)</label>
+        <input type="text" name="origen" id="f_origen" value="{{ s.origen or '' }}" placeholder="Ej: RASA"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Descargó en (destino)</label>
+        <input type="text" name="destino" id="f_destino" value="{{ s.destino or '' }}" placeholder="Ej: DiGrazia"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1.5">Descripción del trabajo</label>
+      <textarea name="descripcion" id="f_desc" rows="2" placeholder="Qué hizo el equipo"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none">{{ s.descripcion or '' }}</textarea>
+    </div>
+
+    <!-- Facturación (tarifas se completan después) -->
+    <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Tarifa / hora</label>
+        <input type="text" name="tarifa_hora" id="f_tarifa" value="{{ s.tarifa_hora or '' }}" inputmode="decimal" placeholder="(a definir)"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Importe</label>
+        <input type="text" name="importe" id="f_importe" value="{{ s.importe or '' }}" inputmode="decimal" placeholder="horas × tarifa"
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">Estado</label>
+        <select name="estado" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if s and s.estado == val }}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1.5">Notas</label>
+      <input type="text" name="notas" value="{{ s.notas or '' }}"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div class="flex gap-3 pt-1">
+      <a href="/servicios" class="flex-1 flex items-center justify-center border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</a>
+      <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm">{{ "Guardar cambios" if s and s.id else "Guardar servicio" }}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Autocalcular importe = horas × tarifa cuando ambos están.
+  function recalc() {
+    var h = parseFloat((document.getElementById('f_horas').value || '').replace(',', '.'));
+    var t = parseFloat((document.getElementById('f_tarifa').value || '').replace(',', '.'));
+    var imp = document.getElementById('f_importe');
+    if (!isNaN(h) && !isNaN(t) && !imp.dataset.manual) imp.value = Math.round(h * t * 100) / 100;
+  }
+  ['f_horas', 'f_tarifa'].forEach(function (id) { var e = document.getElementById(id); if (e) e.addEventListener('input', recalc); });
+  var impEl = document.getElementById('f_importe'); if (impEl) impEl.addEventListener('input', function () { this.dataset.manual = '1'; });
+
+  // Parser del mensaje de WhatsApp.
+  function parseWA() {
+    var t = document.getElementById('wa-msg').value || '';
+    if (!t.trim()) return;
+    document.getElementById('mensaje_original').value = t;
+    document.getElementById('f_desc').value = t;
+    var low = t.toLowerCase();
+    function set(id, v) { if (v) document.getElementById(id).value = v; }
+
+    // Fecha dd/mm/yyyy → yyyy-mm-dd
+    var md = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (md) {
+      var y = md[3].length === 2 ? ('20' + md[3]) : md[3];
+      set('f_fecha', y + '-' + ('0' + md[2]).slice(-2) + '-' + ('0' + md[1]).slice(-2));
+    }
+    // Cliente: "lo de <cliente>" hasta la fecha o "yale"
+    var mc = low.match(/lo de\s+(.+?)\s+(?:\d{1,2}\/|yale|de\s|\d)/);
+    if (mc) set('f_cliente', mc[1].trim().toUpperCase());
+    // Equipo: "yale ... N tn"
+    var me = t.match(/(yale[^\d]*\d+\s*tn)/i);
+    if (me) set('f_equipo', me[1].replace(/\s+/g, ' ').trim());
+    // Horario: "8 a 11" / "8 a 9.30"
+    var mh = low.match(/(\d{1,2}(?:[.:]\d{2})?)\s*a\s*(\d{1,2}(?:[.:]\d{2})?)/);
+    if (mh) { set('f_hi', mh[1].replace('.', ':')); set('f_hf', mh[2].replace('.', ':')); }
+    // Horas a facturar: "factura por 3 horas"
+    var mf = low.match(/factur\w*\s+por\s+(\d+(?:[.,]\d+)?)/);
+    if (mf) set('f_horas', mf[1].replace(',', '.'));
+    // Conductor: "conductor xxx"
+    var mco = low.match(/conductor\s+([a-záéíóúñ]+)/i);
+    if (mco) set('f_conductor', mco[1].charAt(0).toUpperCase() + mco[1].slice(1));
+    // Origen/Destino: "cargo ... en X", "descargo en Y"
+    var mo = low.match(/carg\w+.*?\ben\s+([a-záéíóúñ0-9]+)/i);
+    if (mo) set('f_origen', mo[1].charAt(0).toUpperCase() + mo[1].slice(1));
+    var mdst = t.match(/descarg\w+\s+en\s+([A-Za-zÁÉÍÓÚÑ0-9]+)/i);
+    if (mdst) set('f_destino', mdst[1]);
+
+    recalc();
+    document.getElementById('wa-ok').classList.remove('hidden');
+  }
+</script>
+
+{% endblock %}

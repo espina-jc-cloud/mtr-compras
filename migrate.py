@@ -21,6 +21,7 @@ from app import models_transporte   # noqa: F401 — registra tablas de Transpor
 from app import models_daily_ops    # noqa: F401 — registra tablas de Operaciones Diarias en Base.metadata
 from app import models_arribos       # noqa: F401 — registra tablas de Próximos Arribos en Base.metadata
 from app import models_polinomica    # noqa: F401 — registra tablas de Polinómica CNA en Base.metadata
+from app import models_servicios     # noqa: F401 — registra tabla de Servicios de equipo en Base.metadata
 from app.auth import hash_password
 
 
