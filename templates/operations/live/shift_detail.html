@@ -23,6 +23,13 @@
       {% elif shift.status == "adjusted" %}
       <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">Ajustado</span>
       {% endif %}
+      {% if shift.turno_tipo == 'inhabil' %}
+      <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Inhábil</span>
+      {% elif shift.turno_tipo == 'extraordinario' %}
+      <span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">Extraordinario</span>
+      {% else %}
+      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Hábil</span>
+      {% endif %}
       {% if shift.await_adjustment %}
       <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">⏳ Espera ajuste</span>
       {% endif %}

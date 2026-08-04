@@ -419,6 +419,13 @@
             {% elif shift.status == 'adjusted' %}
             <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">ajustado</span>
             {% endif %}
+            {% if shift.turno_tipo == 'inhabil' %}
+            <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">INHÁBIL</span>
+            {% elif shift.turno_tipo == 'extraordinario' %}
+            <span class="text-[10px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded-full">EXTRAORD.</span>
+            {% else %}
+            <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">HÁBIL</span>
+            {% endif %}
             {% if shift.await_adjustment %}
             <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⏳ esperando ajuste</span>
             {% endif %}

@@ -241,6 +241,50 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════
+     BLOQUE 2.5: Ítems especiales + totales declarados (referencia)
+     ══════════════════════════════════════════════════════ -->
+{% if invoice.cargo_lines %}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+    Ítems especiales
+    <span class="font-normal text-gray-300 ml-1">({{ invoice.cargo_lines | length }})</span>
+  </h2>
+  <div class="divide-y divide-gray-50">
+    {% for c in invoice.cargo_lines %}
+    <div class="flex items-center justify-between py-2 text-sm">
+      <div>
+        <span class="font-medium text-gray-800">{{ c.descripcion }}</span>
+        {% if c.cantidad %}<span class="text-gray-400 text-xs ml-1">{{ c.cantidad | fmt_num(0) }} {{ c.unidad or '' }}{% if c.precio_unitario %} × ${{ "%.2f"|format(c.precio_unitario | float) }}{% endif %}</span>{% endif %}
+      </div>
+      <span class="font-mono text-gray-700">${{ "%.2f"|format(c.subtotal | float) if c.subtotal else '—' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% set _tot = invoice.totals %}
+{% if _tot %}
+<div class="bg-gray-900 rounded-2xl p-4 mb-4 text-white">
+  <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Totales declarados en la factura</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-sm">
+    {% if _tot.base_tonelaje_recibido %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">Tonelaje</span><span class="font-mono block">${{ "%.2f"|format(_tot.base_tonelaje_recibido | float) }}</span></div>{% endif %}
+    {% if _tot.base_jornales_recibido %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">Jornales</span><span class="font-mono block">${{ "%.2f"|format(_tot.base_jornales_recibido | float) }}</span></div>{% endif %}
+    {% if _tot.supa_monto %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">SUPA {{ _tot.supa_pct }}%</span><span class="font-mono block">${{ "%.2f"|format(_tot.supa_monto | float) }}</span></div>{% endif %}
+    {% if _tot.contrib_coop_monto %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">Contrib. Coop {{ _tot.contrib_coop_pct }}%</span><span class="font-mono block">${{ "%.2f"|format(_tot.contrib_coop_monto | float) }}</span></div>{% endif %}
+    {% if _tot.iva_monto %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">IVA {{ _tot.iva_pct }}%</span><span class="font-mono block">${{ "%.2f"|format(_tot.iva_monto | float) }}</span></div>{% endif %}
+    {% if _tot.iibb_monto %}<div class="flex justify-between sm:block"><span class="text-gray-400 text-xs">IIBB {{ _tot.iibb_pct }}%</span><span class="font-mono block">${{ "%.2f"|format(_tot.iibb_monto | float) }}</span></div>{% endif %}
+  </div>
+  {% if _tot.total_factura_declarado %}
+  <div class="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+    <span class="text-xs font-bold text-gray-400 uppercase">Total factura</span>
+    <span class="font-mono text-lg font-black text-emerald-400">${{ "%.2f"|format(_tot.total_factura_declarado | float) }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
      BLOQUE 3: Revisor y acciones
      ══════════════════════════════════════════════════════ -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">

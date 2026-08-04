@@ -20,6 +20,12 @@ module.exports = {
     // Clases inyectadas por JS (diálogo de confirmación, etc.)
     "./static/js/**/*.js",
   ],
+  // Clases armadas dinámicamente en Jinja (chips de tipo de turno, etc.)
+  safelist: [
+    "border-emerald-500", "bg-emerald-50", "text-emerald-700",
+    "border-amber-500",   "bg-amber-50",   "text-amber-700",
+    "border-purple-500",  "bg-purple-50",  "text-purple-700",
+  ],
   theme: {
     extend: {
       colors: {

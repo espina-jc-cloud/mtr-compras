@@ -228,6 +228,22 @@
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50">
         </div>
       </div>
+      <!-- Tipo de turno para facturación (hábil/inhábil define la tarifa por tonelada) -->
+      <div class="mt-4">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Tipo de turno <span class="text-gray-400 font-normal">(facturación cooperativa)</span></label>
+        {% set _tt = shift.turno_tipo if not is_new else 'habil' %}
+        <div class="grid grid-cols-3 gap-2">
+          {% for val, label, css in [("habil","Hábil","emerald"), ("inhabil","Inhábil","amber"), ("extraordinario","Extraord.","purple")] %}
+          <label class="tt-chip flex items-center justify-center gap-1.5 border rounded-xl px-2 py-2.5 text-sm cursor-pointer select-none font-medium transition-colors
+            {% if _tt == val %}border-{{ css }}-500 bg-{{ css }}-50 text-{{ css }}-700{% else %}border-gray-200 text-gray-500 hover:bg-gray-50{% endif %}">
+            <input type="radio" name="turno_tipo" value="{{ val }}" class="sr-only" {{ "checked" if _tt == val }}
+              onchange="this.closest('.grid').querySelectorAll('.tt-chip').forEach(function(l){l.className='tt-chip flex items-center justify-center gap-1.5 border rounded-xl px-2 py-2.5 text-sm cursor-pointer select-none font-medium transition-colors border-gray-200 text-gray-500 hover:bg-gray-50'});this.closest('label').className='tt-chip flex items-center justify-center gap-1.5 border rounded-xl px-2 py-2.5 text-sm cursor-pointer select-none font-medium transition-colors border-{{ css }}-500 bg-{{ css }}-50 text-{{ css }}-700';">
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+        <p class="text-[11px] text-gray-400 mt-1">Sábado tarde/noche, domingos y feriados suelen ser inhábiles — definí el que corresponde al convenio.</p>
+      </div>
       <div class="mt-4">
         <label class="block text-xs font-medium text-gray-500 mb-1.5">Notas</label>
         <textarea name="notes" rows="2" placeholder="Observaciones opcionales…"
