@@ -42,6 +42,26 @@ FUNCION_LABELS: dict[str, str] = {
     "otro":                    "Otro",
 }
 
+# Puestos de la planilla de personal MTR, en el MISMO ORDEN que el papel.
+# (key, label, filas_sugeridas)
+PUESTOS_NOMINA: list[tuple[str, str, int]] = [
+    ("coordinador",   "Coordinador",   1),
+    ("capataz",       "Capataces",     1),
+    ("gangos",        "Gangos",        1),
+    ("guinchero",     "Guincheros",    3),
+    ("palero",        "Paleros",       4),
+    ("apuntador",     "Apuntadores",   1),
+    ("maquinista",    "Maquinistas",   4),
+    ("aguatero",      "Aguatero",      1),
+    ("banderillero",  "Banderillero",  1),
+    ("tolvero",       "Tolveros",      1),
+    ("botonero",      "Botoneros",     1),
+    ("soguero",       "Sogueros",      1),
+    ("limpieza",      "Limpieza",      3),
+    ("rompeterrones", "Rompeterrones", 1),
+]
+PUESTO_LABELS: dict[str, str] = {k: v for k, v, _ in PUESTOS_NOMINA}
+
 EQUIPO_TIPOS: list[str] = [
     "pala", "retro", "autoelevador", "guinche", "tractor", "otro"
 ]

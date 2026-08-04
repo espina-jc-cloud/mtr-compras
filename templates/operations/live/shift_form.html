@@ -385,11 +385,52 @@
       </div>
     </details>
 
-    <!-- ══ 5. PERSONAL ════════════════════════════════════════════════════════ -->
+    <!-- ══ 4b. NÓMINA DE PERSONAL MTR (planilla de puestos del parte) ═════════ -->
+    <details class="bg-white rounded-2xl border border-gray-100 shadow-sm" id="nomina-section">
+      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none group">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold text-gray-700">📋 Nómina de personal MTR</span>
+          <span id="nomina-count-badge" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <span class="text-xs text-gray-400 group-open:hidden">Tocar para expandir</span>
+      </summary>
+      <div class="px-5 pb-5 pt-2 border-t border-gray-50">
+        <p class="text-xs text-gray-400 mb-3">Cargá los nombres tal cual figuran en la planilla del parte. Dejá vacío lo que no aplique.</p>
+        <div class="space-y-3">
+          {% for key, label, filas in PUESTOS_NOMINA %}
+          {% set existentes = (nomina_por_puesto.get(key, []) if nomina_por_puesto else []) %}
+          {% set total_filas = (existentes|length + 1) if existentes|length >= filas else filas %}
+          <div class="border border-gray-100 rounded-xl overflow-hidden">
+            <div class="bg-gray-50 px-3 py-1.5 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wide">{{ label }}</span>
+            </div>
+            <div class="p-2 space-y-1.5">
+              {% for i in range(total_filas) %}
+              {% set p = existentes[i] if i < existentes|length else None %}
+              <div class="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr_1fr] gap-1.5">
+                <input name="nom_{{ key }}_{{ i }}_nombre" type="text" value="{{ p.nombre if p else '' }}"
+                  placeholder="Apellido y Nombre" autocapitalize="characters"
+                  class="nomina-nombre border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                <input name="nom_{{ key }}_{{ i }}_funcion" type="text" value="{{ p.funcion_texto if p else '' }}"
+                  placeholder="Función (opcional)"
+                  class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                <input name="nom_{{ key }}_{{ i }}_obs" type="text" value="{{ p.observaciones if p else '' }}"
+                  placeholder="Observaciones"
+                  class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+
+    <!-- ══ 5. GENTE POR ADMINISTRACIÓN (parte CPSN) ═══════════════════════════ -->
     <details class="bg-white rounded-2xl border border-gray-100 shadow-sm" id="staff-section">
       <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none group">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-gray-700">👷 Personal</span>
+          <span class="text-sm font-bold text-gray-700">👷 Gente por administración</span>
           <span id="staff-count-badge" class="hidden text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full"></span>
         </div>
         <span class="text-xs text-gray-400 group-open:hidden">Tocar para expandir</span>
@@ -1111,8 +1152,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('staff-section').open = true;
     EXISTING_STAFF.forEach(r => addStaffRow(r));
   }
+  updateNominaBadge();
+  document.querySelectorAll('.nomina-nombre').forEach(function (el) {
+    el.addEventListener('input', updateNominaBadge);
+  });
   recalcAll();
 });
+
+// Contador de personas cargadas en la planilla MTR
+function updateNominaBadge() {
+  var n = 0;
+  document.querySelectorAll('.nomina-nombre').forEach(function (el) {
+    if (el.value.trim()) n++;
+  });
+  var b = document.getElementById('nomina-count-badge');
+  if (!b) return;
+  if (n) { b.textContent = n + (n === 1 ? ' persona' : ' personas'); b.classList.remove('hidden'); }
+  else b.classList.add('hidden');
+}
 </script>
 
 <style>

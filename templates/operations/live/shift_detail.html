@@ -301,20 +301,200 @@ document.getElementById('photo-dialog').addEventListener('click', function(e) {
 
 <div class="space-y-4 max-w-3xl">
 
-  <!-- ══ 1. FICHA DEL TURNO ════════════════════════════════════════════════════ -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Datos del turno</h2>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <div><div class="text-xs text-gray-400 mb-1">Parte Nº</div><div class="text-lg font-bold text-gray-900">#{{ shift.shift_number }}</div></div>
-      <div><div class="text-xs text-gray-400 mb-1">Fecha</div><div class="text-sm font-semibold text-gray-700">{{ shift.shift_date | fmt_date }}</div></div>
-      <div><div class="text-xs text-gray-400 mb-1">Inicio</div><div class="text-sm font-semibold text-gray-700">{{ shift.shift_start or "—" }}</div></div>
-      <div><div class="text-xs text-gray-400 mb-1">Fin</div><div class="text-sm font-semibold text-gray-700">{{ shift.shift_end or "—" }}</div></div>
-      {% if shift.supervisor_mtr %}<div><div class="text-xs text-gray-400 mb-1">Jefe MTR</div><div class="text-sm font-semibold text-gray-700">{{ shift.supervisor_mtr }}</div></div>{% endif %}
-      {% if shift.apuntador %}<div><div class="text-xs text-gray-400 mb-1">Apuntador</div><div class="text-sm font-semibold text-gray-700">{{ shift.apuntador }}</div></div>{% endif %}
-      {% if shift.manos %}<div><div class="text-xs text-gray-400 mb-1">Manos</div><div class="text-sm font-semibold text-gray-700">{{ shift.manos }}</div></div>{% endif %}
+  <!-- ══ 1. PARTE DIARIO C.P.S.N. (espejo del papel) ═══════════════════════════ -->
+  <div class="bg-white rounded-2xl border-2 border-gray-300 shadow-sm overflow-hidden">
+    <!-- Cabecera del parte -->
+    <div class="px-5 py-3 border-b-2 border-gray-300 bg-gray-50 flex items-center justify-between gap-3">
+      <div>
+        <p class="text-base font-black text-gray-900 tracking-tight">C.P.S.N.</p>
+        <p class="text-[11px] font-semibold text-gray-500 italic">Accionario Cooperativo</p>
+      </div>
+      <div class="text-right">
+        <span class="text-xs text-gray-500">Parte Diario Nº</span>
+        <span class="inline-flex items-center justify-center w-9 h-9 ml-1 rounded-full border-2 border-gray-700 text-base font-black text-gray-900">{{ shift.shift_number }}</span>
+      </div>
     </div>
+
+    <!-- Buque / Cliente / Consignatario / Fecha / Turno / Material / Manos -->
+    <div class="px-5 py-3 border-b border-gray-200 grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-2.5 text-sm">
+      <div class="sm:col-span-2">
+        <span class="text-xs text-gray-400">Buque:</span>
+        <span class="font-bold text-gray-900 ml-1">{{ session.ship_name }}</span>
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Cliente:</span>
+        <span class="font-semibold text-gray-800 ml-1">{{ session.products[0].client if session.products and session.products[0].client else "—" }}</span>
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Consignatario:</span>
+        <span class="font-semibold text-gray-800 ml-1">MTR S.A.</span>
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Fecha:</span>
+        <span class="font-semibold text-gray-800 ml-1">{{ shift.shift_date | fmt_date }}</span>
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Turno:</span>
+        <span class="font-semibold text-gray-800 ml-1">{{ shift.shift_start or "—" }} a {{ shift.shift_end or "—" }}</span>
+        {% if shift.turno_tipo %}
+        <span class="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full
+          {% if shift.turno_tipo == 'inhabil' %}bg-amber-100 text-amber-700
+          {% elif shift.turno_tipo == 'extraordinario' %}bg-purple-100 text-purple-700
+          {% else %}bg-emerald-100 text-emerald-700{% endif %}">{{ shift.turno_tipo|upper }}</span>
+        {% endif %}
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Material:</span>
+        <span class="font-semibold text-gray-800 ml-1">{{ by_product.keys()|list|join(", ") if by_product else "—" }}</span>
+      </div>
+      <div>
+        <span class="text-xs text-gray-400">Manos:</span>
+        <span class="font-semibold text-gray-800 ml-1">{{ shift.manos if shift.manos is not none else "—" }}</span>
+      </div>
+    </div>
+
+    <!-- Bodegas (una caja por bodega, como el papel) -->
+    {% if bodega_rows %}
+    <div class="px-5 py-3 border-b border-gray-200 space-y-2.5">
+      {% for b in bodega_rows %}
+      <div class="border border-gray-300 rounded-lg overflow-hidden">
+        <div class="grid grid-cols-2 sm:grid-cols-4 text-xs divide-x divide-gray-200 bg-gray-50 border-b border-gray-200">
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">Bodega #</span> <span class="font-bold text-gray-900">{{ b.bodega_number }}</span></div>
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">Inicio</span> <span class="font-semibold text-gray-800">{{ shift.shift_start or "—" }}</span></div>
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">Guinche</span> <span class="font-semibold text-gray-800 uppercase">{{ b.tipo_guinche or "—" }}</span></div>
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">Grampa</span> <span class="font-semibold text-gray-800 uppercase">{{ b.tipo_grampa or "—" }}</span></div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 text-xs divide-x divide-gray-200">
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">A Depósito</span> <span class="font-semibold text-gray-800">MTR</span></div>
+          <div class="px-2.5 py-1.5"><span class="text-gray-400">Viajes</span> <span class="font-bold text-gray-900">{{ b.viajes_coop if b.viajes_coop is not none else (b.viajes_mtr or "—") }}</span></div>
+          <div class="px-2.5 py-1.5 sm:col-span-2"><span class="text-gray-400">Toneladas</span>
+            <span class="font-bold text-gray-900">{{ "%.3f"|format((b.kg_coop or b.kg_deposito_mtr or 0) / 1000) }}</span>
+          </div>
+        </div>
+        <div class="px-2.5 py-1.5 text-xs border-t border-gray-200">
+          <span class="text-gray-400">Producto:</span> <span class="text-gray-700 font-medium">{{ b.product }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Turno General / Acumulado General / Restan -->
+    <div class="px-5 py-3 border-b border-gray-200 space-y-2">
+      <div>
+        <p class="text-[11px] font-bold text-gray-600 underline mb-1">Turno General:</p>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="border border-gray-300 rounded px-2.5 py-1.5"><span class="text-xs text-gray-400">Viajes</span>
+            <span class="font-bold text-gray-900 ml-1">{{ totals.viajes_coop if totals.viajes_coop is not none else (totals.viajes_mtr or "—") }}</span></div>
+          <div class="border border-gray-300 rounded px-2.5 py-1.5"><span class="text-xs text-gray-400">Toneladas</span>
+            <span class="font-bold text-gray-900 ml-1">{{ "%.3f"|format((totals.kg_coop or totals.kg_total_mtr or 0) / 1000) }}</span></div>
+        </div>
+      </div>
+      {% if acumulado %}
+      <div>
+        <p class="text-[11px] font-bold text-gray-600 underline mb-1">Acumulado General:</p>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="border border-gray-300 rounded px-2.5 py-1.5"><span class="text-xs text-gray-400">Viajes</span>
+            <span class="font-bold text-gray-900 ml-1">{{ acumulado.viajes_total if acumulado.viajes_total is not none else "—" }}</span></div>
+          <div class="border border-gray-300 rounded px-2.5 py-1.5"><span class="text-xs text-gray-400">Toneladas</span>
+            <span class="font-bold text-gray-900 ml-1">{{ "%.3f"|format((acumulado.kg_coop or acumulado.kg_total_mtr or 0) / 1000) }}</span></div>
+        </div>
+        {% if acumulado.restan is not none %}
+        <div class="mt-1.5 border border-gray-300 rounded px-2.5 py-1.5 text-sm inline-block">
+          <span class="text-xs text-gray-400">Restan</span>
+          <span class="font-bold {% if acumulado.restan <= 0 %}text-emerald-700{% else %}text-gray-900{% endif %} ml-1">
+            {{ "%.3f"|format(acumulado.restan / 1000) }} tn</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Gente por administración (tal cual el papel) -->
+    <div class="px-5 py-3">
+      <p class="text-[11px] font-bold text-gray-600 underline mb-2">GENTE POR ADMINISTRACIÓN</p>
+      {% if staff %}
+      <table class="w-full text-xs border border-gray-300">
+        <thead>
+          <tr class="bg-gray-50 text-gray-500 border-b border-gray-300">
+            <th class="px-2 py-1.5 text-left w-20">Cantidad</th>
+            <th class="px-2 py-1.5 text-left">Función</th>
+            <th class="px-2 py-1.5 text-left w-28">Turno</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          {% for s in staff %}
+          <tr>
+            <td class="px-2 py-1.5 font-bold text-gray-900">{{ s.cantidad }}</td>
+            <td class="px-2 py-1.5 text-gray-700">{{ s.label }}</td>
+            <td class="px-2 py-1.5 text-gray-500">{% if s.turno_range %}{% set p = s.turno_range.split("A") %}{{ p[0] }} a {{ p[1] }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-xs text-gray-300">Sin gente por administración cargada.</p>
+      {% endif %}
+    </div>
+
     {% if shift.notes %}
-    <div class="mt-4 pt-4 border-t border-gray-50"><div class="text-xs text-gray-400 mb-1">Notas</div><div class="text-sm text-gray-600">{{ shift.notes }}</div></div>
+    <div class="px-5 py-3 border-t border-gray-200 bg-gray-50">
+      <span class="text-xs text-gray-400">Observación:</span>
+      <span class="text-sm text-gray-700 ml-1">{{ shift.notes }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══ 1b. NÓMINA DE PERSONAL MTR (planilla de puestos) ══════════════════════ -->
+  <div class="bg-white rounded-2xl border-2 border-gray-300 shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b-2 border-gray-300 bg-gray-50 flex items-center justify-between gap-3">
+      <div>
+        <p class="text-base font-black text-gray-900 tracking-tight">MTR</p>
+        <p class="text-[10px] font-semibold text-gray-500 tracking-widest uppercase">Logística Portuaria</p>
+      </div>
+      <div class="text-right text-xs">
+        <div><span class="text-gray-400">Buque</span> <span class="font-bold text-gray-900">{{ session.ship_name }}</span></div>
+        <div><span class="text-gray-400">Turno</span> <span class="font-semibold text-gray-700">{{ shift.shift_start or "—" }} a {{ shift.shift_end or "—" }}</span>
+          <span class="text-gray-400 ml-1.5">{{ shift.shift_date | fmt_date }}</span></div>
+      </div>
+    </div>
+    {% set nomina_total = nomina_por_puesto.values() | map('length') | sum %}
+    {% if nomina_total %}
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-gray-50 text-gray-500 border-b border-gray-300">
+          <th class="px-3 py-2 text-left w-32">Puesto</th>
+          <th class="px-3 py-2 text-left">Apellido y Nombre</th>
+          <th class="px-3 py-2 text-left w-40">Función</th>
+          <th class="px-3 py-2 text-left w-32">Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key, label, _n in PUESTOS_NOMINA %}
+        {% set filas = nomina_por_puesto.get(key, []) %}
+        {% if filas %}
+        {% for p in filas %}
+        <tr class="border-b border-gray-100 {% if loop.first %}border-t border-gray-200{% endif %}">
+          {% if loop.first %}
+          <td class="px-3 py-1.5 font-semibold text-gray-500 uppercase text-[10px] align-top bg-gray-50/60" rowspan="{{ filas|length }}">{{ label }}</td>
+          {% endif %}
+          <td class="px-3 py-1.5 font-medium text-gray-900 uppercase">{{ p.nombre }}</td>
+          <td class="px-3 py-1.5 text-gray-600">{{ p.funcion_texto or "" }}</td>
+          <td class="px-3 py-1.5 text-gray-500">{{ p.observaciones or "" }}</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="px-3 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
+      Total personal en planilla: <strong class="text-gray-800">{{ nomina_total }}</strong>
+    </div>
+    {% else %}
+    <div class="px-5 py-6 text-center">
+      <p class="text-sm text-gray-400">Sin nómina de personal cargada para este parte.</p>
+      <a href="/operations/live/{{ session.id }}/shift/{{ shift.id }}/edit" class="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800">Cargar la planilla →</a>
+    </div>
     {% endif %}
   </div>
 
@@ -581,35 +761,6 @@ document.getElementById('photo-dialog').addEventListener('click', function(e) {
   </div>
   {% endif %}
 
-  <!-- ══ 6. PERSONAL ═══════════════════════════════════════════════════════════ -->
-  {% if staff %}
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">👷 Personal</h2>
-    <div class="space-y-2">
-      {% for s in staff %}
-      <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-        <div class="flex items-center gap-3">
-          <span class="text-sm font-semibold text-gray-700">{{ s.label }}</span>
-          {% if s.turno_range %}
-          {% set parts = s.turno_range.split("A") %}
-          <span class="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-medium">
-            {{ parts[0][:2] }}–{{ parts[1][:2] }}hs
-          </span>
-          {% endif %}
-          <span class="text-xs text-gray-400">{{ s.empresa }}</span>
-        </div>
-        <span class="text-sm font-bold text-gray-700">× {{ s.cantidad }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    <!-- Total de personas -->
-    {% set total_personal = staff | sum(attribute='cantidad') %}
-    <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-      <span class="text-gray-400">Total personas</span>
-      <span class="font-bold text-gray-700">{{ total_personal }}</span>
-    </div>
-  </div>
-  {% endif %}
 
 </div>
 

@@ -124,6 +124,10 @@ def run():
         # Bodega: tipo de guinche y grampa por fila
         _add_column(conn, "operation_live_bodega_data", "tipo_guinche",  "VARCHAR")
         _add_column(conn, "operation_live_bodega_data", "tipo_grampa",   "VARCHAR")
+        # Nómina de personal MTR (planilla de puestos del parte)
+        _add_column(conn, "operation_live_staff", "puesto",        "VARCHAR")
+        _add_column(conn, "operation_live_staff", "nombre",        "VARCHAR")
+        _add_column(conn, "operation_live_staff", "observaciones", "TEXT")
         # Fase 3: Fotos — ya creada por Base.metadata.create_all() arriba;
         # _add_column aquí solo por si hay DBs viejas sin las columnas opcionales.
         # (La tabla en sí la crea create_all automáticamente.)

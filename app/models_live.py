@@ -317,6 +317,17 @@ class OperationLiveStaff(Base):
     cantidad      = Column(Integer, nullable=False, default=1)
     turno_range   = Column(String, nullable=True)  # '00A06' | '06A12' | '12A18' | '18A00'
     empresa       = Column(String, nullable=False, default="coop")  # 'coop' | 'mtr'
+
+    # ── Nómina de personal MTR (planilla de puestos del parte) ────────────────
+    # Cuando la fila viene de la planilla MTR (no de "gente por administración"),
+    # se carga el puesto tal cual figura en el papel + el nombre de la persona.
+    puesto        = Column(String, nullable=True)
+    # puesto: 'coordinador'|'capataz'|'gangos'|'guinchero'|'palero'|'apuntador'|
+    #         'maquinista'|'aguatero'|'banderillero'|'tolvero'|'botonero'|
+    #         'soguero'|'limpieza'|'rompeterrones'
+    nombre        = Column(String, nullable=True)   # 'APELLIDO NOMBRE'
+    observaciones = Column(Text, nullable=True)     # columna Observaciones del parte
+
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     shift = relationship("OperationLiveShift", back_populates="staff")

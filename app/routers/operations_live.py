@@ -88,6 +88,8 @@ from app.live_utils import (
     tns_by_product_from_session,
     MOTIVO_LABELS,
     FUNCION_LABELS,
+    PUESTOS_NOMINA,
+    PUESTO_LABELS,
     EQUIPO_TIPOS,
     TURNO_RANGES,
     MOTIVO_TIPOS,
@@ -763,12 +765,39 @@ def _parse_staff_rows(form) -> list[dict]:
     return rows
 
 
+def _parse_nomina_rows(form) -> list[dict]:
+    """
+    Lee la planilla de personal MTR (puestos del parte) con campos indexados
+    por puesto:
+      nom_{puesto}_{i}_nombre, nom_{puesto}_{i}_funcion, nom_{puesto}_{i}_obs
+
+    Omite filas sin nombre. Se guardan en la misma tabla que el personal, con
+    empresa='mtr' y el puesto tal cual figura en el papel.
+    """
+    from app.live_utils import PUESTOS_NOMINA
+
+    rows = []
+    for puesto, _label, _n in PUESTOS_NOMINA:
+        for i in range(0, 12):
+            nombre = str(form.get(f"nom_{puesto}_{i}_nombre", "")).strip()
+            if not nombre:
+                continue
+            rows.append({
+                "puesto":        puesto,
+                "nombre":        nombre.upper(),
+                "funcion_texto": str(form.get(f"nom_{puesto}_{i}_funcion", "")).strip() or None,
+                "observaciones": str(form.get(f"nom_{puesto}_{i}_obs", "")).strip() or None,
+            })
+    return rows
+
+
 def _save_shift_complete(
     shift: OperationLiveShift,
     bodega_rows: list[dict],
     delay_rows: list[dict],
     equip_rows: list[dict],
     staff_rows: list[dict],
+    nomina_rows: list[dict] | None,
     session: OperationLiveSession,
     db: Session,
 ) -> None:
@@ -829,6 +858,8 @@ def _save_shift_complete(
         ))
 
     # ── Personal ─────────────────────────────────────────────────────────────
+    # Incluye dos orígenes: "gente por administración" (parte CPSN) y la
+    # nómina de puestos de la planilla MTR (filas con `puesto` + nombre).
     db.query(OperationLiveStaff).filter_by(shift_id=shift.id).delete()
     for row in staff_rows:
         db.add(OperationLiveStaff(
@@ -838,6 +869,18 @@ def _save_shift_complete(
             cantidad      = row["cantidad"],
             turno_range   = row["turno_range"],
             empresa       = row["empresa"],
+        ))
+    for row in (nomina_rows or []):
+        db.add(OperationLiveStaff(
+            shift_id      = shift.id,
+            funcion       = row["puesto"],       # NOT NULL: se usa el puesto
+            puesto        = row["puesto"],
+            nombre        = row["nombre"],
+            funcion_texto = row["funcion_texto"],
+            observaciones = row["observaciones"],
+            cantidad      = 1,
+            turno_range   = None,
+            empresa       = "mtr",
         ))
 
 
@@ -984,11 +1027,14 @@ async def new_shift_form(
             "delay_rows":         [],
             "equip_rows":         [],
             "staff_rows":         [],
+            "nomina_por_puesto":  {},
             "next_num":           next_num,
             "today_str":          today_str,
             "TURNO_RANGES":       TURNO_RANGES,
             "MOTIVO_LABELS":      MOTIVO_LABELS,
             "FUNCION_LABELS":     FUNCION_LABELS,
+            "PUESTOS_NOMINA":     PUESTOS_NOMINA,
+            "PUESTO_LABELS":      PUESTO_LABELS,
             "EQUIPO_TIPOS":       EQUIPO_TIPOS,
             "is_new":             True,
             "session_cumulative": _build_shift_form_cumulative(session, None, db),
@@ -1047,7 +1093,9 @@ async def create_shift(
     delay_rows  = _parse_delay_rows(form)
     equip_rows  = _parse_equipment_rows(form)
     staff_rows  = _parse_staff_rows(form)
-    _save_shift_complete(shift, bodega_rows, delay_rows, equip_rows, staff_rows, session, db)
+    nomina_rows = _parse_nomina_rows(form)
+    _save_shift_complete(shift, bodega_rows, delay_rows, equip_rows, staff_rows,
+                         nomina_rows, session, db)
 
     db.commit()
     return RedirectResponse(url=f"/operations/live/{sid}", status_code=303)
@@ -1096,7 +1144,24 @@ async def shift_detail(
     delay_by_type    = delay_minutes_by_type(delays)
     equip_hrs        = equipment_total_hours(equipment)
     equip_by_empresa = equipment_hours_by_empresa(equipment)
-    staff            = staff_summary(staff_rows)
+    staff            = staff_summary([r for r in staff_rows if not r.puesto])
+
+    # Acumulado del buque HASTA este parte inclusive (como el papel: "Acumulado
+    # General" + "Restan"), para poder corroborar contra el parte en papel.
+    _prev_ids = [x.id for x in session.shifts
+                 if (x.shift_number or 0) <= (shift.shift_number or 0)]
+    _acum_rows = (
+        db.query(OperationLiveBodegaData)
+        .filter(OperationLiveBodegaData.shift_id.in_(_prev_ids))
+        .all()
+    ) if _prev_ids else []
+    acumulado = session_grand_total(
+        session_totals_by_product(_acum_rows, session.products)
+    ) if _acum_rows else None
+    nomina_por_puesto: dict = {}
+    for r in staff_rows:
+        if r.puesto:
+            nomina_por_puesto.setdefault(r.puesto, []).append(r)
 
     # Fase 3: Fotos del turno
     shift_photos = (
@@ -1111,8 +1176,12 @@ async def shift_detail(
         "operations/live/shift_detail.html",
         {
             "current_user":    current_user,
-            "session":         session,
+            "session":          session,
             "shift":           shift,
+            "nomina_por_puesto": nomina_por_puesto,
+            "acumulado":       acumulado,
+            "PUESTOS_NOMINA":  PUESTOS_NOMINA,
+            "PUESTO_LABELS":   PUESTO_LABELS,
             "bodega_rows":     bodega_rows,
             "by_product":      by_product,
             "totals":          totals,
@@ -1165,11 +1234,17 @@ async def edit_shift_form(
         .order_by(OperationLiveEquipment.desde)
         .all()
     )
-    staff_rows_edit = (
+    _all_staff = (
         db.query(OperationLiveStaff)
         .filter_by(shift_id=shid)
         .all()
     )
+    # La planilla MTR (filas con puesto) va aparte de "gente por administración".
+    staff_rows_edit = [r for r in _all_staff if not r.puesto]
+    nomina_por_puesto: dict = {}
+    for r in _all_staff:
+        if r.puesto:
+            nomina_por_puesto.setdefault(r.puesto, []).append(r)
 
     return templates.TemplateResponse(
         request,
@@ -1182,9 +1257,12 @@ async def edit_shift_form(
             "delay_rows":         delay_rows_edit,
             "equip_rows":         equip_rows_edit,
             "staff_rows":         staff_rows_edit,
+            "nomina_por_puesto":  nomina_por_puesto,
             "TURNO_RANGES":       TURNO_RANGES,
             "MOTIVO_LABELS":      MOTIVO_LABELS,
             "FUNCION_LABELS":     FUNCION_LABELS,
+            "PUESTOS_NOMINA":     PUESTOS_NOMINA,
+            "PUESTO_LABELS":      PUESTO_LABELS,
             "EQUIPO_TIPOS":       EQUIPO_TIPOS,
             "is_new":             False,
             "session_cumulative": _build_shift_form_cumulative(session, shid, db),
@@ -1254,7 +1332,9 @@ async def update_shift(
     delay_rows  = _parse_delay_rows(form)
     equip_rows  = _parse_equipment_rows(form)
     staff_rows  = _parse_staff_rows(form)
-    _save_shift_complete(shift, bodega_rows, delay_rows, equip_rows, staff_rows, session, db)
+    nomina_rows = _parse_nomina_rows(form)
+    _save_shift_complete(shift, bodega_rows, delay_rows, equip_rows, staff_rows,
+                         nomina_rows, session, db)
 
     db.commit()
     return RedirectResponse(url=f"/operations/live/{sid}", status_code=303)
