@@ -173,6 +173,40 @@ def delta_status(delta: int | None) -> str:
 
 # ── Cálculos por turno ────────────────────────────────────────────────────────
 
+def _aplicar_efectivo(r: dict) -> dict:
+    """
+    Define el dato "efectivo" de kg y viajes: el mejor disponible, declarando
+    siempre de dónde sale.
+
+    Prioridad: medición propia de MTR > lo declarado por la cooperativa.
+    Sin esto, un operativo cargado solo desde los partes de la cooperativa
+    (caso típico de un buque histórico) mostraría 0 tn aunque el parte tenga
+    las toneladas escritas.
+
+    Agrega a r:
+      kg_efectivo      int
+      viajes_efectivo  int | None
+      fuente_kg        'mtr' | 'coop' | 'sin_datos'
+    """
+    kg_mtr  = r.get("kg_total_mtr") or 0
+    kg_coop = r.get("kg_coop")
+
+    if kg_mtr > 0:
+        r["kg_efectivo"] = kg_mtr
+        r["fuente_kg"]   = "mtr"
+    elif kg_coop:
+        r["kg_efectivo"] = kg_coop
+        r["fuente_kg"]   = "coop"
+    else:
+        r["kg_efectivo"] = 0
+        r["fuente_kg"]   = "sin_datos"
+
+    v_mtr  = r.get("viajes_mtr")
+    v_coop = r.get("viajes_coop")
+    r["viajes_efectivo"] = v_mtr if v_mtr else (v_coop if v_coop else None)
+    return r
+
+
 def shift_summary_by_product(bodega_rows: list[Any]) -> dict[str, dict]:
     """
     Agrupa filas de bodega_data por producto y acumula los totales del turno.
@@ -245,6 +279,7 @@ def shift_summary_by_product(bodega_rows: list[Any]) -> dict[str, dict]:
             (r["viajes_mtr"] or 0) + (r["viajes_coop"] or 0)
             if (has_vm or has_vc) else None
         )
+        _aplicar_efectivo(r)
 
     return result
 
@@ -299,7 +334,7 @@ def shift_totals(bodega_rows: list[Any]) -> dict:
         if (has_v_mtr or has_v_coop) else None
     )
 
-    return {
+    return _aplicar_efectivo({
         "kg_deposito":  kg_dep,
         "kg_directo":   kg_dir,
         "kg_cv":        kg_cv,
@@ -310,7 +345,7 @@ def shift_totals(bodega_rows: list[Any]) -> dict:
         "viajes_mtr":   viajes_mtr,
         "viajes_coop":  viajes_coop,
         "viajes_total": viajes_total,
-    }
+    })
 
 
 # ── Cálculos acumulados (nivel sesión) ────────────────────────────────────────
@@ -366,15 +401,18 @@ def session_totals_by_product(
         acum = session_product_accumulated(all_bodega_rows, prod)
 
         contracted = sp.kg_contracted
-        kg_coop    = acum["kg_coop"]
+        # El avance se mide con el dato efectivo (MTR si hay, si no el del parte
+        # de la cooperativa). Antes usaba solo kg_coop y quedaba vacío cuando el
+        # operativo se cargaba con pesadas propias.
+        kg_avance  = acum["kg_efectivo"] or None
 
         restan = None
-        if contracted is not None and kg_coop is not None:
-            restan = contracted - kg_coop
+        if contracted is not None and kg_avance is not None:
+            restan = contracted - kg_avance
 
         progreso_pct = None
-        if contracted and kg_coop is not None and contracted > 0:
-            progreso_pct = round(min(kg_coop / contracted * 100, 100), 1)
+        if contracted and kg_avance is not None and contracted > 0:
+            progreso_pct = round(min(kg_avance / contracted * 100, 100), 1)
 
         results.append({
             "product":       prod,
@@ -437,13 +475,16 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
     kg_contracted = kg_contracted_total if has_contracted else None
     d             = (kg_mtr - kg_coop)  if kg_coop is not None else None
 
+    # Avance con el dato efectivo (MTR si hay medición propia, si no el parte).
+    kg_avance = kg_mtr if kg_mtr > 0 else (kg_coop or None)
+
     restan = None
-    if kg_contracted is not None and kg_coop is not None:
-        restan = kg_contracted - kg_coop
+    if kg_contracted is not None and kg_avance is not None:
+        restan = kg_contracted - kg_avance
 
     progreso_pct = None
-    if kg_contracted and kg_coop is not None and kg_contracted > 0:
-        progreso_pct = round(min(kg_coop / kg_contracted * 100, 100), 1)
+    if kg_contracted and kg_avance is not None and kg_contracted > 0:
+        progreso_pct = round(min(kg_avance / kg_contracted * 100, 100), 1)
 
     viajes_mtr   = v_mtr  if has_v_mtr  else None
     viajes_coop  = v_coop if has_v_coop else None
@@ -452,7 +493,7 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
         if (has_v_mtr or has_v_coop) else None
     )
 
-    return {
+    return _aplicar_efectivo({
         "kg_deposito":   kg_dep,
         "kg_directo":    kg_dir,
         "kg_cv":         kg_cv,
@@ -466,7 +507,7 @@ def session_grand_total(product_summaries: list[dict]) -> dict:
         "viajes_mtr":    viajes_mtr,
         "viajes_coop":   viajes_coop,
         "viajes_total":  viajes_total,
-    }
+    })
 
 
 # ── Cálculos de demoras ───────────────────────────────────────────────────────

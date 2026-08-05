@@ -131,7 +131,7 @@
         style="width: {{ [ps.progreso_pct or 0, 100] | min }}%"></div>
     </div>
     <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
-      <span>{{ fmt_kg(ps.kg_coop) }} kg descargados</span>
+      <span>{{ fmt_kg(ps.kg_efectivo) }} kg descargados</span>
       <span class="text-gray-400">de {{ fmt_kg(ps.kg_contracted) }} kg</span>
     </div>
     {% if ps.restan is not none %}
@@ -151,34 +151,37 @@
     {% endif %}
 
     <!-- Desglose por métricas (si hay datos) -->
-    {% if ps.kg_total_mtr > 0 or ps.viajes_total %}
+    {% if ps.kg_efectivo > 0 or ps.viajes_total %}
     <div class="mt-3 pt-3 border-t border-gray-50">
-      <div class="grid grid-cols-3 gap-1.5 text-center">
-        <div class="bg-gray-50 rounded-lg p-2">
-          <div class="text-[10px] text-gray-500 mb-0.5">V.MTR</div>
-          <div class="text-xl font-black text-gray-900">{{ ps.viajes_mtr if ps.viajes_mtr is not none else "—" }}</div>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-2">
-          <div class="text-[10px] text-gray-500 mb-0.5">Kg MTR</div>
-          <div class="text-sm font-bold text-gray-900">{{ fmt_kg(ps.kg_deposito) }}</div>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-2">
-          <div class="text-[10px] text-gray-500 mb-0.5">V.C.Vapor</div>
-          <div class="text-xl font-black text-gray-900">{{ ps.viajes_coop if ps.viajes_coop is not none else "—" }}</div>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-2">
-          <div class="text-[10px] text-gray-500 mb-0.5">Kg C.Vapor</div>
-          <div class="text-sm font-bold text-gray-900">{{ fmt_kg(ps.kg_directo) }}</div>
+      <div class="grid grid-cols-2 gap-1.5 text-center">
+        <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Viajes</div>
+          <div class="text-xl font-black text-emerald-700">{{ ps.viajes_efectivo if ps.viajes_efectivo is not none else "—" }}</div>
         </div>
         <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
-          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Viajes tot.</div>
-          <div class="text-xl font-black text-emerald-700">{{ ps.viajes_total if ps.viajes_total is not none else "—" }}</div>
-        </div>
-        <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
-          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Kg totales</div>
-          <div class="text-sm font-bold text-emerald-700">{{ fmt_kg(ps.kg_total_mtr) }}</div>
+          <div class="text-[10px] text-emerald-600 font-semibold mb-0.5">Toneladas</div>
+          <div class="text-sm font-bold text-emerald-700">{{ "%.2f"|format(ps.kg_efectivo / 1000) }} tn</div>
         </div>
       </div>
+      {% if ps.kg_total_mtr > 0 and ps.kg_coop %}
+      <div class="grid grid-cols-3 gap-1.5 text-center mt-1.5">
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-500 mb-0.5">MTR</div>
+          <div class="text-xs font-bold text-gray-900">{{ fmt_kg(ps.kg_total_mtr) }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-500 mb-0.5">Cooperativa</div>
+          <div class="text-xs font-bold text-gray-900">{{ fmt_kg(ps.kg_coop) }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2">
+          <div class="text-[10px] text-gray-500 mb-0.5">Dif.</div>
+          <div class="text-xs font-bold {% if ps.delta_status == 'ok' %}text-emerald-600{% elif ps.delta_status == 'warn' %}text-amber-600{% else %}text-red-600{% endif %}">{{ fmt_kg(ps.delta) }}</div>
+        </div>
+      </div>
+      {% endif %}
+      <p class="text-[10px] text-gray-400 text-center mt-1.5">
+        {% if ps.fuente_kg == 'coop' %}Toneladas según los partes de la cooperativa{% elif ps.fuente_kg == 'mtr' %}Toneladas según medición de MTR{% endif %}
+      </p>
     </div>
     {% else %}
     <div class="mt-2 text-xs text-gray-300 text-center py-2">Sin datos cargados aún</div>
@@ -187,7 +190,7 @@
   {% endfor %}
 
   <!-- ── Acumulado general del operativo (siempre visible si hay datos) ── -->
-  {% if grand_total.kg_total_mtr > 0 or grand_total.viajes_total %}
+  {% if grand_total.kg_efectivo > 0 or grand_total.viajes_total %}
   <div class="bg-gray-900 rounded-2xl p-5 text-white">
     <div class="flex items-start justify-between mb-4">
       <div>
@@ -197,38 +200,54 @@
         </p>
       </div>
       <div class="text-right flex-shrink-0">
-        <div class="text-3xl font-black text-emerald-400">{{ "%.1f"|format(grand_total.kg_total_mtr / 1000) }} tn</div>
-        <div class="text-xs text-gray-500">acumulado</div>
+        <div class="text-3xl font-black text-emerald-400">{{ "%.2f"|format(grand_total.kg_efectivo / 1000) }} tn</div>
+        <div class="text-xs text-gray-500">
+          {% if grand_total.fuente_kg == 'coop' %}según partes{% elif grand_total.fuente_kg == 'mtr' %}medición MTR{% else %}sin datos{% endif %}
+        </div>
       </div>
     </div>
 
-    <!-- 6 métricas -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-3">
-      <div class="bg-white/5 rounded-xl p-3 text-center">
-        <div class="text-xs text-gray-400 mb-1">V.MTR acum.</div>
-        <div class="text-2xl font-black text-white">{{ grand_total.viajes_mtr if grand_total.viajes_mtr is not none else "—" }}</div>
-      </div>
-      <div class="bg-white/5 rounded-xl p-3 text-center">
-        <div class="text-xs text-gray-400 mb-1">Kg MTR acum.</div>
-        <div class="text-lg font-black text-white">{{ fmt_kg(grand_total.kg_deposito) }}</div>
-      </div>
-      <div class="bg-white/5 rounded-xl p-3 text-center">
-        <div class="text-xs text-gray-400 mb-1">V.C.Vapor acum.</div>
-        <div class="text-2xl font-black text-white">{{ grand_total.viajes_coop if grand_total.viajes_coop is not none else "—" }}</div>
-      </div>
-      <div class="bg-white/5 rounded-xl p-3 text-center">
-        <div class="text-xs text-gray-400 mb-1">Kg C.Vapor acum.</div>
-        <div class="text-lg font-black text-white">{{ fmt_kg(grand_total.kg_directo) }}</div>
+    <!-- Métricas principales -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-3">
+      <div class="bg-emerald-900/60 rounded-xl p-3 text-center border border-emerald-700/40">
+        <div class="text-xs text-emerald-400 font-bold mb-1">Viajes</div>
+        <div class="text-2xl font-black text-emerald-300">{{ grand_total.viajes_efectivo if grand_total.viajes_efectivo is not none else "—" }}</div>
       </div>
       <div class="bg-emerald-900/60 rounded-xl p-3 text-center border border-emerald-700/40">
-        <div class="text-xs text-emerald-400 font-bold mb-1">Viajes totales</div>
-        <div class="text-2xl font-black text-emerald-300">{{ grand_total.viajes_total if grand_total.viajes_total is not none else "—" }}</div>
+        <div class="text-xs text-emerald-400 font-bold mb-1">Kg descargados</div>
+        <div class="text-lg font-black text-emerald-300">{{ fmt_kg(grand_total.kg_efectivo) }}</div>
       </div>
-      <div class="bg-emerald-900/60 rounded-xl p-3 text-center border border-emerald-700/40">
-        <div class="text-xs text-emerald-400 font-bold mb-1">Kg totales</div>
-        <div class="text-lg font-black text-emerald-300">{{ fmt_kg(grand_total.kg_total_mtr) }}</div>
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">Contratado</div>
+        <div class="text-lg font-black text-white">{{ fmt_kg(grand_total.kg_contracted) if grand_total.kg_contracted else "—" }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-3 text-center">
+        <div class="text-xs text-gray-400 mb-1">Restan</div>
+        <div class="text-lg font-black {% if grand_total.restan is not none and grand_total.restan <= 0 %}text-emerald-300{% else %}text-white{% endif %}">
+          {% if grand_total.restan is not none %}{{ fmt_kg(grand_total.restan) }}{% else %}—{% endif %}
+        </div>
       </div>
     </div>
+
+    <!-- Comparativa MTR vs Cooperativa (solo si hay ambas mediciones) -->
+    {% if grand_total.kg_total_mtr > 0 and grand_total.kg_coop %}
+    <div class="grid grid-cols-3 gap-2.5 mb-3 text-center">
+      <div class="bg-white/5 rounded-xl p-2.5">
+        <div class="text-[11px] text-gray-400 mb-0.5">Medición MTR</div>
+        <div class="text-sm font-bold text-white">{{ fmt_kg(grand_total.kg_total_mtr) }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-2.5">
+        <div class="text-[11px] text-gray-400 mb-0.5">Según cooperativa</div>
+        <div class="text-sm font-bold text-white">{{ fmt_kg(grand_total.kg_coop) }}</div>
+      </div>
+      <div class="bg-white/5 rounded-xl p-2.5">
+        <div class="text-[11px] text-gray-400 mb-0.5">Diferencia</div>
+        <div class="text-sm font-bold {% if grand_total.delta_status == 'ok' %}text-emerald-300{% elif grand_total.delta_status == 'warn' %}text-amber-300{% else %}text-red-300{% endif %}">
+          {{ fmt_kg(grand_total.delta) }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Contratado / Restan (si aplica) -->
     {% if grand_total.kg_contracted and grand_total.kg_contracted > 0 %}
@@ -441,9 +460,9 @@
           </p>
         </div>
         <div class="text-right flex-shrink-0">
-          {% if item.totals.kg_coop %}
-          <p class="text-sm font-bold text-gray-800">{{ fmt_kg(item.totals.kg_coop) }} kg</p>
-          <p class="text-[11px] text-gray-500">coop</p>
+          {% if item.totals.kg_efectivo %}
+          <p class="text-sm font-bold text-gray-800">{{ "%.2f"|format(item.totals.kg_efectivo / 1000) }} tn</p>
+          <p class="text-[11px] text-gray-500">{{ item.totals.viajes_efectivo }} viaje{% if item.totals.viajes_efectivo != 1 %}s{% endif %}</p>
           {% endif %}
           {% if item.delta_badge.status != 'none' %}
           <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold {{ item.delta_badge.css_class }}">
@@ -459,8 +478,8 @@
         {% for prod, data in item.by_product.items() %}
         <div class="grid grid-cols-4 gap-2 text-xs">
           <span class="font-semibold text-gray-700 truncate">{{ prod }}</span>
-          <span class="text-gray-500 text-right">MTR {{ fmt_kg(data.kg_total_mtr) }}</span>
-          <span class="text-gray-500 text-right">Coop {{ fmt_kg(data.kg_coop) if data.kg_coop is not none else '—' }}</span>
+          <span class="text-gray-500 text-right">{{ fmt_kg(data.kg_efectivo) }} kg</span>
+          <span class="text-gray-500 text-right">{{ data.viajes_efectivo if data.viajes_efectivo is not none else '—' }} viajes</span>
           {% if data.delta is not none %}
           {% set badge = delta_badge(data.delta) %}
           <span class="text-right">

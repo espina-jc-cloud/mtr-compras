@@ -102,11 +102,11 @@
             <span class="font-semibold text-gray-700">{{ ps.product }}</span>
             {% if ps.kg_contracted %}
             <span class="text-gray-500">
-              {{ fmt_kg(ps.kg_coop) }} / {{ fmt_kg(ps.kg_contracted) }} kg
+              {{ fmt_kg(ps.kg_efectivo) }} / {{ fmt_kg(ps.kg_contracted) }} kg
               {% if ps.progreso_pct is not none %}({{ ps.progreso_pct }}%){% endif %}
             </span>
             {% else %}
-            <span class="text-gray-400">{{ fmt_kg(ps.kg_coop) if ps.kg_coop else 'Sin datos' }}</span>
+            <span class="text-gray-400">{{ fmt_kg(ps.kg_efectivo) if ps.kg_efectivo else 'Sin datos' }}</span>
             {% endif %}
           </div>
           {% if ps.kg_contracted and ps.kg_contracted > 0 %}
@@ -124,7 +124,7 @@
       <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
         <span class="text-xs text-gray-400">
           {{ summ.shift_count }} parte{% if summ.shift_count != 1 %}s{% endif %}
-          {% if grand.kg_coop %}· {{ fmt_kg(grand.kg_coop) }} kg coop total{% endif %}
+          {% if grand.kg_efectivo %}· {{ "%.2f"|format(grand.kg_efectivo / 1000) }} tn{% endif %}
         </span>
         <a href="/operations/live/{{ session.id }}"
           class="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
@@ -168,9 +168,9 @@
       </p>
     </div>
     <div class="text-right flex-shrink-0 ml-3">
-      {% if grand.kg_coop %}
-      <p class="text-sm font-bold text-gray-700">{{ fmt_kg(grand.kg_coop) }} kg</p>
-      <p class="text-[11px] text-gray-500">coop total</p>
+      {% if grand.kg_efectivo %}
+      <p class="text-sm font-bold text-gray-700">{{ "%.2f"|format(grand.kg_efectivo / 1000) }} tn</p>
+      <p class="text-[11px] text-gray-500">descargadas</p>
       {% else %}
       <p class="text-xs text-gray-300">Sin datos</p>
       {% endif %}
