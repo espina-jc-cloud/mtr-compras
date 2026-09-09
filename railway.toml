@@ -1,6 +1,15 @@
 [build]
 builder = "NIXPACKS"
 
+# Nixpacks elige el provider mirando qué archivos hay en el repo, y encuentra
+# package.json (que existe solo para compilar el CSS de Tailwind en desarrollo:
+# el CSS ya compilado viaja en static/). Con eso arma una imagen de Node, corre
+# `npm ci` y no instala Python — el contenedor arranca y falla con
+# `python: command not found`. .railwayignore no ayuda: solo aplica a
+# `railway up` desde el CLI, no al build desde GitHub.
+[build.nixpacksPlan]
+providers = ["python"]
+
 [deploy]
 # Shell de login + PATH explícito del venv: la imagen de Nixpacks instala las
 # dependencias en /opt/venv y agrega ese PATH a /root/.profile, pero el
