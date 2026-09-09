@@ -7,10 +7,9 @@ planilla de arriba hacia abajo y si la pantalla no respeta ese orden se saltean
 filas. Las cuatro últimas (Lagamma, Ortiz, Ríos Tomás, Romero Ángel) están
 agregadas a mano al pie de la planilla y se respetan en esa posición.
 
-Pendiente de completar por el usuario (no bloquea nada):
-  - sector de cada persona → hoy quedan sin asignar
-  - legajo y DNI          → opcionales
-  - planta                → asumo una sola planilla
+Todas son de MTR1: es la planilla "MTR I". El grupo de cada una (M.T.R. S.A.,
+INGEE S.R.L., PORTERIA MTR I) lo completa la primera importación del Excel.
+Legajo y DNI quedan vacíos, son opcionales.
 
 Idempotente: si la persona ya existe (por apellido + nombre) la saltea, así se
 puede correr las veces que haga falta sin duplicar.
@@ -80,6 +79,7 @@ def run():
                 apellido=apellido,
                 nombre=nombre,
                 tipo="mtr",
+                planta="MTR1",
                 jornada_tipo_id=jornada.id,
                 orden_planilla=i * 10,   # deja lugar para intercalar sin renumerar
                 activo=True,
@@ -90,8 +90,7 @@ def run():
         print(f"✅ Nómina de asistencia: {creados} personas creadas, "
               f"{salteados} ya existían.")
         print(f"   Jornada asignada: {jornada.nombre}")
-        print("   Sin sector asignado — completar desde la UI para que el "
-              "ranking por sector tenga sentido.")
+        print("   Planta: MTR1 · el grupo lo completa la primera importación del Excel.")
     except Exception:
         db.rollback()
         raise

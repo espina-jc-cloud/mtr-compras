@@ -306,6 +306,15 @@ def run():
     if is_prod and os.path.exists(ops_xlsx):
         _import_operations_history(ops_xlsx)
 
+    # ── AUTO-IMPORT histórico de horas ────────────────────────────────────────
+    # TEMPORAL: se eliminará junto con horas_history.xlsx después del primer
+    # deploy exitoso. Corre SOLO si: prod + archivo presente + sin jornadas.
+    # De ahí en más las horas entran por /asistencia/importar, todos los días.
+    horas_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "horas_history.xlsx")
+    if is_prod and os.path.exists(horas_xlsx):
+        _import_horas_history(horas_xlsx)
+
     # ── AUTO-IMPORT costado vapor ─────────────────────────────────────────────
     # TEMPORAL: se eliminará después del primer deploy exitoso en producción.
     cv_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cv_history.xlsx")
@@ -324,7 +333,7 @@ def _seed_asistencia():
     from datetime import date
     from app.models_asistencia import (
         AsistenciaJornadaTipo, AsistenciaJornadaTramo,
-        AsistenciaMotivo, AsistenciaFeriado, AsistenciaConfig,
+        AsistenciaMotivo, AsistenciaFeriado, AsistenciaConfig, AsistenciaPersona,
     )
 
     db = SessionLocal()
@@ -414,6 +423,19 @@ def _seed_asistencia():
             print("  ⚠ Faltan los trasladables (Güemes, San Martín, Diversidad, "
                   "Soberanía) y los puentes: cargar desde la UI.")
 
+        # ── Nómina inicial ────────────────────────────────────────────────────
+        # Se delega en scripts/cargar_nomina_asistencia.py para no duplicar la
+        # lista de personas en dos lugares. Solo corre si la tabla está vacía.
+        if db.query(AsistenciaPersona).count() == 0:
+            import importlib.util
+            _ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "scripts", "cargar_nomina_asistencia.py")
+            if os.path.exists(_ruta):
+                _spec = importlib.util.spec_from_file_location("_nomina_asist", _ruta)
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                _mod.run()
+
         # ── Configuración ─────────────────────────────────────────────────────
         if db.query(AsistenciaConfig).count() == 0:
             db.add(AsistenciaConfig())   # todos los defaults viven en el modelo
@@ -423,6 +445,69 @@ def _seed_asistencia():
     except Exception as e:
         db.rollback()
         print(f"[seed asistencia] ERROR: {e}")
+    finally:
+        db.close()
+
+
+
+def _import_horas_history(xlsx_path: str):
+    """Carga inicial de las horas desde el Excel diario de MTR.
+
+    Solo corre si no hay ninguna jornada cargada: es el arranque del módulo en
+    producción, no un import recurrente. El día a día entra por la pantalla
+    /asistencia/importar.
+    """
+    from app.models_asistencia import AsistenciaJornada, AsistenciaPersona
+    from app.asistencia_import import (parsear, indexar_personas, buscar_persona)
+    from app.asistencia_calc import guardar_bloque, limpiar_dia, recalcular_jornada
+
+    db = SessionLocal()
+    try:
+        if db.query(AsistenciaJornada).count() > 0:
+            print("✓ Asistencia: ya hay jornadas cargadas, no se importa el histórico")
+            return
+
+        with open(xlsx_path, "rb") as fh:
+            datos = parsear(fh.read())
+
+        personas = db.query(AsistenciaPersona).filter(
+            AsistenciaPersona.activo == True,  # noqa: E712
+            AsistenciaPersona.tipo == "mtr").all()
+        if not personas:
+            print("⚠ Asistencia: no hay nómina cargada, se omite el histórico de horas")
+            return
+        idx = indexar_personas(personas)
+
+        planta = "MTR2" if " II " in f" {datos['hoja']} " else "MTR1"
+        filas, dias, sin_match = 0, 0, 0
+        for d in datos["dias"]:
+            dias += 1
+            for f in d["filas"]:
+                persona, _ = buscar_persona(idx, f["apellido"], f["nombre"])
+                if persona is None:
+                    sin_match += 1
+                    continue
+                if f["grupo"] and persona.grupo != f["grupo"]:
+                    persona.grupo = f["grupo"]
+                limpiar_dia(db, persona, d["fecha"])
+                if f["ausente"] or not f["ingreso"]:
+                    j = recalcular_jornada(db, persona, d["fecha"], marcar_ausente=True)
+                else:
+                    guardar_bloque(db, persona, d["fecha"], f["ingreso"],
+                                   f["egreso"] or "", fuente="import")
+                    j = recalcular_jornada(db, persona, d["fecha"])
+                if j is not None:
+                    j.nota_origen = f["nota"]
+                    j.grupo_snap = f["grupo"] or None
+                    j.planta_snap = planta
+                filas += 1
+        db.commit()
+        print(f"✓ Asistencia: histórico importado — hoja {datos['hoja']}, "
+              f"{dias} días, {filas} filas"
+              + (f", {sin_match} sin reconocer" if sin_match else ""))
+    except Exception as e:
+        db.rollback()
+        print(f"[import horas] ERROR: {e}")
     finally:
         db.close()
 
