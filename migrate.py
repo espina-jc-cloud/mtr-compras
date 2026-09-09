@@ -192,8 +192,11 @@ def run():
         _add_column(conn, "asistencia_jornadas", "nota_origen", "VARCHAR(300)")
         _add_column(conn, "asistencia_personas", "grupo",      "VARCHAR(120)")
         _add_column(conn, "asistencia_jornadas", "grupo_snap", "VARCHAR(120)")
-        _add_column(conn, "asistencia_jornadas_tipo", "computa_extra",      "BOOLEAN DEFAULT 1")
-        _add_column(conn, "asistencia_jornadas", "computa_extra_snap", "BOOLEAN DEFAULT 1")
+        # OJO: el default va como `true`, no como `1`. PostgreSQL rechaza
+        # `BOOLEAN DEFAULT 1` y _add_column se come el error, así que la columna
+        # nunca se crea y el módulo entero se cae con UndefinedColumn.
+        _add_column(conn, "asistencia_jornadas_tipo", "computa_extra",      "BOOLEAN DEFAULT true")
+        _add_column(conn, "asistencia_jornadas",      "computa_extra_snap", "BOOLEAN DEFAULT true")
         # Sábado: horas cumplibles hasta las 12, 12-13 al 50 %, 13 en adelante 100 %.
         conn.execute(text("UPDATE asistencia_jornada_tramos "
                           "SET hora_limite_normal = '12:00', hora_desde_100 = '13:00' "
