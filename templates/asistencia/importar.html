@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Importar planilla — MTR{% endblock %}
+{% block content %}
+
+{% set dias_sem = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'] %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Importar planilla de horas</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      El Excel diario de MTR — un bloque por día, con hora de ingreso y egreso
+    </p>
+  </div>
+  <a href="/asistencia/carga"
+    class="text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
+    Cargar a mano
+  </a>
+</div>
+
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+  <p class="text-sm font-semibold text-red-800">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if paso == 'subir' %}
+<!-- ── Paso 1: subir ──────────────────────────────────────────────────────── -->
+<form method="post" action="/asistencia/importar" enctype="multipart/form-data"
+  class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 max-w-2xl">
+
+  <label class="block text-sm font-medium text-gray-700 mb-2">¿Qué planilla es?</label>
+  <div class="flex gap-2 mb-5">
+    {% for val, titulo, desc in [
+        ('mtr', 'Personal propio de MTR', 'La planilla de tu gente'),
+        ('tercero', 'Personal de terceros', 'Se ve aparte, no se mezcla')] %}
+    <label class="flex-1 border rounded-xl px-3 py-2.5 cursor-pointer
+                  {{ 'border-indigo-400 bg-indigo-50' if (tipo_sel or 'mtr') == val else 'border-gray-200 hover:bg-gray-50' }}">
+      <input type="radio" name="tipo" value="{{ val }}" class="mr-1.5"
+        {{ 'checked' if (tipo_sel or 'mtr') == val }}>
+      <span class="text-sm font-semibold text-gray-800">{{ titulo }}</span>
+      <span class="block text-xs text-gray-500 ml-5">{{ desc }}</span>
+    </label>
+    {% endfor %}
+  </div>
+
+  <label class="block text-sm font-medium text-gray-700 mb-2">Archivo Excel</label>
+  <input type="file" name="archivo" accept=".xlsx,.xlsm" required
+    class="block w-full text-sm text-gray-600 border border-gray-200 rounded-xl p-3
+           file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+           file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-800">
+  <p class="text-xs text-gray-500 mt-3 leading-relaxed">
+    Se toma <b>la última hoja</b> del archivo, que es el mes en curso — después
+    vas a poder cambiarla si necesitás importar un mes anterior.<br>
+    <b class="text-gray-700">Nada se guarda todavía:</b> primero vas a ver qué días trae
+    y qué cambiaría en cada uno.
+  </p>
+  <button type="submit"
+    class="mt-4 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+    Leer el archivo
+  </button>
+</form>
+
+{% else %}
+<!-- ── Paso 2: vista previa ───────────────────────────────────────────────── -->
+{% set total_cambia = dias | sum(attribute='cambia') %}
+
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="text-sm text-gray-700">
+      {% if nombre_archivo %}<span class="font-semibold">{{ nombre_archivo }}</span> · {% endif %}
+      hoja <span class="font-semibold">{{ hoja }}</span> ·
+      <span class="tabular-nums">{{ dias | length }}</span> días ·
+      {% if tipo == 'tercero' %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700">TERCEROS</span>
+      {% else %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">PERSONAL PROPIO</span>
+      {% endif %}
+    </div>
+    {% if hojas | length > 1 %}
+    <form method="post" action="/asistencia/importar" class="flex items-center gap-2">
+      <input type="hidden" name="token" value="{{ token }}">
+      <label class="text-xs text-gray-500">Mes:</label>
+      <select name="hoja" onchange="this.form.submit()"
+        class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+        {% for h in hojas %}
+        <option value="{{ h }}" {{ 'selected' if h == hoja }}>{{ h }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if no_reconocidos %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+  <p class="text-sm font-semibold text-amber-900 mb-1.5">
+    {{ no_reconocidos | length }} nombre(s) del Excel no están en la nómina
+  </p>
+  <ul class="text-xs text-amber-800 space-y-0.5">
+    {% for nombre, info in no_reconocidos.items() %}
+    <li>
+      <b>{{ nombre }}</b>
+      <span class="opacity-70">· {{ info.grupo }} · {{ info.veces }} día(s) · {{ info.motivo }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="text-xs text-amber-800 mt-2">
+    {% if tipo == 'tercero' %}
+    Con la opción de alta activada se crean solas al importar.
+    {% else %}
+    Estas filas <b>se saltean</b>: en personal propio no doy de alta gente por mi cuenta.
+    Agregalas en <a href="/asistencia/personal" class="font-semibold underline">Nómina</a> y volvé a importar.
+    {% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% for aviso in avisos %}
+<p class="text-xs text-amber-700 mb-2">⚠ {{ aviso }}</p>
+{% endfor %}
+
+<form method="post" action="/asistencia/importar/aplicar">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="hoja" value="{{ hoja }}">
+  <input type="hidden" name="tipo" value="{{ tipo }}">
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+    <div>
+      <label class="block text-[11px] text-gray-500 mb-1">Planta de esta planilla</label>
+      <select name="planta" class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+        <option value="">— sin planta —</option>
+        {% for cod, label in plantas %}
+        <option value="{{ cod }}" {{ 'selected' if planta == cod }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-[11px] text-gray-400 mt-1">Detectada del nombre de la hoja. Es la planta
+        que se guarda en cada jornada de estos días.</p>
+    </div>
+
+    {% if grupos %}
+    <div>
+      <label class="block text-[11px] text-gray-500 mb-1">
+        {{ 'Proveedores' if tipo == 'tercero' else 'Grupos de la planilla' }}</label>
+      <div class="flex flex-wrap gap-1.5">
+        {% for g, n in grupos.items() %}
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-50 text-gray-700">
+          {{ g }} <span class="tabular-nums font-normal opacity-60">{{ n }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      <p class="text-[11px] text-gray-400 mt-1">Se guardan como está en la planilla.</p>
+    </div>
+    {% endif %}
+
+    {% if tipo == 'tercero' %}
+    <label class="flex items-start gap-2 cursor-pointer">
+      <input type="checkbox" name="alta_nuevos" value="1" checked class="mt-0.5 w-4 h-4 rounded border-gray-300">
+      <span class="text-xs text-gray-700">
+        <b>Dar de alta los nombres nuevos</b>
+        <span class="block text-gray-400">En terceros la gente rota; sin esto habría que
+          cargarlos a mano uno por uno.</span>
+      </span>
+    </label>
+    {% endif %}
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-4">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+          <th class="px-4 py-2.5 w-[46px]"></th>
+          <th class="px-3 py-2.5">Día</th>
+          <th class="px-3 py-2.5 text-right">Filas</th>
+          <th class="px-3 py-2.5 text-right">Ya cargadas</th>
+          <th class="px-3 py-2.5">Qué cambiaría</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for d in dias %}
+        <tr class="{{ 'bg-gray-50/60' if not d.cambia }}">
+          <td class="px-4 py-2">
+            <input type="checkbox" name="fechas" value="{{ d.fecha.isoformat() }}"
+              {{ 'checked' if d.cambia }} class="w-4 h-4 rounded border-gray-300">
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <span class="font-semibold text-gray-800 tabular-nums">{{ d.fecha.strftime('%d/%m') }}</span>
+            <span class="text-xs text-gray-400 ml-1">{{ dias_sem[d.fecha.weekday()] }}</span>
+          </td>
+          <td class="px-3 py-2 text-right tabular-nums text-gray-600">{{ d.n }}</td>
+          <td class="px-3 py-2 text-right tabular-nums text-gray-400">{{ d.cargadas or '—' }}</td>
+          <td class="px-3 py-2 text-xs">
+            {% if not d.cargadas %}
+            <span class="font-semibold text-emerald-700">día nuevo</span>
+            <span class="text-gray-500">· {{ d.n }} filas</span>
+            {% elif not d.cambia %}
+            <span class="text-gray-400">sin cambios</span>
+            {% else %}
+            {% if d.nuevas %}<span class="font-semibold text-emerald-700">{{ d.nuevas }} nuevas</span>{% endif %}
+            {% if d.distintas %}<span class="font-semibold text-amber-700 ml-1.5">{{ d.distintas }} cambian</span>{% endif %}
+            {% if d.iguales %}<span class="text-gray-400 ml-1.5">{{ d.iguales }} igual(es)</span>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+
+        {% if d.distintas %}
+        <tr class="bg-amber-50/40">
+          <td></td>
+          <td colspan="4" class="px-3 pb-2 text-xs text-amber-900">
+            {% for f in d.filas if f.estado == 'distinta' %}
+            <span class="inline-block mr-3 whitespace-nowrap">
+              <b>{{ f.persona.apellido }}</b>
+              <span class="opacity-60 tabular-nums">
+                {{ (f.actual_in ~ '–' ~ (f.actual_out or '··')) if f.actual_in else 'ausente' }}</span>
+              →
+              <span class="font-semibold tabular-nums">
+                {{ 'ausente' if f.ausente else (f.ingreso ~ '–' ~ (f.egreso or '··')) }}</span>
+            </span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex items-center gap-3 flex-wrap">
+    <button type="submit"
+      class="bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+      Importar los días tildados
+    </button>
+    <a href="/asistencia/importar"
+      class="text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
+      Cancelar
+    </a>
+    <p class="text-xs text-gray-500">
+      Vienen tildados solo los días que cambian algo.
+      Reimportar un día <b>reemplaza</b> sus horas — las anteriores quedan anuladas en la auditoría, no se borran.
+    </p>
+  </div>
+</form>
+{% endif %}
+
+{% endblock %}

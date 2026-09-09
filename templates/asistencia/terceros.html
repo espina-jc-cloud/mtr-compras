@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Personal de terceros — MTR{% endblock %}
+{% block content %}
+{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Personal de terceros</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      Pantalla separada — estas horas nunca se suman con las del personal de MTR
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/asistencia/terceros?mes={{ prev }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+    <span class="text-sm font-semibold text-gray-800 px-2">{{ meses[mes_num - 1] }} {{ anio }}</span>
+    <a href="/asistencia/terceros?mes={{ next }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ '' if hay_next else 'pointer-events-none opacity-30' }}">▸</a>
+    <a href="/asistencia/importar?tipo=tercero"
+      class="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Importar planilla de terceros
+    </a>
+  </div>
+</div>
+
+{% if not resumen %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-8 text-center">
+  <p class="text-sm font-semibold text-gray-700">Todavía no hay horas de terceros en {{ meses[mes_num - 1] }}.</p>
+  <p class="text-sm text-gray-500 mt-1.5 max-w-lg mx-auto leading-relaxed">
+    Cuando tengas la planilla de terceros —el mismo formato de Excel que la de tu gente—
+    importala desde el botón de arriba. Los nombres nuevos se dan de alta solos, porque en
+    terceros la gente rota todo el tiempo.
+  </p>
+  <a href="/asistencia/importar?tipo=tercero"
+    class="inline-block mt-4 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm">
+    Importar planilla de terceros
+  </a>
+</div>
+{% else %}
+
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
+  {% for label, val, sub, tc, bg in [
+    ('Horas del mes', mt(total_min), 'de presencia', 'text-sky-700', 'bg-sky-50'),
+    ('Personas', total_personas, 'distintas', 'text-gray-800', 'bg-gray-50'),
+    ('Proveedores', resumen | length, '', 'text-indigo-700', 'bg-indigo-50')
+  ] %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5">
+    <p class="text-[11px] text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }} tabular-nums">{{ val }}</p>
+    <p class="text-[11px] text-gray-400">{{ sub }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto mb-5">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5">Proveedor</th>
+        <th class="px-3 py-2.5 text-right">Personas</th>
+        <th class="px-3 py-2.5 text-right">Días</th>
+        <th class="px-3 py-2.5 text-right">Horas</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for r in resumen %}
+      <tr>
+        <td class="px-4 py-2 font-semibold text-gray-800">{{ r.grupo }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-gray-600">{{ r.personas }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-gray-600">{{ r.dias }}</td>
+        <td class="px-3 py-2 text-right tabular-nums font-semibold text-sky-700">{{ mt(r.minutos) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5">Persona</th>
+        <th class="px-3 py-2.5">Proveedor</th>
+        <th class="px-3 py-2.5 text-right">Días</th>
+        <th class="px-3 py-2.5 text-right">Horas</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for d in detalle %}
+      <tr>
+        <td class="px-4 py-2 text-gray-800">{{ d.persona }}</td>
+        <td class="px-3 py-2 text-xs text-gray-500">{{ d.grupo }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-gray-600">{{ d.dias }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-sky-700">{{ mt(d.minutos) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p class="text-xs text-gray-400 mt-3">
+  El personal de terceros se lleva aparte por diseño: ningún KPI de asistencia
+  suma sus horas con las de MTR.
+</p>
+{% endblock %}

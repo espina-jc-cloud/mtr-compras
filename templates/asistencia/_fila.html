@@ -1,0 +1,131 @@
+{#
+  Una fila de la carga rápida = un <tbody>. Se usa <tbody> y no <tr> porque una
+  persona puede tener más de un bloque el mismo día (operativo de buque) y HTMX
+  necesita reemplazar el conjunto entero de una.
+#}
+{% set b0 = bloques[0] if bloques else None %}
+{% set extra = (j.minutos_extra_detectada or 0) if j else 0 %}
+<tbody id="fila-{{ p.id }}" class="divide-y divide-gray-50 border-b border-gray-100">
+  <tr class="{{ 'bg-gray-50/60' if j and j.estado_registro == 'ausente' }}">
+
+    <td class="px-4 py-1.5 whitespace-nowrap">
+      <span class="text-sm text-gray-800">{{ p.apellido }}, {{ p.nombre }}</span>
+      {% if p.tipo == 'tercero' %}
+      <span class="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">TERCERO</span>
+      {% endif %}
+      {% if not esp.laborable %}
+      <span class="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">NO LABORABLE</span>
+      {% elif esp.origen == 'excepcion' %}
+      <span class="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">EXCEPCIÓN</span>
+      {% endif %}
+    </td>
+
+    <td class="px-2 py-1.5">
+      <input id="in-{{ p.id }}" name="ingreso" type="text" inputmode="numeric"
+        value="{{ b0.desde.strftime('%H:%M') if b0 else '' }}"
+        placeholder="––:––" autocomplete="off" data-hora data-fila="{{ p.id }}"
+        class="w-[74px] text-center tabular-nums border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        hx-post="/asistencia/carga/fila" hx-trigger="change"
+        hx-target="#fila-{{ p.id }}" hx-swap="outerHTML"
+        hx-include="#in-{{ p.id }},#out-{{ p.id }}"
+        hx-vals='{"persona_id": {{ p.id }}, "fecha": "{{ fecha.isoformat() }}"}'>
+    </td>
+
+    <td class="px-2 py-1.5">
+      <input id="out-{{ p.id }}" name="egreso" type="text" inputmode="numeric"
+        value="{{ b0.hasta.strftime('%H:%M') if b0 and b0.hasta else '' }}"
+        placeholder="––:––" autocomplete="off" data-hora data-fila="{{ p.id }}"
+        class="w-[74px] text-center tabular-nums border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        hx-post="/asistencia/carga/fila" hx-trigger="change"
+        hx-target="#fila-{{ p.id }}" hx-swap="outerHTML"
+        hx-include="#in-{{ p.id }},#out-{{ p.id }}"
+        hx-vals='{"persona_id": {{ p.id }}, "fecha": "{{ fecha.isoformat() }}"}'>
+    </td>
+
+    <td class="px-3 py-1.5 text-xs whitespace-nowrap">
+      {% if esp.laborable %}
+      <span class="text-gray-400">{{ mt(esp.minutos_esperados) }}
+        {%- if esp.limite_normal %} hasta {{ esp.hora_salida }}{% endif %}</span>
+      {% else %}
+      <span class="text-red-600 font-medium">todo al 100 %</span>
+      {% endif %}
+    </td>
+
+    <td class="px-3 py-1.5 text-xs">
+      {% if j is none %}
+        <span class="text-gray-300">sin cargar</span>
+      {% elif j.estado_registro == 'ausente' %}
+        <span class="text-gray-500 font-medium">Ausente</span>
+      {% elif j.estado_registro == 'sin_egreso' %}
+        <span class="text-gray-600 font-medium">■ falta egreso</span>
+        <span class="text-gray-400">— no computa</span>
+      {% elif j.estado_registro == 'inconsistente' %}
+        <span class="text-red-600 font-semibold">▲ inconsistente</span>
+      {% elif extra > 0 %}
+        {% if j.minutos_extra_50 %}<span class="font-semibold text-amber-600">+{{ mt(j.minutos_extra_50) }}</span><span class="text-gray-400">50%</span>{% endif %}
+        {% if j.minutos_extra_100 %}<span class="font-semibold text-red-600">+{{ mt(j.minutos_extra_100) }}</span><span class="text-gray-400">100%</span>{% endif %}
+      {% else %}
+        <span class="text-emerald-600 font-medium">✓ guardado</span>
+        {% if j.minutos_defecto %}<span class="text-gray-400">−{{ mt(j.minutos_defecto) }}</span>{% endif %}
+      {% endif %}
+    </td>
+
+    <td class="px-3 py-1.5 text-right whitespace-nowrap">
+      <button type="button" title="Agregar un segundo bloque (volvió más tarde)"
+        onclick="document.getElementById('add-{{ p.id }}').classList.toggle('hidden')"
+        class="text-xs px-2 py-1 rounded-lg text-sky-700 hover:bg-sky-50 font-semibold">+ bloque</button>
+      <button type="button" title="No vino"
+        class="text-xs px-2 py-1 rounded-lg text-gray-500 hover:bg-gray-100"
+        hx-post="/asistencia/carga/ausente"
+        hx-target="#fila-{{ p.id }}" hx-swap="outerHTML"
+        hx-vals='{"persona_id": {{ p.id }}, "fecha": "{{ fecha.isoformat() }}"}'>ausente</button>
+    </td>
+  </tr>
+
+  {# ── Bloques adicionales ya cargados ──────────────────────────────────── #}
+  {% for b in bloques[1:] %}
+  <tr class="bg-sky-50/40">
+    <td class="px-4 py-1 pl-10 text-xs text-sky-800">└ bloque {{ loop.index + 1 }}
+      {% if b.turno_operativo %}<span class="font-semibold">· {{ b.turno_operativo }}</span>{% endif %}</td>
+    <td class="px-2 py-1 text-center text-sm tabular-nums text-gray-700">{{ b.desde.strftime('%H:%M') }}</td>
+    <td class="px-2 py-1 text-center text-sm tabular-nums text-gray-700">{{ b.hasta.strftime('%H:%M') if b.hasta else '––:––' }}</td>
+    <td class="px-3 py-1 text-xs text-gray-400">{{ b.desde.strftime('%d/%m') }}</td>
+    <td class="px-3 py-1 text-xs text-gray-500">
+      {% if b.minutos %}{{ mt(b.minutos) }}{% endif %}
+    </td>
+    <td></td>
+  </tr>
+  {% endfor %}
+
+  {# ── Alta de un bloque nuevo ──────────────────────────────────────────── #}
+  <tr id="add-{{ p.id }}" class="hidden bg-sky-50/60">
+    <td class="px-4 py-1.5 pl-10 text-xs text-sky-800">
+      <select id="turno-{{ p.id }}" name="turno"
+        class="border border-sky-200 rounded-lg px-2 py-1 text-xs bg-white">
+        <option value="">Bloque suelto</option>
+        {% for cod, label, desde, hasta in turnos %}
+        <option value="{{ cod }}" data-desde="{{ desde }}" data-hasta="{{ hasta }}">Turno {{ label }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td class="px-2 py-1.5">
+      <input id="bin-{{ p.id }}" name="ingreso" type="text" inputmode="numeric" placeholder="––:––"
+        autocomplete="off" data-hora
+        class="w-[74px] text-center tabular-nums border border-sky-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+    </td>
+    <td class="px-2 py-1.5">
+      <input id="bout-{{ p.id }}" name="egreso" type="text" inputmode="numeric" placeholder="––:––"
+        autocomplete="off" data-hora
+        class="w-[74px] text-center tabular-nums border border-sky-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+    </td>
+    <td colspan="3" class="px-3 py-1.5">
+      <button type="button"
+        class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white"
+        hx-post="/asistencia/carga/bloque"
+        hx-target="#fila-{{ p.id }}" hx-swap="outerHTML"
+        hx-include="#bin-{{ p.id }},#bout-{{ p.id }},#turno-{{ p.id }}"
+        hx-vals='{"persona_id": {{ p.id }}, "fecha": "{{ fecha.isoformat() }}"}'>Agregar bloque</button>
+      <span class="ml-2 text-xs text-gray-500">Si el egreso es menor al ingreso, cruza la medianoche.</span>
+    </td>
+  </tr>
+</tbody>
