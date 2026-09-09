@@ -130,6 +130,7 @@ _BREADCRUMB_MAP = [
     ("/asistencia/carga",     "Asistencia",     "Carga de planilla"),
     ("/asistencia/personal",  "Asistencia",     "Nómina"),
     ("/asistencia/importar",  "Asistencia",     "Importar Excel"),
+    ("/asistencia/mes",       "Asistencia",     "Horas extra del mes"),
     ("/asistencia/terceros",  "Asistencia",     "Terceros"),
     ("/asistencia",           "Asistencia",     "Asistencia"),
     ("/transporte/nomina",    "Transporte",     "Nómina Madre"),

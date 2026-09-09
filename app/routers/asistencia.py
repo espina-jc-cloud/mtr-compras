@@ -16,7 +16,7 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Request, Depends, File, Form, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -851,3 +851,247 @@ async def terceros(request: Request, db: Session = Depends(get_db),
         "total_personas": len({j.persona_id for j in jornadas}),
         "mt": min_a_texto,
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Dashboard mensual
+# ══════════════════════════════════════════════════════════════════════════════
+
+_reportes = require_perm("asistencia.reportes")
+
+
+def _rango_mes(mes: str):
+    hoy = date.today()
+    try:
+        anio, m = (int(x) for x in mes.split("-"))
+        date(anio, m, 1)
+    except (ValueError, TypeError):
+        anio, m = hoy.year, hoy.month
+    return anio, m, date(anio, m, 1), date(anio, m, monthrange(anio, m)[1])
+
+
+def _datos_mes(db: Session, desde: date, hasta: date, planta: str = "", grupo: str = ""):
+    q = (db.query(AsistenciaJornada)
+         .options(joinedload(AsistenciaJornada.persona),
+                  joinedload(AsistenciaJornada.motivo))
+         .filter(AsistenciaJornada.fecha >= desde,
+                 AsistenciaJornada.fecha <= hasta,
+                 AsistenciaJornada.tipo_persona_snap != "tercero"))
+    if planta:
+        q = q.filter(AsistenciaJornada.planta_snap == planta)
+    if grupo:
+        q = q.filter(AsistenciaJornada.grupo_snap == grupo)
+    return q.order_by(AsistenciaJornada.fecha).all()
+
+
+@router.get("/mes", response_class=HTMLResponse)
+async def mes(request: Request, db: Session = Depends(get_db),
+              current_user=Depends(_reportes),
+              mes: str = "", planta: str = "", grupo: str = ""):
+    """Parcial del mes en curso y reporte final del mes cerrado.
+
+    Es la misma pantalla: mientras el mes corre muestra hasta dónde llegó la
+    carga, y cuando está completo es el reporte. Separarlas en dos daría dos
+    números distintos para la misma pregunta.
+    """
+    cfg = get_config(db)
+    hoy = date.today()
+    anio, m, desde, hasta = _rango_mes(mes)
+    jornadas = _datos_mes(db, desde, hasta, planta, grupo)
+
+    feriados = {f.fecha for f in db.query(AsistenciaFeriado).filter(
+        AsistenciaFeriado.fecha >= desde, AsistenciaFeriado.fecha <= hasta).all()}
+
+    # ── Serie diaria ─────────────────────────────────────────────────────────
+    por_dia = {}
+    for j in jornadas:
+        d = por_dia.setdefault(j.fecha, {"e50": 0, "e100": 0, "n": 0, "personas": set()})
+        d["e50"] += j.minutos_extra_50 or 0
+        d["e100"] += j.minutos_extra_100 or 0
+        d["n"] += 1
+        if (j.minutos_extra_detectada or 0) > 0:
+            d["personas"].add(j.persona_id)
+
+    dias, laborables, cargados = [], 0, 0
+    for n in range(1, monthrange(anio, m)[1] + 1):
+        f = date(anio, m, n)
+        dat = por_dia.get(f)
+        es_laborable = f.weekday() != 6 and f not in feriados
+        if es_laborable and f <= hoy:
+            laborables += 1
+            if dat:
+                cargados += 1
+        dias.append({
+            "fecha": f, "dia": n, "dow": f.weekday(),
+            "e50": dat["e50"] if dat else 0,
+            "e100": dat["e100"] if dat else 0,
+            "total": (dat["e50"] + dat["e100"]) if dat else 0,
+            "personas": len(dat["personas"]) if dat else 0,
+            "cargado": bool(dat),
+            "futuro": f > hoy,
+            "feriado": f in feriados,
+            "domingo": f.weekday() == 6,
+        })
+
+    # ── Ranking de personas ──────────────────────────────────────────────────
+    porp = {}
+    for j in jornadas:
+        k = j.persona_id
+        p = porp.setdefault(k, {
+            "persona": j.persona, "e50": 0, "e100": 0, "aprobada": 0,
+            "trabajado": 0, "defecto": 0, "dias_extra": 0, "fechas_extra": set(),
+            "planta": j.planta_snap, "grupo": j.grupo_snap, "pendientes": 0,
+        })
+        p["e50"] += j.minutos_extra_50 or 0
+        p["e100"] += j.minutos_extra_100 or 0
+        p["trabajado"] += j.minutos_trabajados or 0
+        p["defecto"] += j.minutos_defecto or 0
+        if j.minutos_extra_aprobada is not None:
+            p["aprobada"] += j.minutos_extra_aprobada
+        if (j.minutos_extra_detectada or 0) > 0:
+            p["dias_extra"] += 1
+            p["fechas_extra"].add(j.fecha)
+            if j.estado_extra == "pendiente":
+                p["pendientes"] += 1
+
+    def _racha(fechas):
+        """Días consecutivos con extra más largos del mes."""
+        if not fechas:
+            return 0
+        ord_f = sorted(fechas)
+        mejor = actual = 1
+        for a, b in zip(ord_f, ord_f[1:]):
+            actual = actual + 1 if (b - a).days == 1 else 1
+            mejor = max(mejor, actual)
+        return mejor
+
+    ranking = []
+    for v in porp.values():
+        total = v["e50"] + v["e100"]
+        ranking.append({**v, "total": total, "racha": _racha(v["fechas_extra"])})
+    ranking.sort(key=lambda x: -x["total"])
+
+    # ── Cortes ───────────────────────────────────────────────────────────────
+    def _agrupar(campo):
+        acc = {}
+        for j in jornadas:
+            k = getattr(j, campo) or "—"
+            a = acc.setdefault(k, {"clave": k, "total": 0, "personas": set()})
+            a["total"] += (j.minutos_extra_50 or 0) + (j.minutos_extra_100 or 0)
+            a["personas"].add(j.persona_id)
+        out = [{"clave": v["clave"], "total": v["total"], "personas": len(v["personas"])}
+               for v in acc.values()]
+        return sorted(out, key=lambda x: -x["total"])
+
+    e50 = sum(j.minutos_extra_50 or 0 for j in jornadas)
+    e100 = sum(j.minutos_extra_100 or 0 for j in jornadas)
+    total_extra = e50 + e100
+    aprobada = sum(j.minutos_extra_aprobada or 0 for j in jornadas
+                   if j.minutos_extra_aprobada is not None)
+
+    estados = {}
+    for j in jornadas:
+        if (j.minutos_extra_detectada or 0) > 0:
+            estados[j.estado_extra] = estados.get(j.estado_extra, 0) + 1
+
+    # ── Umbrales de acumulación ──────────────────────────────────────────────
+    umbrales = [(cfg.umbral_mes_3_min, 3), (cfg.umbral_mes_2_min, 2), (cfg.umbral_mes_1_min, 1)]
+    alertas = []
+    for r in ranking:
+        nivel = next((n for u, n in umbrales if r["total"] >= (u or 10 ** 9)), 0)
+        if nivel:
+            alertas.append({**r, "nivel": nivel})
+        elif r["racha"] >= (cfg.dias_racha_alerta or 3):
+            alertas.append({**r, "nivel": 0})
+
+    plantas_disp = sorted({j.planta_snap for j in _datos_mes(db, desde, hasta) if j.planta_snap})
+    grupos_disp = sorted({j.grupo_snap for j in _datos_mes(db, desde, hasta) if j.grupo_snap})
+
+    prev_m = (desde - timedelta(days=1)).replace(day=1)
+    next_m = hasta + timedelta(days=1)
+    return templates.TemplateResponse(request, "asistencia/mes.html", {
+        "current_user": current_user,
+        "anio": anio, "mes_num": m, "desde": desde, "hasta": hasta,
+        "prev": prev_m.strftime("%Y-%m"), "next": next_m.strftime("%Y-%m"),
+        "hay_next": next_m <= hoy, "hoy": hoy,
+        "en_curso": desde <= hoy <= hasta,
+        "planta": planta, "grupo": grupo,
+        "plantas_disp": plantas_disp, "grupos_disp": grupos_disp,
+        "dias": dias, "ranking": ranking, "alertas": alertas,
+        "por_grupo": _agrupar("grupo_snap"), "por_planta": _agrupar("planta_snap"),
+        "estados": estados,
+        "laborables": laborables, "cargados": cargados,
+        "kpis": {
+            "extra": total_extra, "e50": e50, "e100": e100, "aprobada": aprobada,
+            "pendiente": total_extra - aprobada,
+            "personas_extra": len([r for r in ranking if r["total"] > 0]),
+            "personas": len(ranking),
+            "dias_extra": len([d for d in dias if d["total"] > 0]),
+            "trabajado": sum(j.minutos_trabajados or 0 for j in jornadas),
+            "defecto": sum(j.minutos_defecto or 0 for j in jornadas),
+            "max_dia": max([d["total"] for d in dias], default=0),
+        },
+        "mt": min_a_texto,
+        "estado_extra_css": ESTADO_EXTRA_CSS,
+    })
+
+
+@router.get("/mes/export")
+async def mes_export(db: Session = Depends(get_db), current_user=Depends(_reportes),
+                     mes: str = "", planta: str = "", grupo: str = ""):
+    """Excel del mes, una fila por persona y día. Respeta los filtros de pantalla."""
+    import io as _io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    anio, m, desde, hasta = _rango_mes(mes)
+    jornadas = _datos_mes(db, desde, hasta, planta, grupo)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"{anio}-{m:02d}"
+    cols = ["Fecha", "Día", "Persona", "Planta", "Grupo", "Ingreso", "Egreso",
+            "Debe (h)", "Trabajado (h)", "Extra 50% (h)", "Extra 100% (h)",
+            "Extra total (h)", "Aprobada (h)", "No cumplidas (h)",
+            "Estado extra", "Registro", "Motivo", "Nota de la planilla"]
+    ws.append(cols)
+    cab = ws[1]
+    for c in cab:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1E3A8A")
+        c.alignment = Alignment(horizontal="center")
+
+    dias_sem = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    h = lambda x: round((x or 0) / 60.0, 2)  # noqa: E731
+    for j in sorted(jornadas, key=lambda x: (x.fecha, x.persona.apellido if x.persona else "")):
+        ws.append([
+            j.fecha, dias_sem[j.fecha.weekday()],
+            f"{j.persona.apellido}, {j.persona.nombre}" if j.persona else "",
+            j.planta_snap or "", j.grupo_snap or "",
+            j.ingreso_real.strftime("%H:%M") if j.ingreso_real else "",
+            j.egreso_real.strftime("%H:%M") if j.egreso_real else "",
+            h(j.minutos_esperados), h(j.minutos_trabajados),
+            h(j.minutos_extra_50), h(j.minutos_extra_100),
+            h(j.minutos_extra_detectada),
+            h(j.minutos_extra_aprobada) if j.minutos_extra_aprobada is not None else "",
+            h(j.minutos_defecto),
+            j.estado_extra or "", j.estado_registro or "",
+            j.motivo.nombre if j.motivo else "", j.nota_origen or "",
+        ])
+
+    anchos = [11, 11, 26, 8, 16, 9, 9, 9, 12, 12, 13, 13, 12, 14, 13, 13, 20, 34]
+    for i, w in enumerate(anchos, start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    sufijo = ("_" + planta if planta else "") + ("_" + grupo.replace(" ", "") if grupo else "")
+    nombre = f"asistencia_{anio}-{m:02d}{sufijo}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )

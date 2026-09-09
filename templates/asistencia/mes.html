@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Horas extra del mes — MTR{% endblock %}
+{% block content %}
+
+{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+{% set dow = ['L','M','M','J','V','S','D'] %}
+{% set qs = ('&planta=' ~ planta if planta else '') ~ ('&grupo=' ~ grupo if grupo else '') %}
+{% set pct_carga = (cargados * 100 // laborables) if laborables else 100 %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">
+      Horas extra — {{ meses[mes_num - 1] }} {{ anio }}
+    </h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      {% if en_curso %}
+      Parcial del mes en curso — {{ cargados }} de {{ laborables }} días laborables cargados
+      {% else %}
+      Reporte del mes cerrado — {{ cargados }} de {{ laborables }} días laborables cargados
+      {% endif %}
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/asistencia/mes?mes={{ prev }}{{ qs }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+    <a href="/asistencia/mes?mes={{ next }}{{ qs }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ '' if hay_next else 'pointer-events-none opacity-30' }}">▸</a>
+    <a href="/asistencia/mes/export?mes={{ anio }}-{{ '%02d' % mes_num }}{{ qs }}"
+      class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Excel
+    </a>
+  </div>
+</div>
+
+<!-- ── Filtros ────────────────────────────────────────────────────────────── -->
+<div class="flex flex-wrap items-center gap-1.5 mb-4 text-xs">
+  <span class="text-gray-400 mr-1">Filtrar:</span>
+  <a href="/asistencia/mes?mes={{ anio }}-{{ '%02d' % mes_num }}{{ '&grupo=' ~ grupo if grupo }}"
+    class="font-semibold px-2.5 py-1.5 rounded-lg border {{ 'bg-indigo-900 text-white border-indigo-900' if not planta else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">Todas las plantas</a>
+  {% for pl in plantas_disp %}
+  <a href="/asistencia/mes?mes={{ anio }}-{{ '%02d' % mes_num }}&planta={{ pl }}{{ '&grupo=' ~ grupo if grupo }}"
+    class="font-semibold px-2.5 py-1.5 rounded-lg border {{ 'bg-indigo-900 text-white border-indigo-900' if planta == pl else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">{{ pl }}</a>
+  {% endfor %}
+  <span class="w-px h-5 bg-gray-200 mx-1"></span>
+  <a href="/asistencia/mes?mes={{ anio }}-{{ '%02d' % mes_num }}{{ '&planta=' ~ planta if planta }}"
+    class="font-semibold px-2.5 py-1.5 rounded-lg border {{ 'bg-indigo-900 text-white border-indigo-900' if not grupo else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">Todos los grupos</a>
+  {% for g in grupos_disp %}
+  <a href="/asistencia/mes?mes={{ anio }}-{{ '%02d' % mes_num }}&grupo={{ g }}{{ '&planta=' ~ planta if planta }}"
+    class="font-semibold px-2.5 py-1.5 rounded-lg border {{ 'bg-indigo-900 text-white border-indigo-900' if grupo == g else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">{{ g }}</a>
+  {% endfor %}
+</div>
+
+{% if en_curso and cargados < laborables %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
+  <p class="text-sm text-amber-900">
+    {% set faltan = laborables - cargados %}
+    <b>{{ 'Falta 1 día' if faltan == 1 else 'Faltan ' ~ faltan ~ ' días' }} por cargar.</b>
+    El total de abajo es parcial y va a subir.
+  </p>
+  <a href="/asistencia/importar" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white">
+    Importar Excel
+  </a>
+</div>
+{% endif %}
+
+<!-- ── KPIs ───────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-5">
+  {% for label, val, sub, tc, bg in [
+    ('Extra del mes',   mt(kpis.extra),   (kpis.personas_extra|string) ~ ' de ' ~ (kpis.personas|string) ~ ' personas', 'text-red-700', 'bg-red-50'),
+    ('Al 50 %',         mt(kpis.e50),     'exceso de jornada', 'text-amber-700', 'bg-amber-50'),
+    ('Al 100 %',        mt(kpis.e100),    'sáb tarde · dom · feriado', 'text-red-700', 'bg-red-50'),
+    ('Aprobada',        mt(kpis.aprobada), mt(kpis.pendiente) ~ ' sin aprobar', 'text-emerald-700', 'bg-emerald-50'),
+    ('Días con extra',  kpis.dias_extra,  'de ' ~ (cargados|string) ~ ' cargados', 'text-gray-800', 'bg-gray-50'),
+    ('Horas trabajadas', mt(kpis.trabajado), mt(kpis.defecto) ~ ' no cumplidas', 'text-indigo-700', 'bg-indigo-50')
+  ] %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5">
+    <p class="text-[11px] text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }} tabular-nums">{{ val }}</p>
+    <p class="text-[11px] text-gray-400">{{ sub }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Evolución diaria ───────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Evolución diaria</p>
+    <p class="text-[11px] text-gray-400">
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 align-middle"></span> 50 % ·
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-red-500 align-middle"></span> 100 % ·
+      clic en un día para ver el detalle
+    </p>
+  </div>
+  <div style="height: 190px"><canvas id="chDias"></canvas></div>
+
+  <!-- Tira clicable: estado de carga día por día -->
+  <div class="flex flex-wrap gap-1 mt-4 pt-3 border-t border-gray-100">
+    {% for d in dias %}
+    {% set cls = 'bg-gray-50 text-gray-200 border-gray-100' if d.futuro
+        else ('bg-white text-gray-300 border-gray-200' if not d.cargado
+        else ('bg-red-500 text-white border-red-500' if d.total >= 240
+        else ('bg-amber-200 text-amber-900 border-amber-300' if d.total
+        else 'bg-emerald-50 text-emerald-700 border-emerald-200'))) %}
+    <a href="/asistencia?fecha={{ d.fecha.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      title="{{ d.fecha.strftime('%d/%m') }} — {{ mt(d.total) }}{{ ' · sin cargar' if not d.cargado and not d.futuro }}"
+      class="w-7 h-9 flex flex-col items-center justify-center rounded-md border text-[10px] font-semibold tabular-nums leading-tight
+             {{ cls }} {{ 'pointer-events-none' if d.futuro }} {{ 'ring-1 ring-inset ring-gray-300' if d.domingo or d.feriado }}">
+      <span>{{ d.dia }}</span>
+      <span class="opacity-60 font-normal">{{ dow[d.dow] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+  <!-- ── Ranking ──────────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
+      Quién concentra las horas
+    </p>
+    {% if ranking %}
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-y border-gray-100">
+          <th class="px-4 py-2">Persona</th>
+          <th class="px-2 py-2">Grupo</th>
+          <th class="px-2 py-2 text-right">50 %</th>
+          <th class="px-2 py-2 text-right">100 %</th>
+          <th class="px-2 py-2 text-right">Total</th>
+          <th class="px-2 py-2 text-right" title="Días del mes con horas extra">Días</th>
+          <th class="px-2 py-2 text-right" title="Días consecutivos con extra">Racha</th>
+          <th class="px-3 py-2 w-[120px]"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for r in ranking if r.total > 0 %}
+        <tr class="hover:bg-gray-50/60">
+          <td class="px-4 py-1.5 whitespace-nowrap text-gray-800">
+            {{ r.persona.apellido }}, {{ r.persona.nombre }}</td>
+          <td class="px-2 py-1.5 text-xs text-gray-400 truncate max-w-[130px]">{{ r.grupo or '—' }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums text-amber-700">{{ mt(r.e50) }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums text-red-700">{{ mt(r.e100) }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums font-bold text-gray-900">{{ mt(r.total) }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums text-gray-600">{{ r.dias_extra }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums {{ 'font-semibold text-amber-700' if r.racha >= 3 else 'text-gray-400' }}">{{ r.racha }}</td>
+          <td class="px-3 py-1.5">
+            <div class="h-2 rounded-full bg-gray-100 overflow-hidden" title="{{ mt(r.total) }}">
+              <div class="h-full bg-indigo-500" style="width: {{ (r.total * 100 / ranking[0].total) | round | int if ranking[0].total else 0 }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="px-4 pb-4 text-sm text-gray-400">Sin datos en este mes.</p>
+    {% endif %}
+  </div>
+
+  <!-- ── Cortes ───────────────────────────────────────────────────────────── -->
+  <div class="space-y-4">
+    {% for titulo, filas in [('Por grupo', por_grupo), ('Por planta', por_planta)] %}
+    {% if filas | length > 1 or (filas and filas[0].clave != '—') %}
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2.5">{{ titulo }}</p>
+      {% set tot = filas | sum(attribute='total') %}
+      <div class="space-y-2">
+        {% for f in filas %}
+        <div>
+          <div class="flex items-baseline justify-between text-xs mb-1">
+            <span class="text-gray-700 truncate">{{ f.clave }}</span>
+            <span class="tabular-nums font-semibold text-gray-900 ml-2 whitespace-nowrap">
+              {{ mt(f.total) }}
+              <span class="font-normal text-gray-400">{{ (f.total * 100 / tot) | round | int if tot else 0 }}%</span>
+            </span>
+          </div>
+          <div class="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div class="h-full bg-indigo-400" style="width: {{ (f.total * 100 / tot) | round | int if tot else 0 }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- Estado de aprobación -->
+    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+      <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2.5">Estado de las extras</p>
+      {% if estados %}
+      <div class="flex flex-wrap gap-1.5">
+        {% for est, n in estados.items() %}
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-lg {{ estado_extra_css.get(est, 'bg-gray-50 text-gray-500') }}">
+          {{ est }} <span class="tabular-nums font-normal opacity-70">{{ n }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      <p class="text-[11px] text-gray-400 mt-2">
+        Jornadas con extra detectada. Mientras haya pendientes, el número aprobado no es final.
+      </p>
+      {% else %}
+      <p class="text-xs text-gray-400">Ninguna jornada generó horas extra este mes.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Alertas de acumulación ─────────────────────────────────────────────── -->
+{% if alertas %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+  <p class="text-[11px] font-semibold text-red-700 uppercase tracking-wide mb-2.5">
+    Requiere atención — {{ alertas | length }}
+  </p>
+  <div class="space-y-1.5">
+    {% for a in alertas %}
+    {% set c = ['sky','amber','orange','red'][a.nivel] %}
+    <div class="flex items-center justify-between gap-3 flex-wrap px-3 py-2 rounded-lg bg-{{ c }}-50 border border-{{ c }}-200">
+      <span class="text-sm text-gray-800">
+        <b>{{ a.persona.apellido }}, {{ a.persona.nombre }}</b>
+        <span class="text-xs text-gray-500 ml-1.5">{{ a.grupo or '—' }}</span>
+      </span>
+      <span class="text-xs text-{{ c }}-800 font-semibold">
+        {% if a.nivel %}
+        {{ mt(a.total) }} acumuladas — supera el umbral {{ a.nivel }}
+        {% else %}
+        {{ a.racha }} días seguidos con extra
+        {% endif %}
+        {% if a.pendientes %}<span class="font-normal">· {{ a.pendientes }} sin aprobar</span>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chart.min.js"></script>
+<script>
+(function () {
+  // Como texto y con type:'category': con etiquetas numéricas Chart.js arma un
+  // eje lineal, ubica las barras en coordenadas de dato y quedan de 2 px.
+  var dias = {{ dias | map(attribute='dia') | map('string') | list | tojson }};
+  var e50  = {{ dias | map(attribute='e50')  | list | tojson }};
+  var e100 = {{ dias | map(attribute='e100') | list | tojson }};
+  var fechas = {{ dias | map(attribute='fecha') | map('string') | list | tojson }};
+  var planta = {{ planta | tojson }};
+
+  var h = function (min) {
+    if (!min) return "—";
+    var hh = Math.floor(min / 60), mm = min % 60;
+    return hh ? (mm ? hh + "h" + String(mm).padStart(2, "0") : hh + "h") : mm + "m";
+  };
+
+  var ctx = document.getElementById("chDias");
+  if (!ctx || typeof Chart === "undefined") return;
+
+  var ch = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: dias,
+      // Sin `stack` en los datasets: con `stacked: true` en las escalas alcanza,
+      // y nombrar el grupo rompía el cálculo de ancho (barras de 2 px).
+      datasets: [
+        { label: "50 %",  data: e50,  backgroundColor: "#fbbf24" },
+        { label: "100 %", data: e100, backgroundColor: "#ef4444" }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      // Sin animación: es un tablero que se lee de un vistazo, y además
+      // requestAnimationFrame no corre en pestañas de fondo — con animación,
+      // las barras quedan en cero hasta que alguien enfoca la ventana.
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: function (it) { return "Día " + it[0].label; },
+            label: function (it) { return it.dataset.label + ": " + h(it.raw); },
+            footer: function (it) {
+              var t = it.reduce(function (a, b) { return a + b.raw; }, 0);
+              return t ? "Total: " + h(t) : "";
+            }
+          }
+        }
+      },
+      scales: {
+        x: { type: "category", stacked: true, grid: { display: false },
+             ticks: { font: { size: 10 }, color: "#9ca3af", autoSkip: false } },
+        y: { stacked: true, beginAtZero: true,
+             grid: { color: "#f3f4f6" },
+             ticks: { font: { size: 10 }, color: "#9ca3af", stepSize: 120,
+                      callback: function (v) { return v ? Math.round(v / 60) + "h" : "0"; } } }
+      },
+      onClick: function (e, els) {
+        if (!els.length) return;
+        var f = fechas[els[0].index];
+        window.location = "/asistencia?fecha=" + f + (planta ? "&planta=" + planta : "");
+      }
+    }
+  });
+  ctx.style.cursor = "pointer";
+})();
+</script>
+{% endblock %}
