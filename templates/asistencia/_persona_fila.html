@@ -1,0 +1,76 @@
+{# Una fila de la nómina. Se guarda sola al cambiar cualquier campo (HTMX). #}
+<tr id="pers-{{ p.id }}" class="{{ 'opacity-50' if not p.activo }}">
+  <td class="px-4 py-1.5 truncate">
+    <span class="text-sm text-gray-800">{{ p.apellido }}, {{ p.nombre }}</span>
+    {% if not p.activo %}
+    <span class="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">BAJA</span>
+    {% endif %}
+  </td>
+
+  {% set hx = 'hx-post=/asistencia/personal/fila hx-trigger=change hx-target=#pers-' ~ p.id ~ ' hx-swap=outerHTML' %}
+  {% set inc = "#pla-" ~ p.id ~ ",#jor-" ~ p.id ~ ",#leg-" ~ p.id ~ ",#dni-" ~ p.id ~ ",#ord-" ~ p.id %}
+  {% set vals = '{"persona_id": ' ~ p.id ~ '}' %}
+
+  <td class="px-2 py-1.5">
+    <select id="pla-{{ p.id }}" name="planta"
+      class="w-full border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500
+             {{ 'border-amber-300 bg-amber-50 text-amber-800' if not p.planta else 'border-gray-200' }}"
+      hx-post="/asistencia/personal/fila" hx-trigger="change"
+      hx-target="#pers-{{ p.id }}" hx-swap="outerHTML"
+      hx-include="{{ inc }}" hx-vals='{{ vals }}'>
+      <option value="">— sin planta —</option>
+      {% for cod, label in plantas %}
+      <option value="{{ cod }}" {{ 'selected' if p.planta == cod }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </td>
+
+  <td class="px-2 py-1.5 truncate text-xs text-gray-500" title="Subdivisión de la planilla de horas">
+    {{ p.grupo or '—' }}
+  </td>
+
+  <td class="px-2 py-1.5">
+    <select id="jor-{{ p.id }}" name="jornada_tipo_id"
+      class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      hx-post="/asistencia/personal/fila" hx-trigger="change"
+      hx-target="#pers-{{ p.id }}" hx-swap="outerHTML"
+      hx-include="{{ inc }}" hx-vals='{{ vals }}'>
+      <option value="">— sin jornada —</option>
+      {% for j in jornadas %}
+      <option value="{{ j.id }}" {{ 'selected' if p.jornada_tipo_id == j.id }}>{{ j.nombre }}</option>
+      {% endfor %}
+    </select>
+  </td>
+
+  {% for campo, val, ancho, ph in [
+      ('legajo', p.legajo, 'w-full', 'legajo'),
+      ('dni',    p.dni,    'w-full', 'DNI')] %}
+  <td class="px-2 py-1.5">
+    <input id="{{ 'leg' if campo == 'legajo' else 'dni' }}-{{ p.id }}" name="{{ campo }}"
+      value="{{ val or '' }}" placeholder="{{ ph }}" autocomplete="off"
+      class="{{ ancho }} border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      hx-post="/asistencia/personal/fila" hx-trigger="change"
+      hx-target="#pers-{{ p.id }}" hx-swap="outerHTML"
+      hx-include="{{ inc }}" hx-vals='{{ vals }}'>
+  </td>
+  {% endfor %}
+
+  <td class="px-2 py-1.5">
+    <input id="ord-{{ p.id }}" name="orden_planilla" value="{{ p.orden_planilla }}"
+      inputmode="numeric" title="Posición en la planilla de papel"
+      class="w-full text-center border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      hx-post="/asistencia/personal/fila" hx-trigger="change"
+      hx-target="#pers-{{ p.id }}" hx-swap="outerHTML"
+      hx-include="{{ inc }}" hx-vals='{{ vals }}'>
+  </td>
+
+  <td class="px-3 py-1.5 text-right whitespace-nowrap">
+    <button type="button"
+      class="text-xs font-semibold px-2.5 py-1 rounded-lg border
+             {{ 'border-gray-200 text-gray-500 hover:bg-gray-50' if p.activo else 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' }}"
+      hx-post="/asistencia/personal/estado"
+      hx-target="#pers-{{ p.id }}" hx-swap="outerHTML"
+      hx-confirm="{{ '¿Dar de baja a ' ~ p.apellido ~ '? Sale de la planilla de carga pero queda en todo el histórico.' if p.activo else '¿Reactivar a ' ~ p.apellido ~ '?' }}"
+      hx-vals='{"persona_id": {{ p.id }}}'>{{ 'Dar de baja' if p.activo else 'Reactivar' }}</button>
+  </td>
+</tr>

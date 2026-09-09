@@ -66,6 +66,18 @@ MODULES = [
         ],
     },
     {
+        "key": "asistencia", "label": "Asistencia",
+        "subs": [
+            {"key": "asistencia.ver",            "label": "Ver",             "prefixes": ["/asistencia"]},
+            {"key": "asistencia.cargar",         "label": "Cargar planilla", "prefixes": ["/asistencia/carga", "/asistencia/importar", "/asistencia/porteria", "/asistencia/terceros"]},
+            {"key": "asistencia.corregir",       "label": "Corregir",        "prefixes": []},
+            {"key": "asistencia.aprobar_extra",  "label": "Aprobar extras",  "prefixes": []},
+            {"key": "asistencia.reportes",       "label": "Reportes",        "prefixes": ["/asistencia/mes", "/asistencia/export"]},
+            {"key": "asistencia.configurar",     "label": "Configurar",      "prefixes": ["/asistencia/config"]},
+            {"key": "asistencia.cerrar_periodo", "label": "Cerrar período",  "prefixes": []},
+        ],
+    },
+    {
         "key": "usuarios", "label": "Usuarios",
         "subs": [
             {"key": "usuarios.usuarios", "label": "Usuarios", "prefixes": ["/admin/users"]},
@@ -96,6 +108,8 @@ _DEF = {
         "proyectos.proyectos",
         "operaciones.tarifas_propias", "operaciones.polinomica",
         "transporte.nomina", "transporte.historial",
+        # Asistencia: mira y aprueba las horas extra; no carga la planilla.
+        "asistencia.ver", "asistencia.aprobar_extra", "asistencia.reportes",
     },
 
     # planta: como autorizador + despachos + operativos live.
@@ -106,6 +120,8 @@ _DEF = {
         "operaciones.arribos", "operaciones.despachos", "operaciones.live", "operaciones.tarifas_propias", "operaciones.polinomica",
         "operaciones.servicios",
         "transporte.nomina", "transporte.historial",
+        # Asistencia: carga la planilla y corrige; no aprueba extras.
+        "asistencia.ver", "asistencia.cargar", "asistencia.corregir", "asistencia.reportes",
     },
 
     # tecnico: mantenimiento, proyectos, transporte. Sin compras ni operativos.
@@ -119,6 +135,8 @@ _DEF = {
     "operador": {
         "mantenimiento.combustible",
         "operaciones.despachos",
+        # Portería: solo carga.
+        "asistencia.ver", "asistencia.cargar",
     },
 }
 

@@ -22,6 +22,7 @@ from app import models_daily_ops    # noqa: F401 — registra tablas de Operacio
 from app import models_arribos       # noqa: F401 — registra tablas de Próximos Arribos en Base.metadata
 from app import models_polinomica    # noqa: F401 — registra tablas de Polinómica CNA en Base.metadata
 from app import models_servicios     # noqa: F401 — registra tabla de Servicios de equipo en Base.metadata
+from app import models_asistencia    # noqa: F401 — registra tablas de Asistencia en Base.metadata
 from app.auth import hash_password
 
 
@@ -178,6 +179,24 @@ def run():
             )
         # Módulo Proyectos — Etapa Tareas
         # project_tasks se crea sola con create_all().
+        # Módulo Asistencia — marca de proveedor de personal (bolseros, eventuales).
+        # Las tablas asistencia_* se crean solas con create_all().
+        _add_column(conn, "suppliers", "provee_personal", "BOOLEAN")
+        # Asistencia — regla real de horas extra (07/09/2026): la jornada se mide
+        # por DURACIÓN exigida y la extra se separa por recargo 50 % / 100 %.
+        _add_column(conn, "asistencia_jornada_tramos", "hora_limite_normal", "VARCHAR(5)")
+        _add_column(conn, "asistencia_jornada_tramos", "hora_desde_100",     "VARCHAR(5)")
+        _add_column(conn, "asistencia_jornadas", "minutos_extra_50",  "INTEGER DEFAULT 0")
+        _add_column(conn, "asistencia_jornadas", "minutos_extra_100", "INTEGER DEFAULT 0")
+        _add_column(conn, "asistencia_jornadas", "planta_snap", "VARCHAR(20)")
+        _add_column(conn, "asistencia_jornadas", "nota_origen", "VARCHAR(300)")
+        _add_column(conn, "asistencia_personas", "grupo",      "VARCHAR(120)")
+        _add_column(conn, "asistencia_jornadas", "grupo_snap", "VARCHAR(120)")
+        # Sábado: horas cumplibles hasta las 12, 12-13 al 50 %, 13 en adelante 100 %.
+        conn.execute(text("UPDATE asistencia_jornada_tramos "
+                          "SET hora_limite_normal = '12:00', hora_desde_100 = '13:00' "
+                          "WHERE dia_semana = 5 AND hora_limite_normal IS NULL"))
+        conn.commit()
     print("✓ Columnas nuevas verificadas")
 
     admin_email = os.getenv("FIRST_ADMIN_EMAIL", "admin@mtr.com")
@@ -231,6 +250,9 @@ def run():
     else:
         print("✓ Polinómica: historial ya existe")
     db_pol.close()
+
+    # ── Seed Asistencia: sectores, jornada estándar, motivos, feriados, config ─
+    _seed_asistencia()
 
     db = SessionLocal()
     existing = db.query(models.User).filter(models.User.email == admin_email).first()
@@ -289,6 +311,120 @@ def run():
     cv_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cv_history.xlsx")
     if is_prod and os.path.exists(cv_xlsx):
         _import_cv_history(cv_xlsx)
+
+
+
+def _seed_asistencia():
+    """Siembra los catálogos del módulo Asistencia. Idempotente: cada bloque
+    corre solo si su tabla está vacía, igual que el seed del Tarifario.
+
+    Los valores son los validados en el DISCOVERY Asistencia MTR v0.2:
+    jornada L-V 08:00-16:00, sábado 08:00-12:00, domingo no laborable.
+    """
+    from datetime import date
+    from app.models_asistencia import (
+        AsistenciaJornadaTipo, AsistenciaJornadaTramo,
+        AsistenciaMotivo, AsistenciaFeriado, AsistenciaConfig,
+    )
+
+    db = SessionLocal()
+    try:
+        # NOTA: no se siembran sectores. Decisión del 07/09/2026: el personal se
+        # divide por PLANTA (MTR1 / MTR2) y nada más. La tabla asistencia_sectores
+        # y la columna asistencia_personas.sector_id quedan inertes — mismo criterio
+        # no destructivo que se usó al sacar el módulo finanzas.
+
+        # ── Jornada estándar ──────────────────────────────────────────────────
+        # 44 h semanales. Jornada corrida: pausa_min=0 (08-16 son 8 h netas).
+        if db.query(AsistenciaJornadaTipo).count() == 0:
+            jt = AsistenciaJornadaTipo(
+                nombre="MTR Planta (08-16 · sáb 08-12)",
+                pausa_min=0,
+                activo=True,
+            )
+            db.add(jt)
+            db.flush()
+            tramos = [
+                (0, True,  "08:00", "16:00"),   # lunes
+                (1, True,  "08:00", "16:00"),
+                (2, True,  "08:00", "16:00"),
+                (3, True,  "08:00", "16:00"),
+                (4, True,  "08:00", "16:00"),   # viernes
+                (5, True,  "08:00", "12:00"),   # sábado
+                (6, False, None,    None),      # domingo
+            ]
+            for dia, laborable, entrada, salida in tramos:
+                db.add(AsistenciaJornadaTramo(
+                    jornada_tipo_id=jt.id, dia_semana=dia, laborable=laborable,
+                    hora_entrada=entrada, hora_salida=salida,
+                    # Sábado: las 4 h se cumplen hasta las 12; 12-13 al 50 %;
+                    # de 13 en adelante todo al 100 %. L-V sin límite de franja.
+                    hora_limite_normal="12:00" if dia == 5 else None,
+                    hora_desde_100="13:00" if dia == 5 else None,
+                ))
+            db.commit()
+            print("✓ Asistencia: jornada estándar sembrada (44 h semanales)")
+
+        # ── Motivos de extra ──────────────────────────────────────────────────
+        if db.query(AsistenciaMotivo).count() == 0:
+            motivos = [
+                # (nombre, orden, requiere_detalle, requiere_buque)
+                ("Operativo portuario",  10,  False, True),
+                ("Buque",                20,  False, True),
+                ("Carga",                30,  False, False),
+                ("Descarga",             40,  False, False),
+                ("Mantenimiento",        50,  True,  False),
+                ("Movimiento interno",   60,  False, False),
+                ("Inventario",           70,  False, False),
+                ("Emergencia",           80,  True,  False),
+                ("Reemplazo",            90,  True,  False),
+                ("Otro",                 999, True,  False),
+            ]
+            for nombre, orden, det, buque in motivos:
+                db.add(AsistenciaMotivo(nombre=nombre, orden=orden, activo=True,
+                                        requiere_detalle=det, requiere_buque=buque))
+            db.commit()
+            print(f"✓ Asistencia: {len(motivos)} motivos sembrados")
+
+        # ── Feriados 2026 ─────────────────────────────────────────────────────
+        # SOLO los de fecha fija más Carnaval y Viernes Santo (derivables de
+        # Pascua, 05/04/2026). Los TRASLADABLES —Güemes, San Martín, Diversidad
+        # Cultural, Soberanía Nacional— y los puentes NO se siembran: su fecha
+        # depende del decreto anual y sembrar una fecha equivocada es peor que
+        # no sembrarla. Se cargan desde la UI.
+        if db.query(AsistenciaFeriado).count() == 0:
+            feriados = [
+                (date(2026, 1, 1),  "Año Nuevo"),
+                (date(2026, 2, 16), "Carnaval"),
+                (date(2026, 2, 17), "Carnaval"),
+                (date(2026, 3, 24), "Día de la Memoria"),
+                (date(2026, 4, 2),  "Día del Veterano y de los Caídos en Malvinas"),
+                (date(2026, 4, 3),  "Viernes Santo"),
+                (date(2026, 5, 1),  "Día del Trabajador"),
+                (date(2026, 5, 25), "Día de la Revolución de Mayo"),
+                (date(2026, 6, 20), "Paso a la Inmortalidad del Gral. Belgrano"),
+                (date(2026, 7, 9),  "Día de la Independencia"),
+                (date(2026, 12, 8), "Inmaculada Concepción de María"),
+                (date(2026, 12, 25), "Navidad"),
+            ]
+            for fecha, nombre in feriados:
+                db.add(AsistenciaFeriado(fecha=fecha, nombre=nombre, tipo="nacional"))
+            db.commit()
+            print(f"✓ Asistencia: {len(feriados)} feriados fijos 2026 sembrados")
+            print("  ⚠ Faltan los trasladables (Güemes, San Martín, Diversidad, "
+                  "Soberanía) y los puentes: cargar desde la UI.")
+
+        # ── Configuración ─────────────────────────────────────────────────────
+        if db.query(AsistenciaConfig).count() == 0:
+            db.add(AsistenciaConfig())   # todos los defaults viven en el modelo
+            db.commit()
+            print("✓ Asistencia: configuración por defecto creada "
+                  "(redondeo 15', mínimo 15', umbrales 10/20/30 h)")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed asistencia] ERROR: {e}")
+    finally:
+        db.close()
 
 
 def _import_fuel_history(xlsx_path: str):

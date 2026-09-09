@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Carga de asistencia — MTR{% endblock %}
+{% block content %}
+
+{% set pct = (cargadas * 100 // total) if total else 0 %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Carga de asistencia</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Planilla de portería — se carga a día vencido</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/asistencia/importar"
+      class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Importar Excel
+    </a>
+    <a href="/asistencia?fecha={{ fecha.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      class="inline-flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+      Ver el cierre del día
+    </a>
+  </div>
+</div>
+
+<!-- ── Navegación de fecha + completitud ──────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-center gap-2">
+      <a href="/asistencia/carga?fecha={{ prev.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+        class="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+      <form method="get" action="/asistencia/carga" class="flex items-center gap-2">
+        <input type="hidden" name="planta" value="{{ planta }}">
+        <input type="date" name="fecha" value="{{ fecha.isoformat() }}" max="{{ hoy.isoformat() }}"
+          onchange="this.form.submit()"
+          class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white font-semibold">
+      </form>
+      <a href="/asistencia/carga?fecha={{ next.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+        class="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ 'pointer-events-none opacity-30' if next > hoy }}">▸</a>
+      <span class="text-sm text-gray-500 ml-1">
+        {{ ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'][fecha.weekday()] }}
+      </span>
+{% set base = '/asistencia/carga' %}
+      {% if plantas | length > 1 %}
+      <div class="flex items-center gap-1 ml-1">
+        {% for cod, label in [('', 'Todas')] + plantas %}
+        <a href="{{ base }}?fecha={{ fecha.isoformat() }}{{ '&planta=' ~ cod if cod }}"
+          class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border
+                 {{ 'bg-indigo-900 text-white border-indigo-900' if planta == cod else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-sm font-bold text-gray-900 tabular-nums">{{ cargadas }}/{{ total }}</p>
+        <p class="text-[11px] text-gray-500">
+          cargados{% if sin_egreso %} · <span class="text-amber-600 font-semibold">{{ sin_egreso }} sin egreso</span>{% endif %}
+        </p>
+      </div>
+      <div class="w-28 h-2 rounded-full bg-gray-100 overflow-hidden">
+        <div class="h-full {{ 'bg-emerald-500' if pct == 100 else 'bg-indigo-500' }}" style="width: {{ pct }}%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tira del mes: qué días ya están cargados -->
+  <div class="mt-4 pt-3 border-t border-gray-100">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+      {{ ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][fecha.month - 1] }} {{ fecha.year }}
+      — estado de carga
+    </p>
+    <div class="flex flex-wrap gap-1">
+      {% for d in dias_mes %}
+      {% set cls = {
+        'cargado':      'bg-emerald-500 text-white border-emerald-500',
+        'incompleto':   'bg-amber-100 text-amber-800 border-amber-300',
+        'vacio':        'bg-white text-gray-400 border-gray-200',
+        'no_laborable': 'bg-gray-50 text-gray-300 border-gray-100',
+        'futuro':       'bg-gray-50 text-gray-200 border-gray-100'
+      }[d.estado] %}
+      <a href="/asistencia/carga?fecha={{ d.fecha.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+        title="{{ d.fecha.strftime('%d/%m') }} — {{ d.n }} cargadas{{ ' · ' ~ d.feriado if d.feriado }}"
+        class="w-7 h-7 flex items-center justify-center rounded-md border text-[11px] font-semibold tabular-nums
+               {{ cls }} {{ 'ring-2 ring-indigo-500 ring-offset-1' if d.fecha == fecha }}
+               {{ 'pointer-events-none' if d.estado == 'futuro' }}">{{ d.dia }}</a>
+      {% endfor %}
+    </div>
+    <p class="text-[11px] text-gray-400 mt-2">
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500 align-middle"></span> cargado ·
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-200 align-middle"></span> incompleto ·
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-white border border-gray-300 align-middle"></span> sin cargar ·
+      <span class="inline-block w-2.5 h-2.5 rounded-sm bg-gray-100 align-middle"></span> no laborable
+    </p>
+  </div>
+</div>
+
+<!-- ── Atajos de masa ─────────────────────────────────────────────────────── -->
+<div class="flex flex-wrap gap-2 mb-3">
+  {% for accion, hora, label, cls in [
+      ('ingresos', '08:00', 'Poner 08:00 a los ingresos vacíos', 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'),
+      ('egresos',  '16:00', 'Poner 16:00 a los egresos vacíos',  'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'),
+      ('ausentes', '',      'Marcar ausentes a los que quedaron vacíos', 'bg-white hover:bg-gray-50 text-gray-500 border-gray-200')
+  ] %}
+  <form method="post" action="/asistencia/carga/masivo">
+    <input type="hidden" name="fecha" value="{{ fecha.isoformat() }}">
+    <input type="hidden" name="accion" value="{{ accion }}">
+    <input type="hidden" name="planta" value="{{ planta }}">
+    <input type="hidden" name="hora" value="{{ hora }}">
+    <button type="submit" class="text-xs font-semibold px-3 py-2 rounded-lg border {{ cls }}">{{ label }}</button>
+  </form>
+  {% endfor %}
+</div>
+
+<!-- ── Planilla ───────────────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5">Persona</th>
+        <th class="px-2 py-2.5 w-[90px]">Ingreso</th>
+        <th class="px-2 py-2.5 w-[90px]">Egreso</th>
+        <th class="px-3 py-2.5 w-[110px]">Esperado</th>
+        <th class="px-3 py-2.5 w-[190px]">Estado</th>
+        <th class="px-3 py-2.5 text-right w-[160px]"></th>
+      </tr>
+    </thead>
+    {% for f in filas %}
+      {% with p=f.p, j=f.j, bloques=f.bloques, esp=f.esp %}
+        {% include "asistencia/_fila.html" %}
+      {% endwith %}
+    {% endfor %}
+  </table>
+</div>
+
+<p class="text-xs text-gray-400 mt-3 leading-relaxed">
+  <b class="text-gray-500">Teclado:</b> escribí <code class="bg-gray-100 px-1 rounded">0800</code> y se
+  convierte en 08:00 al salir del campo · <b class="text-gray-500">Tab</b> pasa al siguiente ·
+  <b class="text-gray-500">Enter</b> guarda y baja a la fila siguiente ·
+  <b class="text-gray-500">↑ ↓</b> se mueven manteniendo la columna.<br>
+  Una casilla vacía significa «todavía no la cargué», no «no vino»: para eso está el botón <b>ausente</b>.
+</p>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // 0800 / 800 / 8:00 → 08:00. Se normaliza al SALIR del campo, no mientras se
+  // tipea: formatear en cada tecla pelea con el cursor.
+  function normalizar(v) {
+    v = (v || "").trim();
+    if (!v) return "";
+    if (v.indexOf(":") === -1) {
+      v = v.replace(/\D/g, "");
+      if (!v) return "";
+      if (v.length <= 2) v = v + "00";
+      v = v.padStart(4, "0");
+      v = v.slice(0, 2) + ":" + v.slice(2, 4);
+    }
+    var p = v.split(":");
+    var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+    if (isNaN(h) || isNaN(m) || h > 24 || m > 59) return "";
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  }
+
+  function campos() {
+    return Array.prototype.slice.call(document.querySelectorAll("input[data-hora][data-fila]"));
+  }
+
+  document.addEventListener("blur", function (e) {
+    if (e.target.matches && e.target.matches("input[data-hora]")) {
+      var n = normalizar(e.target.value);
+      if (n !== e.target.value) e.target.value = n;
+    }
+  }, true);
+
+  document.addEventListener("keydown", function (e) {
+    var el = e.target;
+    if (!el.matches || !el.matches("input[data-hora][data-fila]")) return;
+
+    if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      el.value = normalizar(el.value);
+      if (e.key === "Enter") el.dispatchEvent(new Event("change", { bubbles: true }));
+
+      var todos = campos();
+      var mismos = todos.filter(function (x) { return x.name === el.name; });
+      var i = mismos.indexOf(el);
+      var salto = (e.key === "ArrowUp") ? -1 : 1;
+      var sig = mismos[i + salto];
+      // Tras un swap de HTMX el nodo se reemplaza: se busca por id.
+      if (sig) setTimeout(function () {
+        var vivo = document.getElementById(sig.id);
+        if (vivo) { vivo.focus(); vivo.select(); }
+      }, e.key === "Enter" ? 120 : 0);
+    }
+  });
+
+  // Al elegir un turno de operativo se precargan sus horas.
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches("select[name='turno']")) return;
+    var op = e.target.options[e.target.selectedIndex];
+    var id = e.target.id.replace("turno-", "");
+    var i = document.getElementById("bin-" + id), o = document.getElementById("bout-" + id);
+    if (op && op.dataset.desde && i && o) { i.value = op.dataset.desde; o.value = op.dataset.hasta; }
+  });
+})();
+</script>
+{% endblock %}

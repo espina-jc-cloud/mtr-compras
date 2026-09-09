@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Nómina de asistencia — MTR{% endblock %}
+{% block content %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Nómina de asistencia</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      Personal propio de MTR — es la lista que aparece en la pantalla de carga
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/asistencia/personal?ver_bajas={{ 0 if ver_bajas else 1 }}"
+      class="text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
+      {{ 'Ocultar bajas' if ver_bajas else 'Ver bajas' }}
+    </a>
+    <a href="/asistencia/carga"
+      class="inline-flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Cargar planilla
+    </a>
+  </div>
+</div>
+
+{% if sin_planta %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+  <p class="text-sm font-semibold text-amber-900">
+    {{ sin_planta }} de {{ activos }} personas todavía no tienen planta asignada.
+  </p>
+  <p class="text-xs text-amber-800 mt-0.5">
+    Cada planta tiene su propia planilla de portería, así que sin este dato la
+    pantalla de carga no se puede separar. Se asigna acá abajo y se guarda solo.
+  </p>
+</div>
+{% endif %}
+
+<!-- ── Plantas ───────────────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
+  <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+    Personal por planta
+  </p>
+  <div class="flex flex-wrap items-center gap-2">
+    {% for cod, label in plantas %}
+    <a href="/asistencia/carga?planta={{ cod }}"
+      class="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg
+             {{ 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100' if uso_planta.get(cod) else 'bg-gray-50 text-gray-400 pointer-events-none' }}">
+      {{ label }}
+      <span class="tabular-nums font-normal opacity-70">{{ uso_planta.get(cod, 0) }}</span>
+    </a>
+    {% endfor %}
+    {% if sin_planta %}
+    <span class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700">
+      sin planta <span class="tabular-nums font-normal opacity-70">{{ sin_planta }}</span>
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Alta ───────────────────────────────────────────────────────────────── -->
+<details class="bg-white border border-gray-100 rounded-2xl shadow-sm mb-4">
+  <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-gray-700 select-none">
+    + Agregar una persona a la nómina
+  </summary>
+  <form method="post" action="/asistencia/personal/nueva"
+    class="px-4 pb-4 pt-1 flex flex-wrap gap-2 items-end">
+    {% for name, label, ancho, req in [
+        ('apellido', 'Apellido', 'w-[170px]', true),
+        ('nombre',   'Nombre',   'w-[170px]', true),
+        ('legajo',   'Legajo',   'w-[90px]',  false),
+        ('dni',      'DNI',      'w-[120px]', false)] %}
+    <div>
+      <label class="block text-[11px] text-gray-500 mb-1">{{ label }}</label>
+      <input name="{{ name }}" {{ 'required' if req }} autocomplete="off"
+        class="{{ ancho }} border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+    {% endfor %}
+    <div>
+      <label class="block text-[11px] text-gray-500 mb-1">Planta</label>
+      <select name="planta" class="border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white">
+        {% for cod, label in plantas %}
+        <option value="{{ cod }}" {{ 'selected' if loop.first }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-[11px] text-gray-500 mb-1">Jornada</label>
+      <select name="jornada_tipo_id" class="border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white">
+        {% for j in jornadas %}
+        <option value="{{ j.id }}" {{ 'selected' if loop.first }}>{{ j.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit"
+      class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Agregar
+    </button>
+  </form>
+</details>
+
+<!-- ── Nómina ─────────────────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  <table class="w-full min-w-[1140px] table-fixed text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5 w-[230px]">Persona</th>
+        <th class="px-2 py-2.5 w-[150px]">Planta</th>
+        <th class="px-2 py-2.5 w-[150px]" title="Subdivisión de la planilla de horas">Grupo</th>
+        <th class="px-2 py-2.5 w-[210px]">Jornada</th>
+        <th class="px-2 py-2.5 w-[100px]">Legajo</th>
+        <th class="px-2 py-2.5 w-[120px]">DNI</th>
+        <th class="px-2 py-2.5 w-[80px]" title="Posición en la planilla de papel">Orden</th>
+        <th class="px-3 py-2.5 w-[120px] text-right"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for p in personas %}{% include "asistencia/_persona_fila.html" %}{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="text-xs text-gray-400 mt-3 leading-relaxed">
+  Cada campo se guarda solo al cambiarlo, y todo cambio queda auditado con su valor anterior:
+  mover a alguien de planta o de jornada cambia números de meses enteros.<br>
+  <b class="text-gray-500">Grupo</b> es la subdivisión de la planilla de horas (M.T.R. S.A., INGEE S.R.L., PORTERÍA) y se actualiza sola en cada importación.<br>
+  <b class="text-gray-500">Orden</b> es la posición en la planilla de papel — la pantalla de carga
+  respeta ese orden para que quien carga pueda leer el papel de arriba hacia abajo sin saltear filas.<br>
+  <b class="text-gray-500">Dar de baja</b> no borra: la persona sale de la planilla de carga y queda
+  en todo el histórico.
+</p>
+
+{% endblock %}

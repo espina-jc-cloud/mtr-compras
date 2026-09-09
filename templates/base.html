@@ -74,6 +74,15 @@
       {% if can(user, "operaciones.servicios") %}{{ item("/servicios", "Servicios de equipo", p.startswith("/servicios"), "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4") }}{% endif %}
       {% endif %}
 
+      {% if can_module(user, "asistencia") %}
+      <p class="nav-group-label sb-group">Personal</p>
+      {{ item("/asistencia", "Asistencia", p.startswith("/asistencia") and not p.startswith("/asistencia/carga"), "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z") }}
+      {% if can(user, "asistencia.cargar") %}{{ item("/asistencia/carga", "Cargar planilla", p.startswith("/asistencia/carga"), "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z") }}{% endif %}
+      {% if can(user, "asistencia.cargar") %}{{ item("/asistencia/importar", "Importar Excel", p.startswith("/asistencia/importar"), "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12") }}{% endif %}
+      {{ item("/asistencia/terceros", "Terceros", p.startswith("/asistencia/terceros"), "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z") }}
+      {% if can(user, "asistencia.configurar") %}{{ item("/asistencia/personal", "Nómina", p.startswith("/asistencia/personal"), "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z") }}{% endif %}
+      {% endif %}
+
       {% if can_module(user, "transporte") %}
       <p class="nav-group-label sb-group">Transporte</p>
       {% if can(user, "transporte.nomina") %}{{ item("/transporte/nomina", "Nómina Madre", p.startswith("/transporte/nomina"), "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z") }}{% endif %}

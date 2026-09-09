@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Asistencia — MTR{% endblock %}
+{% block content %}
+
+{% set dias = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'] %}
+{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Asistencia</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      Cierre de {{ dias[fecha.weekday()] }} {{ fecha.day }} de {{ meses[fecha.month - 1] }}
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/asistencia?fecha={{ prev.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+    <form method="get" action="/asistencia">
+      <input type="date" name="fecha" value="{{ fecha.isoformat() }}" max="{{ hoy.isoformat() }}"
+        onchange="this.form.submit()"
+        class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white font-semibold">
+    </form>
+    <a href="/asistencia?fecha={{ next.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ 'pointer-events-none opacity-30' if next > hoy }}">▸</a>
+{% set base = '/asistencia' %}
+      {% if plantas | length > 1 %}
+      <div class="flex items-center gap-1 ml-1">
+        {% for cod, label in [('', 'Todas')] + plantas %}
+        <a href="{{ base }}?fecha={{ fecha.isoformat() }}{{ '&planta=' ~ cod if cod }}"
+          class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border
+                 {{ 'bg-indigo-900 text-white border-indigo-900' if planta == cod else 'border-gray-200 text-gray-500 hover:bg-gray-50' }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    <a href="/asistencia/importar"
+      class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Importar Excel
+    </a>
+    <a href="/asistencia/carga?fecha={{ fecha.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      class="inline-flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Cargar a mano
+    </a>
+  </div>
+</div>
+
+{% if cargadas == 0 %}
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+  <p class="text-sm font-semibold text-amber-900">Este día todavía no tiene planilla cargada.</p>
+  <p class="text-sm text-amber-800 mt-1">
+    Con carga a día vencido, el riesgo no es no ver el presente: es que se pase un día y el total del mes quede mal.
+    <a href="/asistencia/carga?fecha={{ fecha.isoformat() }}" class="font-semibold underline">Cargarla ahora</a>.
+  </p>
+</div>
+{% else %}
+<p class="text-xs text-gray-400 mb-4">
+  {{ cargadas }} de {{ personas_activas }} personas cargadas
+  {% if cargadas < personas_activas %}
+  · <span class="text-amber-600 font-semibold">la planilla está incompleta</span>
+  {% endif %}
+</p>
+{% endif %}
+
+<!-- ── KPIs ───────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-3">
+  {% for label, val, sub, tc, bg in [
+    ('Trabajaron',      kpis.trabajaron,          (kpis.ausentes|string) ~ ' ausentes', 'text-gray-800', 'bg-gray-50'),
+    ('Extra detectada', mt(kpis.extra),           (kpis.personas_con_extra|string) ~ ' personas', 'text-red-700', 'bg-red-50'),
+    ('Al 50 %', mt(kpis.e50), 'exceso de jornada', 'text-amber-700', 'bg-amber-50'),
+    ('Al 100 %', mt(kpis.e100), 'sáb tarde · dom · feriado', 'text-red-700', 'bg-red-50'),
+    ('Extra del mes',   mt(kpis.extra_mes),       'acumulada al día', 'text-amber-700', 'bg-amber-50'),
+    ('Tercerizados',    kpis.terceros,            mt(kpis.horas_terceros) ~ ' de presencia', 'text-indigo-700', 'bg-indigo-50')
+  ] %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5">
+    <p class="text-[11px] text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }} tabular-nums">{{ val }}</p>
+    <p class="text-[11px] text-gray-400">{{ sub }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Franja de tipos: separa "se quedaron de más" de "vinieron por un barco" -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+  {% for label, val, tc in [
+    ('Extra al 50 %',      mt(kpis.e50),      'text-amber-700'),
+    ('Extra al 100 %',     mt(kpis.e100),     'text-red-700'),
+    ('Fuera de horario',   mt(kpis.fuera),    'text-sky-700'),
+    ('Horas no cumplidas', mt(kpis.defecto),  'text-gray-500')
+  ] %}
+  <div class="rounded-lg bg-white border border-gray-100 px-3 py-2 flex items-baseline justify-between">
+    <span class="text-[11px] text-gray-500">{{ label }}</span>
+    <span class="text-sm font-bold {{ tc }} tabular-nums">{{ val }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Requiere atención ──────────────────────────────────────────────────── -->
+{% if atencion %}
+<div class="mb-5">
+  <p class="text-xs font-bold text-red-700 uppercase tracking-wide mb-2">
+    Requiere atención — {{ atencion|length }}
+  </p>
+  <div class="space-y-2">
+    {% for prio, j, titulo, detalle in atencion %}
+    {% set c = ['red','gray','amber','amber'][prio] %}
+    <div class="bg-white border border-{{ c }}-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-gray-900">
+          {{ j.persona.apellido }}, {{ j.persona.nombre }}
+          <span class="ml-1.5 text-xs font-normal text-gray-400">{{ j.planta_snap or 'sin planta' }}</span>
+        </p>
+        <p class="text-xs text-{{ c }}-700 font-semibold mt-0.5">{{ titulo }}
+          {% if j.minutos_extra_detectada %}
+          <span class="text-gray-500 font-normal">· {{ mt(j.minutos_extra_detectada) }} de extra (al {{ j.tipo_extra_dominante }} %)</span>
+          {% endif %}
+        </p>
+        {% if detalle %}<p class="text-xs text-gray-500 mt-0.5">{{ detalle }}</p>{% endif %}
+      </div>
+      <a href="/asistencia/carga?fecha={{ fecha.isoformat() }}"
+        class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+        {{ 'Corregir' if prio <= 1 else 'Revisar' }}
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif cargadas > 0 %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-5">
+  <p class="text-sm font-semibold text-emerald-900">Nada que revisar en este día.</p>
+  <p class="text-xs text-emerald-800 mt-0.5">La planilla está completa y no quedaron extras sin resolver.</p>
+</div>
+{% endif %}
+
+<!-- ── Detalle del día ────────────────────────────────────────────────────── -->
+{% if jornadas %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+        <th class="px-4 py-2.5">Persona</th>
+        <th class="px-3 py-2.5">Tipo</th>
+        <th class="px-3 py-2.5">Planta</th>
+        <th class="px-3 py-2.5">Grupo</th>
+        <th class="px-3 py-2.5">Bloques</th>
+        <th class="px-3 py-2.5 whitespace-nowrap num">Debe</th>
+        <th class="px-3 py-2.5 text-right">Presencia</th>
+        <th class="px-3 py-2.5 text-right">Extra</th>
+        <th class="px-3 py-2.5 text-right">50 %</th>
+        <th class="px-3 py-2.5 text-right">100 %</th>
+        <th class="px-3 py-2.5">Estado</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for j in jornadas %}
+      <tr class="{{ 'bg-red-50/40' if (j.minutos_extra_detectada or 0) >= 120 }}">
+        <td class="px-4 py-2 whitespace-nowrap text-gray-800">
+          {{ j.persona.apellido }}, {{ j.persona.nombre }}</td>
+        <td class="px-3 py-2">
+          {% if j.tipo_persona_snap == 'tercero' %}
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">TERCERO</span>
+          {% else %}<span class="text-xs text-gray-400">MTR</span>{% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs text-gray-500">{{ j.planta_snap or '—' }}</td>
+        <td class="px-3 py-2 text-xs text-gray-400">{{ j.grupo_snap or '—' }}</td>
+        <td class="px-3 py-2 text-xs tabular-nums text-gray-600 whitespace-nowrap">
+          {% for b in j._bloques %}
+          <span class="{{ 'text-red-600 font-semibold' if b.tipo != 'jornada' }}">
+            {{ b.desde.strftime('%H:%M') }}–{{ b.hasta.strftime('%H:%M') if b.hasta else '··:··' }}</span>{{ " " if not loop.last }}
+          {% else %}<span class="text-gray-300">—</span>{% endfor %}
+        </td>
+        <td class="px-3 py-2 text-xs tabular-nums text-gray-500">
+          {{ mt(j.minutos_esperados) }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-gray-700">{{ mt(j.minutos_presencia) }}</td>
+        <td class="px-3 py-2 text-right tabular-nums font-semibold
+                   {{ 'text-red-600' if (j.minutos_extra_detectada or 0) >= 120 else ('text-amber-600' if j.minutos_extra_detectada else 'text-gray-300') }}">
+          {{ mt(j.minutos_extra_detectada) }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-amber-700">{{ mt(j.minutos_extra_50) }}</td>
+        <td class="px-3 py-2 text-right tabular-nums font-semibold text-red-700">{{ mt(j.minutos_extra_100) }}</td>
+        <td class="px-3 py-2">
+          <span class="text-[10px] font-semibold px-2 py-0.5 rounded {{ estado_registro_css.get(j.estado_registro, 'bg-gray-50 text-gray-500') }}">
+            {{ j.estado_registro }}</span>
+          {% if j.estado_extra != 'na' %}
+          <span class="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded {{ estado_extra_css.get(j.estado_extra, '') }}">
+            {{ j.estado_extra }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── Estado de carga del mes ────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mt-5">
+  <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+    {{ meses[fecha.month - 1] }} {{ fecha.year }} — estado de carga
+  </p>
+  <div class="flex flex-wrap gap-1">
+    {% for d in dias_mes %}
+    {% set cls = {
+      'cargado':      'bg-emerald-500 text-white border-emerald-500',
+      'incompleto':   'bg-amber-100 text-amber-800 border-amber-300',
+      'vacio':        'bg-white text-gray-400 border-gray-200',
+      'no_laborable': 'bg-gray-50 text-gray-300 border-gray-100',
+      'futuro':       'bg-gray-50 text-gray-200 border-gray-100'
+    }[d.estado] %}
+    <a href="/asistencia?fecha={{ d.fecha.isoformat() }}{{ '&planta=' ~ planta if planta }}"
+      title="{{ d.fecha.strftime('%d/%m') }} — {{ d.n }} cargadas{{ ' · ' ~ d.feriado if d.feriado }}"
+      class="w-7 h-7 flex items-center justify-center rounded-md border text-[11px] font-semibold tabular-nums
+             {{ cls }} {{ 'ring-2 ring-indigo-500 ring-offset-1' if d.fecha == fecha }}
+             {{ 'pointer-events-none' if d.estado == 'futuro' }}">{{ d.dia }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}
