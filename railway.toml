@@ -2,8 +2,12 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python migrate.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+# Shell de login + PATH explícito del venv: la imagen de Nixpacks instala las
+# dependencias en /opt/venv y agrega ese PATH a /root/.profile, pero el
+# startCommand corre en una shell no interactiva que no lo lee. Sin esto:
+#   /bin/bash: line 1: python: command not found
+startCommand = "bash -lc 'export PATH=/opt/venv/bin:$PATH; python migrate.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT'"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
