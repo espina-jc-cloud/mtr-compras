@@ -461,6 +461,31 @@ def _seed_asistencia():
                 print(f"✓ Asistencia: {len(porteros)} personas de portería "
                       f"pasadas a régimen rotativo")
 
+        # ── Reparación: snapshots de régimen desfasados ───────────────────────
+        # Si a alguien le cambió la jornada tipo (por ejemplo al pasar portería a
+        # rotativo), las jornadas ya calculadas siguen con el criterio viejo. Se
+        # recalculan solas, salteando las que tienen una decisión humana tomada:
+        # esas se dejan como están y el recálculo normal las marca `revisar`.
+        from app.models_asistencia import AsistenciaJornada
+        from app.asistencia_calc import recalcular_jornada
+        desfasadas = (
+            db.query(AsistenciaJornada.persona_id, AsistenciaJornada.fecha)
+            .join(AsistenciaPersona, AsistenciaPersona.id == AsistenciaJornada.persona_id)
+            .join(AsistenciaJornadaTipo,
+                  AsistenciaJornadaTipo.id == AsistenciaPersona.jornada_tipo_id)
+            .filter(AsistenciaJornada.computa_extra_snap != AsistenciaJornadaTipo.computa_extra)
+            .filter(AsistenciaJornada.estado_extra.notin_(
+                ["justificada", "aprobada", "rechazada"]))
+            .all()
+        )
+        if desfasadas:
+            cache = {p.id: p for p in db.query(AsistenciaPersona).all()}
+            for pid, f in desfasadas:
+                recalcular_jornada(db, cache[pid], f, _cascada=False)
+            db.commit()
+            print(f"✓ Asistencia: {len(desfasadas)} jornadas recalculadas "
+                  f"por cambio de régimen")
+
         # ── Nómina inicial ────────────────────────────────────────────────────
         # Se delega en scripts/cargar_nomina_asistencia.py para no duplicar la
         # lista de personas en dos lugares. Solo corre si la tabla está vacía.
