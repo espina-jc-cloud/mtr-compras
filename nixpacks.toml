@@ -1,0 +1,9 @@
+# Nixpacks elige el provider mirando qué hay en el repo y encuentra
+# package.json — que existe SOLO para compilar el CSS de Tailwind en desarrollo;
+# el CSS ya compilado viaja en static/css/app.css. Sin esto arma una imagen de
+# Node ("setup: nodejs_18 / install: npm ci"), el contenedor queda sin Python y
+# el arranque falla con `python: command not found`.
+#
+# El equivalente en railway.toml ([build.nixpacksPlan]) NO se respeta; este
+# archivo sí.
+providers = ["python"]
