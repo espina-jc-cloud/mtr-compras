@@ -84,6 +84,7 @@ def jornada_esperada(db: Session, persona: AsistenciaPersona, fecha: date) -> di
         "pausa_min": 0,
         "limite_normal": None,   # hasta qué hora se pueden cumplir las horas exigidas
         "desde_100": None,       # a partir de qué hora todo es al 100 %
+        "computa_extra": True,   # False = régimen rotativo con francos
         "origen": "sin_jornada",
     }
 
@@ -135,6 +136,7 @@ def jornada_esperada(db: Session, persona: AsistenciaPersona, fecha: date) -> di
                            else cfg.tolerancia_salida_min or 0),
         limite_normal=hhmm_a_min(tramo.hora_limite_normal),
         desde_100=hhmm_a_min(tramo.hora_desde_100),
+        computa_extra=bool(jt.computa_extra) if jt else True,
         origen="jornada_tipo",
     )
     return base
@@ -377,6 +379,7 @@ def recalcular_jornada(db: Session, persona: AsistenciaPersona, fecha: date,
         j.hora_salida_esp        = esperado["hora_salida"]
         j.minutos_esperados      = esperado["minutos_esperados"]
         j.tolerancia_salida_snap = esperado["tolerancia_salida"]
+        j.computa_extra_snap     = esperado.get("computa_extra", True)
         # Solo se completan si están vacíos: la importación los fija según la
         # planilla de origen y un recálculo posterior no puede pisarlos.
         if not j.planta_snap:
@@ -430,6 +433,12 @@ def recalcular_jornada(db: Session, persona: AsistenciaPersona, fecha: date,
         cumplido, defecto = 0, 0
         extra_50  = 0
         extra_100 = a_normal + b_50 + c_100
+
+    # Régimen rotativo con francos (portería): las horas se compensan con
+    # francos, no día a día, así que no hay extra ni deuda que computar. Las
+    # horas trabajadas se siguen registrando y mostrando.
+    if not esperado.get("computa_extra", True):
+        extra_50 = extra_100 = defecto = 0
 
     # La tolerancia ABSORBE los excesos chicos, no descuenta de los grandes:
     # quedarse 5 minutos no es hora extra, pero quien trabajó 12 h contra 8

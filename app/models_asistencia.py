@@ -224,6 +224,12 @@ class AsistenciaJornadaTipo(Base):
     tolerancia_salida_min  = Column(Integer, nullable=True)
     tolerancia_entrada_min = Column(Integer, nullable=True)
 
+    # Régimen rotativo con francos: el personal de portería cubre turnos de 8 h
+    # que rotan (00-08, 08-16, 16-00) y compensa con francos, así que su balance
+    # NO se mide día a día. Con esto en False no genera ni extra ni horas no
+    # cumplidas; se le siguen registrando y mostrando las horas trabajadas.
+    computa_extra = Column(Boolean, nullable=False, default=True)
+
     activo     = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -524,6 +530,7 @@ class AsistenciaJornada(Base):
     tipo_persona_snap        = Column(String(10), nullable=False, default="mtr")
     proveedor_snap           = Column(String(200), nullable=True)
     tolerancia_salida_snap   = Column(Integer, nullable=False, default=0)
+    computa_extra_snap       = Column(Boolean, nullable=False, default=True)
 
     # ── DERIVADOS — se recalculan siempre ────────────────────────────────────
     ingreso_real       = Column(DateTime, nullable=True)   # primer IN del día

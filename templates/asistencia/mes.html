@@ -82,6 +82,16 @@
   {% endfor %}
 </div>
 
+{% if kpis.rotativo %}
+<div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 mb-5">
+  <p class="text-sm text-sky-900">
+    <b>{{ mt(kpis.rotativo) }} de régimen rotativo, fuera del cómputo de extra.</b>
+    {{ kpis.rotativo_personas }} personas de portería: cubren turnos que rotan y
+    compensan con francos, así que su balance no se mide día a día.
+  </p>
+</div>
+{% endif %}
+
 <!-- ── Evolución diaria ───────────────────────────────────────────────────── -->
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-5">
   <div class="flex items-center justify-between mb-3 flex-wrap gap-2">

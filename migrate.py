@@ -192,6 +192,8 @@ def run():
         _add_column(conn, "asistencia_jornadas", "nota_origen", "VARCHAR(300)")
         _add_column(conn, "asistencia_personas", "grupo",      "VARCHAR(120)")
         _add_column(conn, "asistencia_jornadas", "grupo_snap", "VARCHAR(120)")
+        _add_column(conn, "asistencia_jornadas_tipo", "computa_extra",      "BOOLEAN DEFAULT 1")
+        _add_column(conn, "asistencia_jornadas", "computa_extra_snap", "BOOLEAN DEFAULT 1")
         # Sábado: horas cumplibles hasta las 12, 12-13 al 50 %, 13 en adelante 100 %.
         conn.execute(text("UPDATE asistencia_jornada_tramos "
                           "SET hora_limite_normal = '12:00', hora_desde_100 = '13:00' "
@@ -422,6 +424,39 @@ def _seed_asistencia():
             print(f"✓ Asistencia: {len(feriados)} feriados fijos 2026 sembrados")
             print("  ⚠ Faltan los trasladables (Güemes, San Martín, Diversidad, "
                   "Soberanía) y los puentes: cargar desde la UI.")
+
+        # ── Jornada de portería (rotativa con francos) ────────────────────────
+        # Turnos de 8 h que rotan (00-08, 08-16, 16-00) y se compensan con
+        # francos: no generan horas extra ni horas no cumplidas.
+        JORNADA_PORTERIA = "Portería rotativa (turnos 8 h)"
+        if not db.query(AsistenciaJornadaTipo).filter(
+                AsistenciaJornadaTipo.nombre == JORNADA_PORTERIA).first():
+            jp = AsistenciaJornadaTipo(nombre=JORNADA_PORTERIA, pausa_min=0,
+                                       computa_extra=False, activo=True)
+            db.add(jp)
+            db.flush()
+            for dia in range(7):
+                db.add(AsistenciaJornadaTramo(
+                    jornada_tipo_id=jp.id, dia_semana=dia, laborable=True,
+                    hora_entrada="00:00", hora_salida="08:00"))
+            db.commit()
+            print("✓ Asistencia: jornada de portería sembrada (rotativa, sin extra)")
+
+        # Asignación inicial del personal de portería. Corre UNA sola vez: si
+        # alguien ya tiene esa jornada, no se vuelve a tocar la nómina — así no
+        # se pisa lo que el usuario haya cambiado a mano después.
+        jp = db.query(AsistenciaJornadaTipo).filter(
+            AsistenciaJornadaTipo.nombre == JORNADA_PORTERIA).first()
+        if jp and db.query(AsistenciaPersona).filter(
+                AsistenciaPersona.jornada_tipo_id == jp.id).count() == 0:
+            porteros = db.query(AsistenciaPersona).filter(
+                AsistenciaPersona.grupo.ilike("%PORTERIA%")).all()
+            for pp in porteros:
+                pp.jornada_tipo_id = jp.id
+            if porteros:
+                db.commit()
+                print(f"✓ Asistencia: {len(porteros)} personas de portería "
+                      f"pasadas a régimen rotativo")
 
         # ── Nómina inicial ────────────────────────────────────────────────────
         # Se delega en scripts/cargar_nomina_asistencia.py para no duplicar la

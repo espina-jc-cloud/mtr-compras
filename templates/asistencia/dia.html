@@ -173,7 +173,11 @@
         <td class="px-3 py-2 text-right tabular-nums font-semibold
                    {{ 'text-red-600' if (j.minutos_extra_detectada or 0) >= 120 else ('text-amber-600' if j.minutos_extra_detectada else 'text-gray-300') }}">
           {{ mt(j.minutos_extra_detectada) }}</td>
-        <td class="px-3 py-2 text-right tabular-nums text-amber-700">{{ mt(j.minutos_extra_50) }}</td>
+        <td class="px-3 py-2 text-right tabular-nums text-amber-700">
+          {% if not j.computa_extra_snap %}
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700"
+            title="Régimen rotativo con francos: no genera horas extra">rotativo</span>
+          {% else %}{{ mt(j.minutos_extra_50) }}{% endif %}</td>
         <td class="px-3 py-2 text-right tabular-nums font-semibold text-red-700">{{ mt(j.minutos_extra_100) }}</td>
         <td class="px-3 py-2">
           <span class="text-[10px] font-semibold px-2 py-0.5 rounded {{ estado_registro_css.get(j.estado_registro, 'bg-gray-50 text-gray-500') }}">

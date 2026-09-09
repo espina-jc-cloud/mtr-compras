@@ -43,7 +43,9 @@
     </td>
 
     <td class="px-3 py-1.5 text-xs whitespace-nowrap">
-      {% if esp.laborable %}
+      {% if not esp.computa_extra %}
+      <span class="text-sky-700 font-medium" title="Rotativo con francos: no genera extra">rotativo</span>
+      {% elif esp.laborable %}
       <span class="text-gray-400">{{ mt(esp.minutos_esperados) }}
         {%- if esp.limite_normal %} hasta {{ esp.hora_salida }}{% endif %}</span>
       {% else %}

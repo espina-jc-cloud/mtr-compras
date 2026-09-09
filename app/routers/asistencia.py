@@ -1030,6 +1030,13 @@ async def mes(request: Request, db: Session = Depends(get_db),
             "trabajado": sum(j.minutos_trabajados or 0 for j in jornadas),
             "defecto": sum(j.minutos_defecto or 0 for j in jornadas),
             "max_dia": max([d["total"] for d in dias], default=0),
+            # Portería y cualquier otro régimen rotativo: las horas se compensan
+            # con francos, no generan extra. Se muestran igual — esconderlas
+            # sin dejar rastro haría que los totales no cierren contra el papel.
+            "rotativo": sum(j.minutos_presencia or 0 for j in jornadas
+                            if not j.computa_extra_snap),
+            "rotativo_personas": len({j.persona_id for j in jornadas
+                                      if not j.computa_extra_snap}),
         },
         "mt": min_a_texto,
         "estado_extra_css": ESTADO_EXTRA_CSS,
