@@ -30,6 +30,11 @@ SI SE USA GMAIL COMO CASILLA DEDICADA
     quien reenvía, no el que originó la planilla, y filtrar por el remitente
     original no encontraría nada.
 
+EL BUZÓN SE ABRE SIEMPRE EN SOLO LECTURA
+    `select(..., readonly=True)`: el sistema no marca como leídos los mails, no
+    los mueve ni los borra. Sobre una casilla personal eso no es un detalle —
+    la bandeja tiene que quedar exactamente como estaba.
+
 RECOMENDACIÓN DE SEGURIDAD
     Conviene apuntar esto a una casilla dedicada (planillas@…) que reciba la
     planilla por regla de reenvío o copia fija, y no a la casilla personal: las
@@ -46,6 +51,10 @@ from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
 
 _EXT_OK = (".xlsx", ".xlsm")
+
+# Tope de mails a revisar por pasada. Acota el trabajo cuando el buzón es una
+# casilla personal con mucho movimiento.
+MAX_CANDIDATOS = 400
 
 
 def config() -> dict:
@@ -150,17 +159,31 @@ def buscar_planillas(limite: int = 5) -> dict:
                 return {"ok": False, "mensajes": [], "error": "La búsqueda IMAP falló."}
 
             ids = (datos[0] or b"").split()
-            for uid in reversed(ids):           # del más nuevo al más viejo
+            # Se miran los más recientes primero y se acota el barrido: esto
+            # corre sobre una casilla personal con mucho volumen, cada pocos
+            # minutos.
+            ids = list(reversed(ids))[:MAX_CANDIDATOS]
+
+            for uid in ids:
                 if len(mensajes) >= limite:
                     break
-                estado, crudo = m.fetch(uid, "(RFC822)")
+
+                # Primero SOLO los encabezados. Bajar el mail completo de cada
+                # candidato para recién ahí mirarle el asunto significaría
+                # descargar semanas de adjuntos ajenos en cada pasada.
+                estado, cab = m.fetch(uid, "(BODY.PEEK[HEADER])")
+                if estado != "OK" or not cab or not cab[0]:
+                    continue
+                encabezados = email.message_from_bytes(cab[0][1])
+                asunto = _texto(encabezados.get("Subject"))
+                if asunto_norm and asunto_norm not in _normalizar(asunto):
+                    continue
+
+                # Recién acá, con el asunto confirmado, se baja el mail entero.
+                estado, crudo = m.fetch(uid, "(BODY.PEEK[])")
                 if estado != "OK" or not crudo or not crudo[0]:
                     continue
                 msg = email.message_from_bytes(crudo[0][1])
-
-                asunto = _texto(msg.get("Subject"))
-                if asunto_norm and asunto_norm not in _normalizar(asunto):
-                    continue
 
                 adjunto, nombre = None, None
                 for parte in msg.walk():
