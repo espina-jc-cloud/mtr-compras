@@ -188,6 +188,52 @@
 </div>
 
 <!-- ── Día por día ────────────────────────────────────────────────────────── -->
+{% set pendientes = jornadas | selectattr('minutos_extra_detectada') | selectattr('computa_extra_snap')
+                    | rejectattr('estado_extra', 'in', ['aprobada','rechazada']) | list %}
+
+<!-- ── Resolver en lote ───────────────────────────────────────────────────── -->
+{% if pendientes and puede_aprobar %}
+<form method="post" action="/asistencia/resolver-lote"
+  class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-3">
+  <input type="hidden" name="volver"
+    value="/asistencia/persona/{{ persona.id }}?mes={{ mes_actual }}">
+  {% for j in pendientes %}<input type="hidden" name="jornadas" value="{{ j.id }}">{% endfor %}
+  <p class="text-sm font-semibold text-emerald-900 mb-2">
+    {{ pendientes | length }} día(s) sin resolver ·
+    {{ mt(pendientes | sum(attribute='minutos_extra_detectada')) }} de extra
+  </p>
+  <div class="flex flex-wrap items-end gap-2">
+    <div>
+      <label class="block text-[11px] text-emerald-800 mb-1">Motivo para todos</label>
+      <select name="motivo_id" class="border border-emerald-200 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+        <option value="">— elegir —</option>
+        {% for m in motivos %}<option value="{{ m.id }}">{{ m.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-[11px] text-emerald-800 mb-1">Detalle</label>
+      <input name="detalle" placeholder="buque, tarea…" autocomplete="off"
+        class="border border-emerald-200 rounded-lg px-2.5 py-1.5 text-sm bg-white w-[180px]">
+    </div>
+    <div>
+      <label class="block text-[11px] text-emerald-800 mb-1">Comentario</label>
+      <input name="comentario" autocomplete="off"
+        class="border border-emerald-200 rounded-lg px-2.5 py-1.5 text-sm bg-white w-[180px]">
+    </div>
+    <button name="accion" value="aprobar"
+      class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+      Aprobar los {{ pendientes | length }}</button>
+    <button name="accion" value="rechazar"
+      class="text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 text-gray-600 bg-white hover:bg-gray-50">
+      Rechazar todos</button>
+  </div>
+  <p class="text-[11px] text-emerald-800 mt-2">
+    Aprueba las horas tal como las detectó el sistema. Para cambiar la cantidad de
+    un día puntual, usá su fila — ahí el sistema pide explicación.
+  </p>
+</form>
+{% endif %}
+
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
   <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
     Día por día — {{ meses_n[mes_num - 1] }} {{ anio }}
@@ -203,44 +249,11 @@
         <th class="px-2 py-2">Bloques</th>
         <th class="px-2 py-2 text-right">Debe</th>
         <th class="px-2 py-2 text-right">Trabajó</th>
-        <th class="px-2 py-2 text-right">50 %</th>
-        <th class="px-2 py-2 text-right">100 %</th>
-        <th class="px-2 py-2">Estado</th>
-        <th class="px-2 py-2">Nota de la planilla</th>
+        <th class="px-2 py-2 text-right">Extra</th>
+        <th class="px-2 py-2" colspan="2">Resolución</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-50">
-      {% for j in jornadas %}
-      <tr {{ 'data-foco="1"' | safe if foco and j.fecha == foco }}
-        class="{{ 'ring-2 ring-inset ring-amber-400 bg-amber-50/50' if foco and j.fecha == foco
-                 else ('bg-red-50/40' if (j.minutos_extra_detectada or 0) >= 240 else '') }}">
-        <td class="px-4 py-1.5 whitespace-nowrap">
-          <span class="tabular-nums text-gray-800">{{ j.fecha.strftime('%d/%m') }}</span>
-          <span class="text-xs text-gray-400 ml-1">{{ dow_c[j.fecha.weekday()] }}</span>
-        </td>
-        <td class="px-2 py-1.5 text-xs tabular-nums text-gray-600 whitespace-nowrap">
-          {% for b in j._bloques %}
-          <span class="{{ 'text-red-600 font-semibold' if b.tipo != 'jornada' }}">{{ b.desde.strftime('%H:%M') }}–{{ b.hasta.strftime('%H:%M') if b.hasta else '··:··' }}</span>{{ ' · ' if not loop.last }}
-          {% else %}<span class="text-gray-300">—</span>{% endfor %}
-        </td>
-        <td class="px-2 py-1.5 text-right tabular-nums text-gray-400">{{ mt(j.minutos_esperados) }}</td>
-        <td class="px-2 py-1.5 text-right tabular-nums text-gray-700">{{ mt(j.minutos_trabajados) }}</td>
-        <td class="px-2 py-1.5 text-right tabular-nums text-amber-700">
-          {% if not j.computa_extra_snap %}<span class="text-[10px] text-sky-600">rot.</span>
-          {% else %}{{ mt(j.minutos_extra_50) }}{% endif %}</td>
-        <td class="px-2 py-1.5 text-right tabular-nums font-semibold text-red-700">
-          {{ mt(j.minutos_extra_100) if j.computa_extra_snap else '' }}</td>
-        <td class="px-2 py-1.5 whitespace-nowrap">
-          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ estado_registro_css.get(j.estado_registro, 'bg-gray-50 text-gray-500') }}">{{ j.estado_registro }}</span>
-          {% if j.estado_extra != 'na' %}
-          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ estado_extra_css.get(j.estado_extra, '') }}">{{ j.estado_extra }}</span>
-          {% endif %}
-        </td>
-        <td class="px-2 py-1.5 text-xs text-gray-500 max-w-[240px] truncate"
-          title="{{ j.nota_origen or '' }}">{{ j.nota_origen or '' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
+    {% for j in jornadas %}{% include "asistencia/_jornada_fila.html" %}{% endfor %}
   </table>
 </div>
 {% endif %}

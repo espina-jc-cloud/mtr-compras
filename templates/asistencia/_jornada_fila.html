@@ -1,0 +1,100 @@
+{# Una fila del "día por día" de la ficha, con la resolución de la extra
+   incorporada. Se reemplaza sola por HTMX al aprobar o rechazar: aprobar tiene
+   que costar un clic desde donde se analiza, no una pantalla aparte. #}
+{% set dow_c = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}
+{% set extra = j.minutos_extra_detectada or 0 %}
+{% set pendiente = extra > 0 and j.estado_extra in ('na', 'pendiente', 'justificada') %}
+
+<tbody id="jor-{{ j.id }}" class="border-b border-gray-50">
+<tr {{ 'data-foco="1"' | safe if foco and j.fecha == foco }}
+  class="{{ 'ring-2 ring-inset ring-amber-400 bg-amber-50/50' if foco and j.fecha == foco
+           else ('bg-red-50/30' if extra >= 240 else '') }}">
+
+  <td class="px-4 py-1.5 whitespace-nowrap align-top">
+    <span class="tabular-nums text-gray-800">{{ j.fecha.strftime('%d/%m') }}</span>
+    <span class="text-xs text-gray-400 ml-1">{{ dow_c[j.fecha.weekday()] }}</span>
+  </td>
+
+  <td class="px-2 py-1.5 text-xs tabular-nums text-gray-600 whitespace-nowrap align-top">
+    {% for b in j._bloques %}
+    <span class="{{ 'text-red-600 font-semibold' if b.tipo != 'jornada' }}">{{ b.desde.strftime('%H:%M') }}–{{ b.hasta.strftime('%H:%M') if b.hasta else '··:··' }}</span>{{ ' · ' if not loop.last }}
+    {% else %}<span class="text-gray-300">—</span>{% endfor %}
+  </td>
+
+  <td class="px-2 py-1.5 text-right tabular-nums text-gray-400 align-top">{{ mt(j.minutos_esperados) }}</td>
+  <td class="px-2 py-1.5 text-right tabular-nums text-gray-700 align-top">{{ mt(j.minutos_trabajados) }}</td>
+
+  <td class="px-2 py-1.5 text-right tabular-nums align-top">
+    {% if not j.computa_extra_snap %}
+      <span class="text-[10px] text-sky-600">rotativo</span>
+    {% elif extra %}
+      <span class="font-semibold {{ 'text-red-700' if j.minutos_extra_100 else 'text-amber-700' }}">{{ mt(extra) }}</span>
+      {% if j.minutos_extra_100 %}<span class="block text-[10px] text-red-600">{{ mt(j.minutos_extra_100) }} al 100 %</span>{% endif %}
+    {% else %}<span class="text-gray-300">—</span>{% endif %}
+  </td>
+
+  <!-- ── Resolución ──────────────────────────────────────────────────────── -->
+  <td class="px-2 py-1.5 align-top" colspan="2">
+    {% if error %}
+    <p class="text-xs font-semibold text-red-700 mb-1.5">{{ error }}</p>
+    {% endif %}
+
+    {% if not j.computa_extra_snap or not extra %}
+      <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ estado_registro_css.get(j.estado_registro, 'bg-gray-50 text-gray-500') }}">{{ j.estado_registro }}</span>
+      {% if j.nota_origen %}<span class="text-xs text-gray-400 ml-1">{{ j.nota_origen[:48] }}</span>{% endif %}
+
+    {% elif pendiente and puede_aprobar %}
+    <div class="flex flex-wrap items-center gap-1.5">
+      <select name="motivo_id" form="f-{{ j.id }}"
+        class="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white max-w-[170px]">
+        <option value="">— motivo —</option>
+        {% for m in motivos %}
+        <option value="{{ m.id }}" {{ 'selected' if j.motivo_id == m.id }}>{{ m.nombre }}</option>
+        {% endfor %}
+      </select>
+      <input name="detalle" form="f-{{ j.id }}" value="{{ j.motivo_detalle or '' }}"
+        placeholder="detalle (buque, etc.)" autocomplete="off"
+        class="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white w-[135px]">
+      <input name="minutos" form="f-{{ j.id }}" value="{{ min_a_hhmm(extra) }}"
+        title="Horas a aprobar. Si cambia lo detectado, hay que explicarlo."
+        class="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white w-[62px] text-center tabular-nums">
+      <input name="comentario" form="f-{{ j.id }}" placeholder="comentario"
+        autocomplete="off"
+        class="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white w-[130px]">
+
+      <form id="f-{{ j.id }}" hx-post="/asistencia/jornada/{{ j.id }}/resolver"
+        hx-target="#jor-{{ j.id }}" hx-swap="outerHTML" class="contents"></form>
+
+      <button form="f-{{ j.id }}" name="accion" value="aprobar"
+        class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">Aprobar</button>
+      <button form="f-{{ j.id }}" name="accion" value="rechazar"
+        class="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Rechazar</button>
+    </div>
+
+    {% else %}
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[10px] font-semibold px-2 py-0.5 rounded {{ estado_extra_css.get(j.estado_extra, '') }}">{{ j.estado_extra }}</span>
+      {% if j.minutos_extra_aprobada is not none %}
+      <span class="text-xs font-semibold tabular-nums text-emerald-700">{{ mt(j.minutos_extra_aprobada) }}</span>
+      {% if j.minutos_extra_aprobada != extra %}
+      <span class="text-[10px] text-amber-700" title="{{ j.comentario_aprobacion or '' }}">
+        (detectadas {{ mt(extra) }})</span>
+      {% endif %}
+      {% endif %}
+      {% if j.motivo %}<span class="text-xs text-gray-500">{{ j.motivo.nombre }}</span>{% endif %}
+      {% if j.motivo_detalle %}<span class="text-xs text-gray-400">{{ j.motivo_detalle[:26] }}</span>{% endif %}
+      {% if j.revisar %}
+      <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
+        title="El recálculo dio distinto de lo que se resolvió">recalculada</span>
+      {% endif %}
+      {% if puede_aprobar %}
+      <button hx-post="/asistencia/jornada/{{ j.id }}/resolver"
+        hx-vals='{"accion": "reabrir"}'
+        hx-target="#jor-{{ j.id }}" hx-swap="outerHTML"
+        class="text-[10px] px-1.5 py-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">reabrir</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </td>
+</tr>
+</tbody>

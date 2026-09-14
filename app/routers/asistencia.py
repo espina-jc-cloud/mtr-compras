@@ -22,7 +22,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.permissions import require_perm
+from app.permissions import can, require_perm
 from app.templates import templates
 from app.asistencia_import import (aplicar_dia, buscar_persona, clasificar_dia,
                                    indexar_personas, normalizar, parsear)
@@ -35,7 +35,7 @@ from app.models_asistencia import (
     AsistenciaImportacion, AsistenciaJornadaTipo, AsistenciaMotivo,
     AsistenciaPersona,
     ESTADO_EXTRA_CSS, ESTADO_REGISTRO_CSS, PLANTAS, TURNOS_OPERATIVO,
-    min_a_texto,
+    hhmm_a_min, min_a_hhmm, min_a_texto,
 )
 
 router = APIRouter(prefix="/asistencia")
@@ -1380,6 +1380,11 @@ async def persona_ficha(persona_id: int, request: Request,
         "meses": _meses_con_datos(db),
         "jornadas": jornadas, "alertas": alertas,
         "foco": _parse_fecha(foco, None) if foco else None,
+        "motivos": db.query(AsistenciaMotivo)
+                     .filter(AsistenciaMotivo.activo == True)  # noqa: E712
+                     .order_by(AsistenciaMotivo.orden).all(),
+        "puede_aprobar": can(current_user, "asistencia.aprobar_extra"),
+        "min_a_hhmm": min_a_hhmm,
         "entradas": entradas, "salidas": salidas, "franjas": franjas,
         "ent_moda": ent_moda, "ent_n": ent_n, "sal_moda": sal_moda, "sal_n": sal_n,
         "por_dow": por_dow, "serie": serie,
@@ -1406,3 +1411,150 @@ async def persona_ficha(persona_id: int, request: Request,
         "estado_extra_css": ESTADO_EXTRA_CSS,
         "estado_registro_css": ESTADO_REGISTRO_CSS,
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Resolución de horas extra
+# ══════════════════════════════════════════════════════════════════════════════
+
+_aprobar = require_perm("asistencia.aprobar_extra")
+
+
+def _ctx_jornada(db, j):
+    return {
+        "j": j,
+        "motivos": db.query(AsistenciaMotivo)
+                     .filter(AsistenciaMotivo.activo == True)  # noqa: E712
+                     .order_by(AsistenciaMotivo.orden).all(),
+        "puede_aprobar": True,
+        "mt": min_a_texto,
+        "estado_extra_css": ESTADO_EXTRA_CSS,
+        "estado_registro_css": ESTADO_REGISTRO_CSS,
+        "min_a_hhmm": min_a_hhmm,
+    }
+
+
+def _resolver(db, j, accion, motivo_id, detalle, minutos, comentario, user):
+    """Aplica una decisión sobre la extra de una jornada. Devuelve (ok, error).
+
+    El dato de asistencia NO se toca: se decide sobre la extra detectada, que
+    sigue siendo la que sale del cálculo. Si lo que está mal es el horario, se
+    corrige el horario y el sistema recalcula.
+    """
+    cfg = get_config(db)
+    if (j.minutos_extra_detectada or 0) <= 0:
+        return False, "Esa jornada no tiene horas extra para resolver."
+
+    if accion == "rechazar":
+        nuevos = 0
+    else:
+        nuevos = (hhmm_a_min(minutos) if (minutos or "").strip()
+                  else j.minutos_extra_detectada)
+        if nuevos is None:
+            return False, "La cantidad de horas no es válida. Usá el formato HH:MM."
+
+    mid = int(motivo_id) if (motivo_id or "").strip().isdigit() else None
+    if cfg.motivo_obligatorio_aprobar and accion == "aprobar" and not mid:
+        return False, "Falta el motivo: sin él, el análisis de causas no sirve."
+
+    # Cambiar lo aprobado respecto de lo detectado exige explicación. Es el
+    # único lugar donde el sistema se pone pesado, y es donde corresponde.
+    if accion == "aprobar" and nuevos != j.minutos_extra_detectada \
+            and not (comentario or "").strip():
+        return False, (f"Estás aprobando {min_a_texto(nuevos)} sobre "
+                       f"{min_a_texto(j.minutos_extra_detectada)} detectadas. "
+                       f"Escribí por qué.")
+
+    motivo = db.query(AsistenciaMotivo).get(mid) if mid else None
+    if motivo is not None and motivo.requiere_detalle and not (detalle or "").strip():
+        return False, f"El motivo «{motivo.nombre}» pide un detalle."
+
+    for campo, viejo, nuevo in [
+        ("estado_extra", j.estado_extra, "aprobada" if accion == "aprobar" else "rechazada"),
+        ("minutos_extra_aprobada", j.minutos_extra_aprobada, nuevos),
+        ("motivo_id", j.motivo_id, mid),
+        ("motivo_detalle", j.motivo_detalle, (detalle or "").strip() or None),
+    ]:
+        if viejo != nuevo:
+            setattr(j, campo, nuevo)
+            db.add(AsistenciaAuditLog(
+                entidad="jornada", entidad_id=j.id, accion=accion, campo=campo,
+                valor_anterior=str(viejo) if viejo is not None else None,
+                valor_nuevo=str(nuevo) if nuevo is not None else None,
+                motivo=(comentario or "").strip() or None, user_id=user.id))
+
+    j.comentario_aprobacion = (comentario or "").strip() or None
+    j.aprobado_por_id = user.id
+    j.aprobado_at = datetime.utcnow()
+    j.revisar = False        # la decisión vuelve a estar al día
+    return True, None
+
+
+@router.post("/jornada/{jornada_id}/resolver", response_class=HTMLResponse)
+async def resolver_jornada(jornada_id: int, request: Request,
+                           db: Session = Depends(get_db), current_user=Depends(_aprobar),
+                           accion: str = Form("aprobar"), motivo_id: str = Form(""),
+                           detalle: str = Form(""), minutos: str = Form(""),
+                           comentario: str = Form("")):
+    j = db.query(AsistenciaJornada).get(jornada_id)
+    if j is None:
+        return HTMLResponse("", status_code=404)
+
+    if accion == "reabrir":
+        db.add(AsistenciaAuditLog(
+            entidad="jornada", entidad_id=j.id, accion="reabrir", campo="estado_extra",
+            valor_anterior=j.estado_extra, valor_nuevo="pendiente", user_id=current_user.id))
+        j.estado_extra = "pendiente"
+        j.minutos_extra_aprobada = None
+        j.aprobado_por_id, j.aprobado_at = None, None
+        db.commit()
+        db.refresh(j)
+        ctx = _ctx_jornada(db, j)
+        ctx["current_user"] = current_user
+        return templates.TemplateResponse(request, "asistencia/_jornada_fila.html", ctx)
+
+    ok, err = _resolver(db, j, accion, motivo_id, detalle, minutos, comentario, current_user)
+    if not ok:
+        db.rollback()
+        db.refresh(j)
+        ctx = _ctx_jornada(db, j)
+        ctx.update({"current_user": current_user, "error": err})
+        return templates.TemplateResponse(request, "asistencia/_jornada_fila.html", ctx)
+
+    db.commit()
+    db.refresh(j)
+    ctx = _ctx_jornada(db, j)
+    ctx["current_user"] = current_user
+    return templates.TemplateResponse(request, "asistencia/_jornada_fila.html", ctx)
+
+
+@router.post("/resolver-lote")
+async def resolver_lote(db: Session = Depends(get_db), current_user=Depends(_aprobar),
+                        jornadas: list = Form([]), accion: str = Form("aprobar"),
+                        motivo_id: str = Form(""), detalle: str = Form(""),
+                        comentario: str = Form(""), volver: str = Form("/asistencia")):
+    """Resuelve varias jornadas de una. Sin esto nadie aprueba 40 extras al mes
+    de a una, y el estado 'pendiente' se vuelve decorativo."""
+    ids = [int(x) for x in jornadas if str(x).isdigit()]
+    if not ids:
+        return RedirectResponse(f"{volver}{'&' if '?' in volver else '?'}"
+                                f"err=No+elegiste+ninguna+jornada", 303)
+
+    hechas, fallidas, primer_error = 0, 0, None
+    for j in db.query(AsistenciaJornada).filter(AsistenciaJornada.id.in_(ids)).all():
+        ok, err = _resolver(db, j, accion, motivo_id, detalle, "", comentario, current_user)
+        if ok:
+            hechas += 1
+        else:
+            fallidas += 1
+            primer_error = primer_error or err
+    db.commit()
+
+    sep = "&" if "?" in volver else "?"
+    verbo = "aprobadas" if accion == "aprobar" else "rechazadas"
+    if hechas and not fallidas:
+        return RedirectResponse(f"{volver}{sep}ok={hechas}+jornadas+{verbo}", 303)
+    if hechas:
+        return RedirectResponse(
+            f"{volver}{sep}ok={hechas}+{verbo}+·+{fallidas}+sin+resolver:+{primer_error[:80]}", 303)
+    return RedirectResponse(f"{volver}{sep}err={(primer_error or 'No se pudo')[:140]}", 303)
