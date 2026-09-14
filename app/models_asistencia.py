@@ -688,6 +688,44 @@ class AsistenciaCierre(Base):
     )
 
 
+class AsistenciaImportacion(Base):
+    """Registro de cada importación de planilla, manual o automática.
+
+    Existe por dos razones concretas:
+      - Deduplicar: el buzón se revisa cada pocos minutos y el mismo mail no
+        puede importarse dos veces. La clave es el Message-ID.
+      - Rendir cuentas: si el sistema aplica cambios solo, tiene que quedar
+        escrito qué trajo, qué aplicó y qué dejó pendiente de revisión.
+    """
+    __tablename__ = "asistencia_importaciones"
+
+    id     = Column(Integer, primary_key=True, index=True)
+    origen = Column(String(20), nullable=False, default="manual")  # manual | buzon
+    estado = Column(String(20), nullable=False, default="ok")
+    # estado: ok | parcial | sin_novedad | error
+
+    # ── Procedencia ──────────────────────────────────────────────────────────
+    message_id  = Column(String(400), nullable=True, index=True)
+    remitente   = Column(String(300), nullable=True)
+    asunto      = Column(String(400), nullable=True)
+    recibido_at = Column(DateTime, nullable=True)
+    archivo     = Column(String(300), nullable=True)
+    hoja        = Column(String(200), nullable=True)
+
+    # ── Resultado ────────────────────────────────────────────────────────────
+    dias_aplicados  = Column(Integer, nullable=False, default=0)
+    filas_aplicadas = Column(Integer, nullable=False, default=0)
+    dias_pendientes = Column(Integer, nullable=False, default=0)
+    sin_reconocer   = Column(Integer, nullable=False, default=0)
+    detalle         = Column(Text, nullable=True)   # JSON legible con el resumen
+    error           = Column(Text, nullable=True)
+
+    created_at   = Column(DateTime, default=datetime.utcnow, index=True)
+    usuario_id   = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    usuario = relationship("User")
+
+
 class AsistenciaAuditLog(Base):
     """Auditoría del módulo. Mismo patrón que audit_log / maintenance_audit_log,
     con campos de valor porque acá se auditan VALORES y no solo transiciones.

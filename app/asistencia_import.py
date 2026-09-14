@@ -212,3 +212,85 @@ def buscar_persona(idx: dict, apellido: str, nombre: str):
     # a "Morales, Nicolás" con "Morales, Juan Ignacio" y les mezclaba las horas.
     nombres = " / ".join(f"{p.apellido}, {p.nombre}" for p in candidatos)
     return None, (f"el apellido está pero el nombre no coincide con: {nombres}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Aplicación — servicio reutilizable (pantalla manual y buzón automático)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def clasificar_dia(db, fecha, filas_matcheadas):
+    """¿Es seguro aplicar este día sin que una persona lo mire?
+
+    Devuelve (seguro: bool, motivo: str|None).
+
+    NO es seguro si tocaría algo que alguien ya decidió: una extra justificada,
+    aprobada o rechazada. Ahí el dato de la planilla puede ser correcto, pero
+    pisarlo borraría una decisión de gestión — eso lo mira una persona.
+    """
+    from app.models_asistencia import AsistenciaJornada
+
+    if not filas_matcheadas:
+        return False, "ninguna fila coincide con la nómina"
+
+    decididas = (
+        db.query(AsistenciaJornada)
+        .filter(AsistenciaJornada.fecha == fecha,
+                AsistenciaJornada.persona_id.in_([p.id for p in filas_matcheadas]),
+                AsistenciaJornada.estado_extra.in_(
+                    ["justificada", "aprobada", "rechazada"]))
+        .count()
+    )
+    if decididas:
+        return False, f"{decididas} jornada(s) con la extra ya resuelta"
+    return True, None
+
+
+def aplicar_dia(db, fecha, filas, idx, planta="", tipo="mtr", user_id=None,
+                fuente="import", alta_nuevos=False):
+    """Escribe un día completo. Devuelve (filas_aplicadas, sin_reconocer)."""
+    from datetime import date as _date
+    from app.models_asistencia import AsistenciaPersona, AsistenciaAuditLog
+    from app.asistencia_calc import guardar_bloque, limpiar_dia, recalcular_jornada
+    from sqlalchemy import func as _func
+
+    aplicadas, sin_match = 0, 0
+    for f in filas:
+        persona, _ = buscar_persona(idx, f["apellido"], f["nombre"])
+
+        if persona is None and tipo == "tercero" and alta_nuevos:
+            ultimo = (db.query(_func.coalesce(
+                _func.max(AsistenciaPersona.orden_planilla), 0)).scalar() or 0)
+            persona = AsistenciaPersona(
+                apellido=f["apellido"].strip(), nombre=f["nombre"].strip(),
+                tipo="tercero", planta=planta or None, grupo=f["grupo"] or None,
+                orden_planilla=ultimo + 10, activo=True, fecha_alta=_date.today())
+            db.add(persona)
+            db.flush()
+            idx.setdefault(normalizar(persona.apellido), []).append(persona)
+            db.add(AsistenciaAuditLog(
+                entidad="persona", entidad_id=persona.id, accion="crear",
+                valor_nuevo=f"{persona.apellido}, {persona.nombre} ({f['grupo']})",
+                motivo="Alta automática desde la importación de terceros",
+                user_id=user_id))
+
+        if persona is None:
+            sin_match += 1
+            continue
+
+        if f["grupo"] and persona.grupo != f["grupo"]:
+            persona.grupo = f["grupo"]
+
+        limpiar_dia(db, persona, fecha, user_id)
+        if f["ausente"] or not f["ingreso"]:
+            j = recalcular_jornada(db, persona, fecha, marcar_ausente=True)
+        else:
+            guardar_bloque(db, persona, fecha, f["ingreso"], f["egreso"] or "",
+                           user_id=user_id, fuente=fuente)
+            j = recalcular_jornada(db, persona, fecha)
+        if j is not None:
+            j.nota_origen = f["nota"]
+            j.grupo_snap = f["grupo"] or None
+            if planta:
+                j.planta_snap = planta
+        aplicadas += 1
+    return aplicadas, sin_match

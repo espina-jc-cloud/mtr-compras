@@ -8,6 +8,7 @@ muestra el cierre de un día terminado en vez de un estado en vivo.
 Todo el cálculo vive en app/asistencia_calc.py. Acá solo se leen formularios,
 se guardan marcaciones y se arma lo que ve la pantalla.
 """
+import json
 import os
 import re
 import tempfile
@@ -23,15 +24,16 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.permissions import require_perm
 from app.templates import templates
-from app.asistencia_import import (buscar_persona, indexar_personas,
-                                   normalizar, parsear)
+from app.asistencia_import import (aplicar_dia, buscar_persona, clasificar_dia,
+                                   indexar_personas, normalizar, parsear)
 from app.asistencia_calc import (
     agregar_bloque, get_config, guardar_bloque, jornada_esperada, limpiar_dia,
     recalcular_jornada,
 )
 from app.models_asistencia import (
     AsistenciaAuditLog, AsistenciaBloque, AsistenciaFeriado, AsistenciaJornada,
-    AsistenciaJornadaTipo, AsistenciaMotivo, AsistenciaPersona,
+    AsistenciaImportacion, AsistenciaJornadaTipo, AsistenciaMotivo,
+    AsistenciaPersona,
     ESTADO_EXTRA_CSS, ESTADO_REGISTRO_CSS, PLANTAS, TURNOS_OPERATIVO,
     min_a_texto,
 )
@@ -665,6 +667,7 @@ async def importar_form(request: Request, db: Session = Depends(get_db),
                         current_user=Depends(_cargar), tipo: str = "mtr"):
     return templates.TemplateResponse(request, "asistencia/importar.html", {
         "current_user": current_user, "paso": "subir", "tipo_sel": tipo,
+        "buzon": _estado_buzon(db),
     })
 
 
@@ -731,61 +734,31 @@ async def importar_aplicar(db: Session = Depends(get_db), current_user=Depends(_
     idx = indexar_personas(personas)
 
     n_filas, n_dias, sin_match, n_altas = 0, 0, 0, 0
+    antes = db.query(func.count(AsistenciaPersona.id)).scalar() or 0
     for d in datos["dias"]:
         if d["fecha"] not in elegidas:
             continue
         n_dias += 1
-        for f in d["filas"]:
-            persona, _ = buscar_persona(idx, f["apellido"], f["nombre"])
-            if persona is None and tipo == "tercero" and alta_nuevos:
-                # En terceros la gente rota todo el tiempo: se dan de alta solos
-                # si el usuario lo pidió. En personal propio NUNCA.
-                ultimo = (db.query(func.coalesce(
-                    func.max(AsistenciaPersona.orden_planilla), 0)).scalar() or 0)
-                persona = AsistenciaPersona(
-                    apellido=f["apellido"].strip(), nombre=f["nombre"].strip(),
-                    tipo="tercero", planta=planta or None, grupo=f["grupo"] or None,
-                    orden_planilla=ultimo + 10, activo=True, fecha_alta=date.today())
-                db.add(persona)
-                db.flush()
-                idx.setdefault(normalizar(persona.apellido), []).append(persona)
-                db.add(AsistenciaAuditLog(
-                    entidad="persona", entidad_id=persona.id, accion="crear",
-                    valor_nuevo=f"{persona.apellido}, {persona.nombre} ({f['grupo']})",
-                    motivo="Alta automática desde la importación de terceros",
-                    user_id=current_user.id))
-                n_altas += 1
-            if persona is None:
-                sin_match += 1
-                continue
-
-            # El grupo de la planilla se guarda en el maestro para que la
-            # nómina lo muestre sin depender de la última importación.
-            if f["grupo"] and persona.grupo != f["grupo"]:
-                persona.grupo = f["grupo"]
-
-            limpiar_dia(db, persona, d["fecha"], current_user.id)
-            if f["ausente"] or not f["ingreso"]:
-                j = recalcular_jornada(db, persona, d["fecha"], marcar_ausente=True)
-            else:
-                guardar_bloque(db, persona, d["fecha"], f["ingreso"], f["egreso"] or "",
-                               user_id=current_user.id, fuente="import")
-                j = recalcular_jornada(db, persona, d["fecha"])
-            if j is not None:
-                j.nota_origen = f["nota"]
-                j.grupo_snap = f["grupo"] or None
-                if planta:
-                    j.planta_snap = planta
-            n_filas += 1
-
+        a, sm = aplicar_dia(db, d["fecha"], d["filas"], idx, planta=planta,
+                            tipo=tipo, user_id=current_user.id,
+                            alta_nuevos=bool(alta_nuevos))
+        n_filas += a
+        sin_match += sm
         db.add(AsistenciaAuditLog(
             entidad="jornada", accion="importar", campo="dia",
             valor_nuevo=d["fecha"].isoformat(),
             motivo=f"Importación del Excel · hoja {datos['hoja']}",
             user_id=current_user.id,
         ))
+    n_altas = (db.query(func.count(AsistenciaPersona.id)).scalar() or 0) - antes
 
+    db.add(AsistenciaImportacion(
+        origen="manual", estado="ok", asunto=None, hoja=datos["hoja"],
+        dias_aplicados=n_dias, filas_aplicadas=n_filas,
+        sin_reconocer=sin_match, usuario_id=current_user.id,
+    ))
     db.commit()
+
     msg = f"{n_dias}+días+importados+·+{n_filas}+filas"
     if n_altas:
         msg += f"+·+{n_altas}+altas"
@@ -1102,3 +1075,82 @@ async def mes_export(db: Session = Depends(get_db), current_user=Depends(_report
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Buzón automático
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _estado_buzon(db: Session) -> dict:
+    """Todo lo que la pantalla necesita saber del buzón."""
+    from app import asistencia_mail
+
+    ultimas = (db.query(AsistenciaImportacion)
+               .order_by(AsistenciaImportacion.created_at.desc())
+               .limit(8).all())
+    ultima_ok = (db.query(AsistenciaImportacion)
+                 .filter(AsistenciaImportacion.origen == "buzon",
+                         AsistenciaImportacion.estado.in_(["ok", "parcial"]))
+                 .order_by(AsistenciaImportacion.created_at.desc()).first())
+
+    dias_sin = None
+    if ultima_ok and ultima_ok.created_at:
+        dias_sin = (datetime.utcnow() - ultima_ok.created_at).days
+
+    pendientes = []
+    for r in ultimas:
+        if r.dias_pendientes and r.detalle:
+            try:
+                pendientes += json.loads(r.detalle).get("pendientes", [])
+            except (ValueError, TypeError):
+                pass
+
+    return {
+        "configurado": asistencia_mail.configurado(),
+        "cfg": asistencia_mail.config(),
+        "ultimas": ultimas,
+        "ultima_ok": ultima_ok,
+        "dias_sin_planilla": dias_sin,
+        "pendientes_revision": pendientes[:10],
+    }
+
+
+@router.post("/importar/buzon")
+async def importar_buzon(db: Session = Depends(get_db), current_user=Depends(_cargar)):
+    """Traer ahora: revisa el buzón y aplica lo que sea seguro aplicar."""
+    from app.asistencia_mail import procesar_buzon
+
+    regs = procesar_buzon(db, usuario_id=current_user.id, origen="buzon")
+    if not regs:
+        return RedirectResponse(
+            "/asistencia/importar?ok=No+hay+planillas+nuevas+en+el+buzón", 303)
+
+    err = next((r for r in regs if r.estado == "error"), None)
+    if err is not None:
+        return RedirectResponse(
+            f"/asistencia/importar?err={(err.error or 'Error')[:160]}", 303)
+
+    dias = sum(r.dias_aplicados for r in regs)
+    filas = sum(r.filas_aplicadas for r in regs)
+    pend = sum(r.dias_pendientes for r in regs)
+    msg = f"{dias}+días+importados+·+{filas}+filas"
+    if pend:
+        msg += f"+·+{pend}+días+para+revisar"
+    return RedirectResponse(f"/asistencia?ok={msg}", 303)
+
+
+@router.post("/importar/buzon/probar")
+async def importar_buzon_probar(db: Session = Depends(get_db),
+                                current_user=Depends(_cargar)):
+    from app.asistencia_mail import probar_conexion
+
+    r = probar_conexion()
+    if r.get("ok"):
+        return RedirectResponse(
+            f"/asistencia/importar?ok=Conexión+OK+·+{r['user']}+·+"
+            f"{r['mensajes']}+mensajes+en+{r['carpeta']}", 303)
+    extra = ""
+    if r.get("carpetas"):
+        extra = "+·+Carpetas:+" + ",+".join(r["carpetas"][:6])
+    return RedirectResponse(
+        f"/asistencia/importar?err={(r.get('error') or 'Error')[:160]}{extra}", 303)

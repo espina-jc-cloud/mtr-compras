@@ -81,6 +81,44 @@ app.include_router(asistencia.router)
 app.include_router(operations.api_router)
 
 
+# ── Buzón de planillas: revisión periódica ────────────────────────────────────
+# La planilla llega todas las mañanas por mail. En vez de un cron externo se usa
+# una tarea del propio proceso: no agrega dependencias ni otro servicio a
+# Railway, y si el proceso se cae, al reiniciar vuelve sola.
+# Se desactiva con ASISTENCIA_MAIL_INTERVALO_MIN=0.
+async def _revisar_buzon_periodicamente():
+    import asyncio
+    from app.database import SessionLocal
+
+    intervalo = int(os.getenv("ASISTENCIA_MAIL_INTERVALO_MIN", "20") or 0)
+    if intervalo <= 0:
+        return
+    await asyncio.sleep(60)   # no competir con migrate.py en el arranque
+
+    while True:
+        try:
+            from app import asistencia_mail
+            if asistencia_mail.configurado():
+                db = SessionLocal()
+                try:
+                    regs = asistencia_mail.procesar_buzon(db, origen="buzon")
+                    for r in regs:
+                        print(f"[buzon] {r.estado} · {r.dias_aplicados} días · "
+                              f"{r.filas_aplicadas} filas"
+                              + (f" · ERROR {r.error}" if r.error else ""))
+                finally:
+                    db.close()
+        except Exception as e:
+            print(f"[buzon] ERROR inesperado: {e}")
+        await asyncio.sleep(intervalo * 60)
+
+
+@app.on_event("startup")
+async def start_buzon_task():
+    import asyncio
+    asyncio.create_task(_revisar_buzon_periodicamente())
+
+
 @app.on_event("startup")
 async def run_db_migrations_on_startup():
     try:
