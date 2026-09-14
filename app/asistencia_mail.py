@@ -12,7 +12,8 @@ POR QUÉ IMAP Y NO UN AGENTE CON IA
     confiable. Acá no hace falta interpretar nada: hace falta bajar un archivo.
 
 CONFIGURACIÓN (variables de entorno)
-    ASISTENCIA_MAIL_HOST      servidor IMAP           ej. mail.mtr-sa.com.ar
+    ASISTENCIA_MAIL_HOST      servidor IMAP           mail.mtr-sa.com.ar
+                                                      imap.gmail.com
     ASISTENCIA_MAIL_PORT      puerto, default 993
     ASISTENCIA_MAIL_USER      casilla
     ASISTENCIA_MAIL_PASSWORD  contraseña
@@ -20,6 +21,14 @@ CONFIGURACIÓN (variables de entorno)
     ASISTENCIA_MAIL_ASUNTO    default "HORAS DEL PERSONAL MTR"
     ASISTENCIA_MAIL_REMITENTE opcional, filtra por remitente
     ASISTENCIA_MAIL_DIAS      cuántos días hacia atrás mirar, default 7
+
+SI SE USA GMAIL COMO CASILLA DEDICADA
+    host imap.gmail.com, puerto 993, y como contraseña una CONTRASEÑA DE
+    APLICACIÓN de Google (requiere verificación en dos pasos activada en esa
+    cuenta): la contraseña normal de Gmail no sirve para IMAP desde 2022.
+    Dejar ASISTENCIA_MAIL_REMITENTE vacío: en un mail reenviado el remitente es
+    quien reenvía, no el que originó la planilla, y filtrar por el remitente
+    original no encontraría nada.
 
 RECOMENDACIÓN DE SEGURIDAD
     Conviene apuntar esto a una casilla dedicada (planillas@…) que reciba la
@@ -44,7 +53,10 @@ def config() -> dict:
         "host": os.getenv("ASISTENCIA_MAIL_HOST", "").strip(),
         "port": int(os.getenv("ASISTENCIA_MAIL_PORT", "993") or 993),
         "user": os.getenv("ASISTENCIA_MAIL_USER", "").strip(),
-        "password": os.getenv("ASISTENCIA_MAIL_PASSWORD", ""),
+        # Las contraseñas de aplicación de Google se muestran en grupos de 4
+        # ("abcd efgh ijkl mnop") y se copian con los espacios. El servidor
+        # las rechaza así, sin decir por qué. Se limpian acá.
+        "password": os.getenv("ASISTENCIA_MAIL_PASSWORD", "").replace(" ", "").strip(),
         "carpeta": os.getenv("ASISTENCIA_MAIL_CARPETA", "INBOX").strip() or "INBOX",
         "asunto": os.getenv("ASISTENCIA_MAIL_ASUNTO", "HORAS DEL PERSONAL MTR").strip(),
         "remitente": os.getenv("ASISTENCIA_MAIL_REMITENTE", "").strip(),

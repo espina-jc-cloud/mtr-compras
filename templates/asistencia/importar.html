@@ -58,7 +58,14 @@
     <code class="block mt-1.5 text-gray-800">ASISTENCIA_MAIL_HOST · ASISTENCIA_MAIL_USER · ASISTENCIA_MAIL_PASSWORD</code>
     <span class="block mt-1.5">Opcionales: <code>ASISTENCIA_MAIL_PORT</code> (993),
     <code>ASISTENCIA_MAIL_CARPETA</code> (INBOX),
-    <code>ASISTENCIA_MAIL_ASUNTO</code>, <code>ASISTENCIA_MAIL_REMITENTE</code>.</span>
+    <code>ASISTENCIA_MAIL_ASUNTO</code>, <code>ASISTENCIA_MAIL_REMITENTE</code>,
+    <code>ASISTENCIA_MAIL_INTERVALO_MIN</code> (20).</span>
+    <span class="block mt-2 pt-2 border-t border-gray-200">
+      <b>Casilla propia del hosting:</b> host <code>mail.mtr-sa.com.ar</code>, la contraseña de la casilla.<br>
+      <b>Gmail:</b> host <code>imap.gmail.com</code> y una <b>contraseña de aplicación</b> de Google
+      (la contraseña normal no sirve para IMAP). Si la planilla llega reenviada,
+      dejá <code>ASISTENCIA_MAIL_REMITENTE</code> vacío: el remitente pasa a ser quien reenvía.
+    </span>
   </div>
   {% else %}
     {% if buzon.dias_sin_planilla is not none and buzon.dias_sin_planilla >= 2 %}
