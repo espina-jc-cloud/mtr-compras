@@ -81,6 +81,25 @@ app.include_router(asistencia.router)
 app.include_router(operations.api_router)
 
 
+def _una_pasada_del_buzon() -> str:
+    """Una revisión del buzón. Corre en un hilo — no puede tocar el event loop."""
+    from app.database import SessionLocal
+    from app import asistencia_mail
+
+    db = SessionLocal()
+    try:
+        regs = asistencia_mail.procesar_buzon(db, origen="buzon")
+        if not regs:
+            return "sin novedades"
+        return " · ".join(
+            f"{r.estado}: {r.dias_aplicados} días, {r.filas_aplicadas} filas"
+            + (f", {r.dias_pendientes} para revisar" if r.dias_pendientes else "")
+            + (f" — {r.error}" if r.error else "")
+            for r in regs)
+    finally:
+        db.close()
+
+
 # ── Buzón de planillas: revisión periódica ────────────────────────────────────
 # La planilla llega todas las mañanas por mail. En vez de un cron externo se usa
 # una tarea del propio proceso: no agrega dependencias ni otro servicio a
@@ -99,17 +118,14 @@ async def _revisar_buzon_periodicamente():
         try:
             from app import asistencia_mail
             if asistencia_mail.configurado():
-                db = SessionLocal()
-                try:
-                    regs = asistencia_mail.procesar_buzon(db, origen="buzon")
-                    for r in regs:
-                        print(f"[buzon] {r.estado} · {r.dias_aplicados} días · "
-                              f"{r.filas_aplicadas} filas"
-                              + (f" · ERROR {r.error}" if r.error else ""))
-                finally:
-                    db.close()
+                # En un hilo: IMAP es bloqueante y acá adentro frenaría el loop
+                # de asyncio, o sea toda la app, mientras dura la descarga.
+                resumen = await asyncio.to_thread(_una_pasada_del_buzon)
+                # flush explícito: la salida de Railway está bufferada y sin
+                # esto no se ve una línea hasta que se llenan 8 KB.
+                print(f"[buzon] {resumen}", flush=True)
         except Exception as e:
-            print(f"[buzon] ERROR inesperado: {e}")
+            print(f"[buzon] ERROR inesperado: {type(e).__name__}: {e}", flush=True)
         await asyncio.sleep(intervalo * 60)
 
 

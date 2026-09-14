@@ -56,6 +56,11 @@ _EXT_OK = (".xlsx", ".xlsm")
 # casilla personal con mucho movimiento.
 MAX_CANDIDATOS = 400
 
+# imaplib no trae timeout: sin esto, un servidor que acepta la conexión y no
+# responde deja la tarea colgada para siempre y el buzón deja de revisarse en
+# silencio.
+TIMEOUT_SEG = 45
+
 
 def config() -> dict:
     return {
@@ -102,7 +107,7 @@ def probar_conexion() -> dict:
     if not configurado():
         return {"ok": False, "error": "Faltan ASISTENCIA_MAIL_HOST, USER o PASSWORD."}
     try:
-        with imaplib.IMAP4_SSL(c["host"], c["port"]) as m:
+        with imaplib.IMAP4_SSL(c["host"], c["port"], timeout=TIMEOUT_SEG) as m:
             m.login(c["user"], c["password"])
             estado, datos = m.select(c["carpeta"], readonly=True)
             if estado != "OK":
@@ -140,7 +145,7 @@ def buscar_planillas(limite: int = 5) -> dict:
     mensajes = []
 
     try:
-        with imaplib.IMAP4_SSL(c["host"], c["port"]) as m:
+        with imaplib.IMAP4_SSL(c["host"], c["port"], timeout=TIMEOUT_SEG) as m:
             m.login(c["user"], c["password"])
             estado, _ = m.select(c["carpeta"], readonly=True)
             if estado != "OK":
