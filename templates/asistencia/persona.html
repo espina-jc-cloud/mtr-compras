@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block title %}{{ persona.apellido }}, {{ persona.nombre }} — Asistencia MTR{% endblock %}
+{% block content %}
+
+{% set meses_n = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+{% set dias_n = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'] %}
+{% set dow_c = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}
+{% set mes_actual = anio ~ '-' ~ '%02d' % mes_num %}
+{# OJO: base.html hace `{% set p = request.url.path %}` entre el bloque title y
+   el content, así que dentro de content la variable `p` es la RUTA. Por eso la
+   persona se llama `persona` y no `p`: usar `p` acá renderiza la URL. #}
+
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+  <div>
+    <a href="/asistencia/mes?mes={{ mes_actual }}"
+      class="text-xs text-gray-400 hover:text-gray-600">◂ Horas extra del mes</a>
+    <h1 class="text-xl font-semibold text-gray-900 mt-0.5">{{ persona.apellido }}, {{ persona.nombre }}</h1>
+    <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+      {% for txt, cls in [
+          (persona.grupo, 'bg-gray-100 text-gray-700'),
+          (persona.planta, 'bg-indigo-50 text-indigo-700'),
+          (persona.jornada_tipo.nombre if persona.jornada_tipo else 'sin jornada', 'bg-gray-50 text-gray-500'),
+          ('legajo ' ~ persona.legajo if persona.legajo else none, 'bg-gray-50 text-gray-500')] %}
+        {% if txt %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded {{ cls }}">{{ txt }}</span>{% endif %}
+      {% endfor %}
+      {% if persona.jornada_tipo and not persona.jornada_tipo.computa_extra %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700"
+        title="Turnos rotativos compensados con francos: no genera horas extra">régimen rotativo</span>
+      {% endif %}
+      {% if not persona.activo %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-500">BAJA</span>{% endif %}
+    </div>
+  </div>
+
+  <!-- ── Navegación de mes ─────────────────────────────────────────────────── -->
+  <div class="flex items-center gap-2">
+    <a href="/asistencia/persona/{{ persona.id }}?mes={{ prev }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+    <form method="get" action="/asistencia/persona/{{ persona.id }}">
+      <select name="mes" onchange="this.form.submit()"
+        class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white font-semibold">
+        {% for y, mm in meses %}
+        {% set v = y ~ '-' ~ '%02d' % mm %}
+        <option value="{{ v }}" {{ 'selected' if v == mes_actual }}>{{ meses_n[mm - 1] }} {{ y }}</option>
+        {% endfor %}
+        {% if (anio, mes_num) not in meses %}
+        <option value="{{ mes_actual }}" selected>{{ meses_n[mes_num - 1] }} {{ anio }} (sin datos)</option>
+        {% endif %}
+      </select>
+    </form>
+    <a href="/asistencia/persona/{{ persona.id }}?mes={{ next }}"
+      class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ '' if hay_next else 'pointer-events-none opacity-30' }}">▸</a>
+  </div>
+</div>
+
+{% if not jornadas %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-8 text-center">
+  <p class="text-sm font-semibold text-gray-700">
+    No hay jornadas cargadas para {{ meses_n[mes_num - 1] }} {{ anio }}.</p>
+  <p class="text-sm text-gray-500 mt-1">Elegí otro mes en el selector de arriba.</p>
+</div>
+{% else %}
+
+<!-- ── Alertas ────────────────────────────────────────────────────────────── -->
+{% if alertas %}
+<div class="space-y-1.5 mb-5">
+  {% for tipo, texto in alertas %}
+  {% set c = {'critica':'red','media':'amber','gris':'gray'}[tipo] %}
+  <div class="flex items-start gap-2 px-3 py-2 rounded-lg bg-{{ c }}-50 border border-{{ c }}-200">
+    <span class="text-{{ c }}-600 font-bold text-xs mt-0.5">●</span>
+    <span class="text-sm text-{{ c }}-900">{{ texto }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── KPIs ───────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-5">
+  {% for label, val, sub, tc, bg in [
+    ('Extra del mes', mt(kpis.extra), (kpis.dias_extra|string) ~ ' de ' ~ (kpis.dias_trabajados|string) ~ ' días', 'text-red-700', 'bg-red-50'),
+    ('Al 50 %', mt(kpis.e50), '', 'text-amber-700', 'bg-amber-50'),
+    ('Al 100 %', mt(kpis.e100), '', 'text-red-700', 'bg-red-50'),
+    ('Trabajadas', mt(kpis.trabajado), ('sobre ' ~ mt(kpis.esperado) ~ ' esperadas') if kpis.esperado else 'sin jornada fija', 'text-indigo-700', 'bg-indigo-50'),
+    ('Días trabajados', kpis.dias_trabajados, (kpis.ausentes|string) ~ ' ausente(s)', 'text-gray-800', 'bg-gray-50'),
+    ('Racha máxima', kpis.racha, 'días seguidos con extra', 'text-amber-700', 'bg-amber-50')
+  ] %}
+  <div class="rounded-xl {{ bg }} border border-gray-100 px-3 py-2.5">
+    <p class="text-[11px] text-gray-500 mb-0.5">{{ label }}</p>
+    <p class="text-lg font-bold {{ tc }} tabular-nums">{{ val }}</p>
+    <p class="text-[11px] text-gray-400">{{ sub }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+  <!-- ── Comparación con sus pares ───────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+      Comparación con {{ persona.grupo or 'su grupo' }}
+    </p>
+    {% if comparacion.n_pares %}
+    <p class="text-sm text-gray-800 mb-3">
+      Puesto <b class="text-lg">{{ comparacion.puesto }}</b>
+      <span class="text-gray-400">de {{ comparacion.total }}</span> en horas extra.
+      {% if comparacion.ratio %}
+      Hizo <b class="{{ 'text-red-700' if comparacion.ratio >= 2 else ('text-amber-700' if comparacion.ratio > 1.2 else 'text-emerald-700') }}">{{ '%.1f' % comparacion.ratio }}×</b>
+      el promedio del grupo.
+      {% elif kpis.extra %}
+      Sus compañeros no hicieron extra este mes.
+      {% endif %}
+    </p>
+    {% for label, propio, prom in [
+        ('Horas extra', kpis.extra, comparacion.prom_extra),
+        ('Horas trabajadas', kpis.trabajado, comparacion.prom_trab)] %}
+    {% set tope = [propio, prom] | max %}
+    <div class="mb-2.5">
+      <p class="text-[11px] text-gray-500 mb-1">{{ label }}</p>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-[10px] text-gray-400 w-12 shrink-0">él/ella</span>
+        <div class="flex-1 h-3 rounded bg-gray-100 overflow-hidden">
+          <div class="h-full bg-indigo-500" style="width: {{ (propio * 100 / tope) | round | int if tope else 0 }}%"></div>
+        </div>
+        <span class="text-[11px] font-semibold tabular-nums w-14 text-right">{{ mt(propio) }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] text-gray-400 w-12 shrink-0">promedio</span>
+        <div class="flex-1 h-3 rounded bg-gray-100 overflow-hidden">
+          <div class="h-full bg-gray-300" style="width: {{ (prom * 100 / tope) | round | int if tope else 0 }}%"></div>
+        </div>
+        <span class="text-[11px] tabular-nums text-gray-500 w-14 text-right">{{ mt(prom | round | int) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-sm text-gray-400">No hay otras personas en su grupo este mes para comparar.</p>
+    {% endif %}
+  </div>
+
+  <!-- ── Patrón horario ──────────────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Patrón horario</p>
+    <p class="text-sm text-gray-800 mb-3">
+      {% if ent_moda is not none %}
+      Entra habitualmente a las <b>{{ '%02d:00' % ent_moda }}</b>
+      <span class="text-gray-400">({{ ent_n }} de {{ entradas.values() | sum }} bloques)</span>
+      {% if sal_moda is not none %}· sale a las <b>{{ '%02d:00' % sal_moda }}</b>{% endif %}
+      {% else %}Sin bloques registrados este mes.{% endif %}
+    </p>
+    <div style="height: 130px"><canvas id="chHoras"></canvas></div>
+    <div class="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-gray-100">
+      {% for nombre, n in franjas.items() %}
+      {% if n %}
+      <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-gray-50 text-gray-700">
+        {{ nombre }} <span class="font-normal opacity-60 tabular-nums">{{ n }}</span></span>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+  <!-- ── Evolución mensual ───────────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+      Últimos 6 meses</p>
+    <div style="height: 140px"><canvas id="chMeses"></canvas></div>
+  </div>
+
+  <!-- ── Por día de la semana ────────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+      Extra por día de la semana</p>
+    {% set tope_dow = por_dow.values() | map(attribute='extra') | max %}
+    <div class="space-y-1.5">
+      {% for i in range(7) %}
+      {% set d = por_dow[i] %}
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] text-gray-500 w-8 shrink-0">{{ dow_c[i] }}</span>
+        <div class="flex-1 h-4 rounded bg-gray-100 overflow-hidden">
+          <div class="h-full {{ 'bg-red-400' if i >= 5 else 'bg-amber-400' }}"
+            style="width: {{ (d.extra * 100 / tope_dow) | round | int if tope_dow else 0 }}%"></div>
+        </div>
+        <span class="text-[11px] tabular-nums w-14 text-right {{ 'font-semibold text-gray-800' if d.extra else 'text-gray-300' }}">{{ mt(d.extra) }}</span>
+        <span class="text-[10px] text-gray-400 w-12 text-right">{{ d.dias }} día{{ '' if d.dias == 1 else 's' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Día por día ────────────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+  <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
+    Día por día — {{ meses_n[mes_num - 1] }} {{ anio }}
+  </p>
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50 border-y border-gray-100">
+        <th class="px-4 py-2 whitespace-nowrap">Fecha</th>
+        <th class="px-2 py-2">Bloques</th>
+        <th class="px-2 py-2 text-right">Debe</th>
+        <th class="px-2 py-2 text-right">Trabajó</th>
+        <th class="px-2 py-2 text-right">50 %</th>
+        <th class="px-2 py-2 text-right">100 %</th>
+        <th class="px-2 py-2">Estado</th>
+        <th class="px-2 py-2">Nota de la planilla</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for j in jornadas %}
+      <tr class="{{ 'bg-red-50/40' if (j.minutos_extra_detectada or 0) >= 240 }}">
+        <td class="px-4 py-1.5 whitespace-nowrap">
+          <span class="tabular-nums text-gray-800">{{ j.fecha.strftime('%d/%m') }}</span>
+          <span class="text-xs text-gray-400 ml-1">{{ dow_c[j.fecha.weekday()] }}</span>
+        </td>
+        <td class="px-2 py-1.5 text-xs tabular-nums text-gray-600 whitespace-nowrap">
+          {% for b in j._bloques %}
+          <span class="{{ 'text-red-600 font-semibold' if b.tipo != 'jornada' }}">{{ b.desde.strftime('%H:%M') }}–{{ b.hasta.strftime('%H:%M') if b.hasta else '··:··' }}</span>{{ ' · ' if not loop.last }}
+          {% else %}<span class="text-gray-300">—</span>{% endfor %}
+        </td>
+        <td class="px-2 py-1.5 text-right tabular-nums text-gray-400">{{ mt(j.minutos_esperados) }}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums text-gray-700">{{ mt(j.minutos_trabajados) }}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums text-amber-700">
+          {% if not j.computa_extra_snap %}<span class="text-[10px] text-sky-600">rot.</span>
+          {% else %}{{ mt(j.minutos_extra_50) }}{% endif %}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums font-semibold text-red-700">
+          {{ mt(j.minutos_extra_100) if j.computa_extra_snap else '' }}</td>
+        <td class="px-2 py-1.5 whitespace-nowrap">
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ estado_registro_css.get(j.estado_registro, 'bg-gray-50 text-gray-500') }}">{{ j.estado_registro }}</span>
+          {% if j.estado_extra != 'na' %}
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ estado_extra_css.get(j.estado_extra, '') }}">{{ j.estado_extra }}</span>
+          {% endif %}
+        </td>
+        <td class="px-2 py-1.5 text-xs text-gray-500 max-w-[240px] truncate"
+          title="{{ j.nota_origen or '' }}">{{ j.nota_origen or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chart.min.js"></script>
+<script>
+(function () {
+  if (typeof Chart === "undefined") return;
+  var h = function (m) {
+    if (!m) return "—";
+    var hh = Math.floor(m / 60), mm = m % 60;
+    return hh ? (mm ? hh + "h" + String(mm).padStart(2, "0") : hh + "h") : mm + "m";
+  };
+  // Sin animación, igual que el tablero mensual: requestAnimationFrame no corre
+  // en pestañas de fondo y las barras quedarían en cero.
+  var base = { maintainAspectRatio: false, animation: false,
+               plugins: { legend: { display: false } } };
+
+  // ── Entradas y salidas por hora del día ──────────────────────────────────
+  var ent = {{ entradas | tojson }}, sal = {{ salidas | tojson }};
+  var horas = [], dEnt = [], dSal = [];
+  for (var i = 0; i < 24; i++) {
+    horas.push(String(i).padStart(2, "0"));
+    dEnt.push(ent[i] || 0); dSal.push(sal[i] || 0);
+  }
+  var c1 = document.getElementById("chHoras");
+  if (c1) new Chart(c1, {
+    type: "bar",
+    data: { labels: horas, datasets: [
+      { label: "Entradas", data: dEnt, backgroundColor: "#6366f1" },
+      { label: "Salidas",  data: dSal, backgroundColor: "#cbd5e1" }] },
+    options: Object.assign({}, base, {
+      plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } },
+                 tooltip: { callbacks: { title: function (i) { return i[0].label + ":00"; } } } },
+      scales: { x: { type: "category", grid: { display: false },
+                     ticks: { font: { size: 9 }, color: "#9ca3af", autoSkip: false } },
+                y: { beginAtZero: true, grid: { color: "#f3f4f6" },
+                     ticks: { precision: 0, font: { size: 9 }, color: "#9ca3af" } } }
+    })
+  });
+
+  // ── Evolución de los últimos 6 meses ─────────────────────────────────────
+  var serie = {{ serie | tojson }};
+  var nombres = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  var c2 = document.getElementById("chMeses");
+  if (c2) new Chart(c2, {
+    type: "bar",
+    data: {
+      labels: serie.map(function (s) { return nombres[s.mes - 1] + " " + String(s.anio).slice(2); }),
+      datasets: [{ data: serie.map(function (s) { return s.extra; }),
+                   backgroundColor: serie.map(function (s, i) {
+                     return i === serie.length - 1 ? "#4f46e5" : "#c7d2fe"; }) }]
+    },
+    options: Object.assign({}, base, {
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: function (i) {
+                   return serie[i.dataIndex].hay ? h(i.raw) : "sin datos"; } } } },
+      scales: { x: { type: "category", grid: { display: false },
+                     ticks: { font: { size: 10 }, color: "#9ca3af" } },
+                y: { beginAtZero: true, grid: { color: "#f3f4f6" },
+                     ticks: { font: { size: 9 }, color: "#9ca3af",
+                              callback: function (v) { return v ? Math.round(v / 60) + "h" : "0"; } } } }
+    })
+  });
+})();
+</script>
+{% endblock %}

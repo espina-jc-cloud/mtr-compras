@@ -2,7 +2,7 @@
 {% block title %}Horas extra del mes — MTR{% endblock %}
 {% block content %}
 
-{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+{% set meses_n = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
 {% set dow = ['L','M','M','J','V','S','D'] %}
 {% set qs = ('&planta=' ~ planta if planta else '') ~ ('&grupo=' ~ grupo if grupo else '') %}
 {% set pct_carga = (cargados * 100 // laborables) if laborables else 100 %}
@@ -10,7 +10,7 @@
 <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
   <div>
     <h1 class="text-xl font-semibold text-gray-900">
-      Horas extra — {{ meses[mes_num - 1] }} {{ anio }}
+      Horas extra — {{ meses_n[mes_num - 1] }} {{ anio }}
     </h1>
     <p class="text-sm text-gray-500 mt-0.5">
       {% if en_curso %}
@@ -23,6 +23,20 @@
   <div class="flex items-center gap-2">
     <a href="/asistencia/mes?mes={{ prev }}{{ qs }}"
       class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm">◂</a>
+    <form method="get" action="/asistencia/mes">
+      {% if planta %}<input type="hidden" name="planta" value="{{ planta }}">{% endif %}
+      {% if grupo %}<input type="hidden" name="grupo" value="{{ grupo }}">{% endif %}
+      <select name="mes" onchange="this.form.submit()"
+        class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white font-semibold">
+        {% for y, mm in meses %}
+        {% set v = y ~ '-' ~ '%02d' % mm %}
+        <option value="{{ v }}" {{ 'selected' if v == (anio ~ '-' ~ '%02d' % mes_num) }}>{{ meses_n[mm - 1] }} {{ y }}</option>
+        {% endfor %}
+        {% if (anio, mes_num) not in meses %}
+        <option value="{{ anio }}-{{ '%02d' % mes_num }}" selected>{{ meses_n[mes_num - 1] }} {{ anio }}</option>
+        {% endif %}
+      </select>
+    </form>
     <a href="/asistencia/mes?mes={{ next }}{{ qs }}"
       class="px-2.5 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm {{ '' if hay_next else 'pointer-events-none opacity-30' }}">▸</a>
     <a href="/asistencia/mes/export?mes={{ anio }}-{{ '%02d' % mes_num }}{{ qs }}"
@@ -128,6 +142,7 @@
   <div class="lg:col-span-2 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
     <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
       Quién concentra las horas
+      <span class="font-normal normal-case text-gray-400">— clic en una persona para ver su ficha</span>
     </p>
     {% if ranking %}
     <table class="min-w-full text-sm">
@@ -145,9 +160,11 @@
       </thead>
       <tbody class="divide-y divide-gray-50">
         {% for r in ranking if r.total > 0 %}
-        <tr class="hover:bg-gray-50/60">
-          <td class="px-4 py-1.5 whitespace-nowrap text-gray-800">
-            {{ r.persona.apellido }}, {{ r.persona.nombre }}</td>
+        <tr class="hover:bg-indigo-50/50 cursor-pointer"
+          onclick="location='/asistencia/persona/{{ r.persona.id }}?mes={{ anio }}-{{ '%02d' % mes_num }}'">
+          <td class="px-4 py-1.5 whitespace-nowrap">
+            <a href="/asistencia/persona/{{ r.persona.id }}?mes={{ anio }}-{{ '%02d' % mes_num }}"
+              class="text-gray-800 hover:text-indigo-700 font-medium">{{ r.persona.apellido }}, {{ r.persona.nombre }}</a></td>
           <td class="px-2 py-1.5 text-xs text-gray-400 truncate max-w-[130px]">{{ r.grupo or '—' }}</td>
           <td class="px-2 py-1.5 text-right tabular-nums text-amber-700">{{ mt(r.e50) }}</td>
           <td class="px-2 py-1.5 text-right tabular-nums text-red-700">{{ mt(r.e100) }}</td>

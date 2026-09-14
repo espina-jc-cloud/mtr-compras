@@ -987,6 +987,7 @@ async def mes(request: Request, db: Session = Depends(get_db),
         "anio": anio, "mes_num": m, "desde": desde, "hasta": hasta,
         "prev": prev_m.strftime("%Y-%m"), "next": next_m.strftime("%Y-%m"),
         "hay_next": next_m <= hoy, "hoy": hoy,
+        "meses": _meses_con_datos(db),
         "en_curso": desde <= hoy <= hasta,
         "planta": planta, "grupo": grupo,
         "plantas_disp": plantas_disp, "grupos_disp": grupos_disp,
@@ -1154,3 +1155,203 @@ async def importar_buzon_probar(db: Session = Depends(get_db),
         extra = "+·+Carpetas:+" + ",+".join(r["carpetas"][:6])
     return RedirectResponse(
         f"/asistencia/importar?err={(r.get('error') or 'Error')[:160]}{extra}", 303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Ficha individual
+# ══════════════════════════════════════════════════════════════════════════════
+
+_FRANJAS = [(0, 6, "Noche 00-06"), (6, 12, "Mañana 06-12"),
+            (12, 18, "Tarde 12-18"), (18, 24, "Noche 18-00")]
+
+
+def _meses_con_datos(db: Session, persona_id: int = None) -> list:
+    """Meses que tienen jornadas cargadas, del más nuevo al más viejo.
+
+    Alimenta el selector: no tiene sentido ofrecer meses vacíos, y a medida que
+    se carguen octubre, noviembre… aparecen solos.
+    """
+    q = db.query(AsistenciaJornada.fecha)
+    if persona_id:
+        q = q.filter(AsistenciaJornada.persona_id == persona_id)
+    vistos = {(f.year, f.month) for (f,) in q.distinct().all()}
+    return sorted(vistos, reverse=True)
+
+
+@router.get("/persona/{persona_id}", response_class=HTMLResponse)
+async def persona_ficha(persona_id: int, request: Request,
+                        db: Session = Depends(get_db),
+                        current_user=Depends(_reportes), mes: str = ""):
+    p = db.query(AsistenciaPersona).get(persona_id)
+    if p is None:
+        return RedirectResponse("/asistencia/mes?err=Persona+inexistente", 303)
+
+    hoy = date.today()
+    anio, m, desde, hasta = _rango_mes(mes)
+
+    jornadas = (db.query(AsistenciaJornada)
+                .filter(AsistenciaJornada.persona_id == p.id,
+                        AsistenciaJornada.fecha >= desde,
+                        AsistenciaJornada.fecha <= hasta)
+                .order_by(AsistenciaJornada.fecha).all())
+    bloques = {}
+    for b in (db.query(AsistenciaBloque)
+              .filter(AsistenciaBloque.persona_id == p.id,
+                      AsistenciaBloque.fecha_operativa >= desde,
+                      AsistenciaBloque.fecha_operativa <= hasta)
+              .order_by(AsistenciaBloque.desde).all()):
+        bloques.setdefault(b.fecha_operativa, []).append(b)
+    for j in jornadas:
+        j._bloques = bloques.get(j.fecha, [])
+
+    trabajados = [j for j in jornadas if (j.minutos_presencia or 0) > 0]
+    con_extra = [j for j in jornadas if (j.minutos_extra_detectada or 0) > 0]
+    e50 = sum(j.minutos_extra_50 or 0 for j in jornadas)
+    e100 = sum(j.minutos_extra_100 or 0 for j in jornadas)
+    trabajado = sum(j.minutos_trabajados or 0 for j in jornadas)
+    esperado = sum(j.minutos_esperados or 0 for j in jornadas if j.laborable_esp)
+
+    # ── Patrón horario ───────────────────────────────────────────────────────
+    # Si alguien entra siempre a la misma hora, su horario real es ese. La
+    # dispersión es lo que delata que el horario de la nómina no es el que rige.
+    entradas, salidas, franjas = {}, {}, {n: 0 for _, _, n in _FRANJAS}
+    for j in jornadas:
+        for b in j._bloques:
+            h = b.desde.hour
+            entradas[h] = entradas.get(h, 0) + 1
+            for ini, fin, nom in _FRANJAS:
+                if ini <= h < fin:
+                    franjas[nom] += 1
+                    break
+            if b.hasta:
+                salidas[b.hasta.hour] = salidas.get(b.hasta.hour, 0) + 1
+
+    def _moda(d):
+        return max(d.items(), key=lambda kv: kv[1]) if d else (None, 0)
+    ent_moda, ent_n = _moda(entradas)
+    sal_moda, sal_n = _moda(salidas)
+
+    # ── Día de la semana ─────────────────────────────────────────────────────
+    por_dow = {i: {"extra": 0, "dias": 0} for i in range(7)}
+    for j in jornadas:
+        d = por_dow[j.fecha.weekday()]
+        d["extra"] += j.minutos_extra_detectada or 0
+        d["dias"] += 1 if (j.minutos_presencia or 0) else 0
+
+    # ── Racha de días consecutivos con extra ─────────────────────────────────
+    fechas_extra = sorted(j.fecha for j in con_extra)
+    racha = actual = 1 if fechas_extra else 0
+    for a, b in zip(fechas_extra, fechas_extra[1:]):
+        actual = actual + 1 if (b - a).days == 1 else 1
+        racha = max(racha, actual)
+
+    # ── Comparación con sus pares ────────────────────────────────────────────
+    # Es lo que convierte un número en un juicio: 8 h de extra no dicen nada
+    # hasta saber que sus compañeros hicieron 2.
+    pares_q = (db.query(AsistenciaJornada)
+               .filter(AsistenciaJornada.fecha >= desde,
+                       AsistenciaJornada.fecha <= hasta,
+                       AsistenciaJornada.persona_id != p.id,
+                       AsistenciaJornada.tipo_persona_snap == (p.tipo or "mtr")))
+    if p.grupo:
+        pares_q = pares_q.filter(AsistenciaJornada.grupo_snap == p.grupo)
+    por_par = {}
+    for j in pares_q.all():
+        d = por_par.setdefault(j.persona_id, {"extra": 0, "trab": 0})
+        d["extra"] += j.minutos_extra_detectada or 0
+        d["trab"] += j.minutos_trabajados or 0
+    n_pares = len(por_par)
+    prom_extra = (sum(v["extra"] for v in por_par.values()) / n_pares) if n_pares else 0
+    prom_trab = (sum(v["trab"] for v in por_par.values()) / n_pares) if n_pares else 0
+    extra_total = e50 + e100
+    peores = sorted((v["extra"] for v in por_par.values()), reverse=True)
+    puesto = sum(1 for x in peores if x > extra_total) + 1
+
+    # ── Evolución de los últimos 6 meses ─────────────────────────────────────
+    serie = []
+    y, mm = anio, m
+    for _ in range(6):
+        d1 = date(y, mm, 1)
+        d2 = date(y, mm, monthrange(y, mm)[1])
+        tot = (db.query(func.coalesce(func.sum(AsistenciaJornada.minutos_extra_detectada), 0))
+               .filter(AsistenciaJornada.persona_id == p.id,
+                       AsistenciaJornada.fecha >= d1,
+                       AsistenciaJornada.fecha <= d2).scalar() or 0)
+        hay = (db.query(func.count(AsistenciaJornada.id))
+               .filter(AsistenciaJornada.persona_id == p.id,
+                       AsistenciaJornada.fecha >= d1,
+                       AsistenciaJornada.fecha <= d2).scalar() or 0)
+        serie.append({"anio": y, "mes": mm, "extra": tot, "hay": bool(hay)})
+        mm -= 1
+        if mm == 0:
+            y, mm = y - 1, 12
+    serie.reverse()
+
+    # ── Alertas de esta persona ──────────────────────────────────────────────
+    cfg = get_config(db)
+    alertas = []
+    for umbral, nivel in [(cfg.umbral_mes_3_min, 3), (cfg.umbral_mes_2_min, 2),
+                          (cfg.umbral_mes_1_min, 1)]:
+        if umbral and extra_total >= umbral:
+            alertas.append(("critica" if nivel == 3 else "media",
+                            f"Acumuló {min_a_texto(extra_total)} — supera el umbral de "
+                            f"{min_a_texto(umbral)}"))
+            break
+    if racha >= (cfg.dias_racha_alerta or 3):
+        alertas.append(("media", f"{racha} días seguidos con horas extra"))
+    if trabajados and len(con_extra) * 100 / len(trabajados) >= (cfg.pct_recurrencia_alerta or 60):
+        alertas.append(("media",
+                        f"Hizo extra en {len(con_extra)} de {len(trabajados)} días trabajados "
+                        f"({len(con_extra) * 100 // len(trabajados)} %) — su horario real "
+                        f"puede no ser el de la nómina"))
+    incompletas = [j for j in jornadas if j.estado_registro in ("sin_egreso", "sin_ingreso",
+                                                                "inconsistente")]
+    if incompletas:
+        alertas.append(("gris", f"{len(incompletas)} día(s) con el registro incompleto — "
+                                f"esas horas no computan"))
+    largas = [j for j in jornadas
+              if (j.minutos_presencia or 0) > (cfg.umbral_jornada_larga_min or 720)]
+    if largas:
+        alertas.append(("critica", f"{len(largas)} jornada(s) de más de "
+                                   f"{min_a_texto(cfg.umbral_jornada_larga_min)}"))
+    if n_pares and prom_extra and extra_total >= prom_extra * 2:
+        alertas.append(("media", f"Hizo {extra_total / prom_extra:.1f}× la extra promedio "
+                                 f"de su grupo"))
+
+    prev_m = (desde - timedelta(days=1)).replace(day=1)
+    next_m = hasta + timedelta(days=1)
+    return templates.TemplateResponse(request, "asistencia/persona.html", {
+        # La clave es "persona" y no "p": base.html define `p` como la ruta
+        # actual dentro del bloque content y pisaría a la persona.
+        "current_user": current_user, "persona": p,
+        "anio": anio, "mes_num": m, "desde": desde, "hasta": hasta,
+        "prev": prev_m.strftime("%Y-%m"), "next": next_m.strftime("%Y-%m"),
+        "hay_next": next_m <= hoy,
+        "meses": _meses_con_datos(db),
+        "jornadas": jornadas, "alertas": alertas,
+        "entradas": entradas, "salidas": salidas, "franjas": franjas,
+        "ent_moda": ent_moda, "ent_n": ent_n, "sal_moda": sal_moda, "sal_n": sal_n,
+        "por_dow": por_dow, "serie": serie,
+        "comparacion": {
+            "n_pares": n_pares, "prom_extra": prom_extra, "prom_trab": prom_trab,
+            "puesto": puesto, "total": n_pares + 1,
+            "ratio": (extra_total / prom_extra) if prom_extra else None,
+        },
+        "kpis": {
+            "extra": extra_total, "e50": e50, "e100": e100,
+            "aprobada": sum(j.minutos_extra_aprobada or 0 for j in jornadas
+                            if j.minutos_extra_aprobada is not None),
+            "trabajado": trabajado, "esperado": esperado,
+            "cumplimiento": round(trabajado * 100 / esperado) if esperado else None,
+            "defecto": sum(j.minutos_defecto or 0 for j in jornadas),
+            "dias_trabajados": len(trabajados),
+            "dias_extra": len(con_extra),
+            "ausentes": len([j for j in jornadas if j.estado_registro == "ausente"]),
+            "incompletas": len(incompletas),
+            "racha": racha,
+            "pct_extra": round(len(con_extra) * 100 / len(trabajados)) if trabajados else 0,
+        },
+        "mt": min_a_texto,
+        "estado_extra_css": ESTADO_EXTRA_CSS,
+        "estado_registro_css": ESTADO_REGISTRO_CSS,
+    })
