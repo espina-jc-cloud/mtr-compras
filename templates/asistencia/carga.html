@@ -95,6 +95,18 @@
   </div>
 </div>
 
+{% if foco %}
+{% set fila_foco = filas | selectattr('p.id', 'equalto', foco) | first %}
+{% if fila_foco %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-3">
+  <p class="text-sm text-amber-900">
+    Viniste a corregir a <b>{{ fila_foco.p.apellido }}, {{ fila_foco.p.nombre }}</b> —
+    está marcada abajo. Al guardar, el estado se recalcula solo.
+  </p>
+</div>
+{% endif %}
+{% endif %}
+
 <!-- ── Atajos de masa ─────────────────────────────────────────────────────── -->
 <div class="flex flex-wrap gap-2 mb-3">
   {% for accion, hora, label, cls in [
@@ -145,6 +157,17 @@
 
 {% block scripts %}
 <script>
+(function () {
+  // Al llegar desde "requiere atención", llevar la vista a la fila marcada y
+  // dejar el cursor en el campo que probablemente haya que completar.
+  var foco = document.querySelector('[data-foco]');
+  if (foco) {
+    foco.scrollIntoView({ block: "center" });
+    var vacio = foco.querySelector('input[data-hora][value=""]')
+             || foco.querySelector('input[data-hora]');
+    if (vacio) { vacio.focus(); vacio.select(); }
+  }
+})();
 (function () {
   // 0800 / 800 / 8:00 → 08:00. Se normaliza al SALIR del campo, no mientras se
   // tipea: formatear en cada tecla pelea con el cursor.

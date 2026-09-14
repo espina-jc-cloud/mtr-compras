@@ -5,7 +5,9 @@
 #}
 {% set b0 = bloques[0] if bloques else None %}
 {% set extra = (j.minutos_extra_detectada or 0) if j else 0 %}
-<tbody id="fila-{{ p.id }}" class="divide-y divide-gray-50 border-b border-gray-100">
+{# `foco` llega desde "requiere atención": marca la fila exacta que hay que
+   tocar, para no tener que buscarla entre 19. #}
+<tbody id="fila-{{ p.id }}" class="divide-y divide-gray-50 border-b border-gray-100{{ ' ring-2 ring-inset ring-amber-400 bg-amber-50/40' if foco and foco == p.id }}"{{ ' data-foco="1"' | safe if foco and foco == p.id }}>
   <tr class="{{ 'bg-gray-50/60' if j and j.estado_registro == 'ausente' }}">
 
     <td class="px-4 py-1.5 whitespace-nowrap">

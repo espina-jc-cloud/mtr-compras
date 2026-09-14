@@ -100,26 +100,31 @@
     Requiere atención — {{ atencion|length }}
   </p>
   <div class="space-y-2">
-    {% for prio, j, titulo, detalle in atencion %}
+    {% for prio, j, titulo, detalle, url, accion in atencion %}
     {% set c = ['red','gray','amber','amber'][prio] %}
-    <div class="bg-white border border-{{ c }}-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
-      <div class="min-w-0">
-        <p class="text-sm font-semibold text-gray-900">
-          {{ j.persona.apellido }}, {{ j.persona.nombre }}
-          <span class="ml-1.5 text-xs font-normal text-gray-400">{{ j.planta_snap or 'sin planta' }}</span>
-        </p>
-        <p class="text-xs text-{{ c }}-700 font-semibold mt-0.5">{{ titulo }}
-          {% if j.minutos_extra_detectada %}
-          <span class="text-gray-500 font-normal">· {{ mt(j.minutos_extra_detectada) }} de extra (al {{ j.tipo_extra_dominante }} %)</span>
+    <a href="{{ url }}"
+      class="block bg-white border border-{{ c }}-200 rounded-xl px-4 py-3 hover:border-{{ c }}-400 hover:shadow-sm transition">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-gray-900">
+            {{ j.persona.apellido }}, {{ j.persona.nombre }}
+            <span class="ml-1.5 text-xs font-normal text-gray-400">
+              {{ j.grupo_snap or j.planta_snap or '' }}</span>
+          </p>
+          <p class="text-xs text-{{ c }}-700 font-semibold mt-0.5">{{ titulo }}
+            {% if j.minutos_extra_detectada %}
+            <span class="text-gray-500 font-normal">· {{ mt(j.minutos_extra_detectada) }} de extra
+              {%- if j.tipo_extra_dominante %} al {{ j.tipo_extra_dominante }} %{% endif %}</span>
+            {% endif %}
+          </p>
+          {% if detalle %}
+          <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ detalle }}</p>
           {% endif %}
-        </p>
-        {% if detalle %}<p class="text-xs text-gray-500 mt-0.5">{{ detalle }}</p>{% endif %}
+        </div>
+        <span class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-{{ c }}-50 text-{{ c }}-800 whitespace-nowrap">
+          {{ accion }} →</span>
       </div>
-      <a href="/asistencia/carga?fecha={{ fecha.isoformat() }}"
-        class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 whitespace-nowrap">
-        {{ 'Corregir' if prio <= 1 else 'Revisar' }}
-      </a>
-    </div>
+    </a>
     {% endfor %}
   </div>
 </div>

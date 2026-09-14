@@ -191,6 +191,10 @@
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
   <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-4 pb-2">
     Día por día — {{ meses_n[mes_num - 1] }} {{ anio }}
+    {% if foco %}
+    <span class="font-normal normal-case text-amber-700">— {{ foco.strftime('%d/%m') }} marcado,
+      es el día que te trajo acá</span>
+    {% endif %}
   </p>
   <table class="min-w-full text-sm">
     <thead>
@@ -207,7 +211,9 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {% for j in jornadas %}
-      <tr class="{{ 'bg-red-50/40' if (j.minutos_extra_detectada or 0) >= 240 }}">
+      <tr {{ 'data-foco="1"' | safe if foco and j.fecha == foco }}
+        class="{{ 'ring-2 ring-inset ring-amber-400 bg-amber-50/50' if foco and j.fecha == foco
+                 else ('bg-red-50/40' if (j.minutos_extra_detectada or 0) >= 240 else '') }}">
         <td class="px-4 py-1.5 whitespace-nowrap">
           <span class="tabular-nums text-gray-800">{{ j.fecha.strftime('%d/%m') }}</span>
           <span class="text-xs text-gray-400 ml-1">{{ dow_c[j.fecha.weekday()] }}</span>
@@ -244,6 +250,10 @@
 {% block scripts %}
 <script src="/static/js/chart.min.js"></script>
 <script>
+(function () {
+  var foco = document.querySelector('[data-foco]');
+  if (foco) foco.scrollIntoView({ block: "center" });
+})();
 (function () {
   if (typeof Chart === "undefined") return;
   var h = function (m) {

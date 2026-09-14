@@ -200,20 +200,54 @@ async def dia(request: Request, db: Session = Depends(get_db),
         "personas_con_extra": len([j for j in mtr if (j.minutos_extra_detectada or 0) > 0]),
     }
 
-    # ── Requiere atención — ordenado por criticidad, no por nombre ────────────
+    # ── Requiere atención ────────────────────────────────────────────────────
+    # Cada ítem contesta tres cosas: qué pasa, por qué importa, y dónde se
+    # resuelve. Un aviso que no lleva a la acción no sirve de nada.
+    qs_planta = f"&planta={planta}" if planta else ""
+    mes_qs = f.strftime("%Y-%m")
+
+    def _acumulado_mes(persona_id):
+        return (db.query(func.coalesce(
+            func.sum(AsistenciaJornada.minutos_extra_detectada), 0))
+            .filter(AsistenciaJornada.persona_id == persona_id,
+                    AsistenciaJornada.fecha >= ini_mes,
+                    AsistenciaJornada.fecha <= f).scalar() or 0)
+
     atencion = []
     for j in jornadas:
+        nom = f"{j.persona.apellido}, {j.persona.nombre}" if j.persona else "?"
+        url_carga = (f"/asistencia/carga?fecha={f.isoformat()}{qs_planta}"
+                     f"&foco={j.persona_id}#fila-{j.persona_id}")
+        url_ficha = f"/asistencia/persona/{j.persona_id}?mes={mes_qs}&foco={f.isoformat()}"
+
         if j.estado_registro == "inconsistente":
             atencion.append((0, j, "Registro inconsistente",
-                             "Egreso sin ingreso, doble ingreso o bloque de más de 16 h."))
+                             "Hay un egreso sin ingreso, dos ingresos seguidos o un bloque "
+                             "de más de 16 h. Mientras quede así, las horas de este día no "
+                             "computan ni como extra ni como jornada cumplida.",
+                             url_carga, "Corregir la fila"))
         elif j.estado_registro == "sin_egreso":
-            atencion.append((1, j, "Sin egreso",
-                             "No computa extra hasta que se corrija."))
+            atencion.append((1, j, "Falta el egreso",
+                             f"{nom} tiene la entrada cargada pero no la salida. No se le "
+                             "computa extra ni horas no cumplidas: el sistema no puede "
+                             "inventar a qué hora se fue.",
+                             url_carga, "Cargar el egreso"))
         elif j.revisar:
-            atencion.append((2, j, "Recalculada tras decisión",
-                             "Cambió la extra detectada de una jornada ya resuelta."))
+            atencion.append((2, j, "Cambió después de resolverse",
+                             "El recálculo dio distinto de lo que había cuando alguien "
+                             "resolvió esta extra. La decisión NO se tocó: hay que mirarla "
+                             "de nuevo y confirmarla o corregirla.",
+                             url_ficha, "Revisar la ficha"))
         elif (j.minutos_extra_detectada or 0) > 0 and j.estado_extra == "pendiente":
-            atencion.append((3, j, "Extra pendiente", None))
+            acum = _acumulado_mes(j.persona_id)
+            porque = (f"{min_a_texto(j.minutos_extra_detectada)} sin resolver. "
+                      f"Lleva {min_a_texto(acum)} en lo que va del mes")
+            if j.minutos_extra_100:
+                porque += f", {min_a_texto(j.minutos_extra_100)} de ellas al 100 %"
+            porque += ". Falta decidir el motivo y si se aprueba."
+            atencion.append((3, j, "Extra sin resolver", porque,
+                             url_ficha, "Analizar a la persona"))
+
     atencion.sort(key=lambda t: (t[0], -(t[1].minutos_extra_detectada or 0)))
 
     qp = db.query(func.count(AsistenciaPersona.id)).filter(
@@ -250,7 +284,8 @@ async def dia(request: Request, db: Session = Depends(get_db),
 
 @router.get("/carga", response_class=HTMLResponse)
 async def carga(request: Request, db: Session = Depends(get_db),
-                current_user=Depends(_cargar), fecha: str = "", planta: str = ""):
+                current_user=Depends(_cargar), fecha: str = "", planta: str = "",
+                foco: int = 0):
     f = _parse_fecha(fecha, _fecha_carga_default(db))
 
     personas = _personas_activas(db, planta)
@@ -274,6 +309,7 @@ async def carga(request: Request, db: Session = Depends(get_db),
         "next": f + timedelta(days=1),
         "hoy": date.today(),
         "filas": filas,
+        "foco": foco,
         "total": len(filas),
         "cargadas": cargadas,
         "sin_egreso": sin_egreso,
@@ -969,13 +1005,26 @@ async def mes(request: Request, db: Session = Depends(get_db),
 
     # ── Umbrales de acumulación ──────────────────────────────────────────────
     umbrales = [(cfg.umbral_mes_3_min, 3), (cfg.umbral_mes_2_min, 2), (cfg.umbral_mes_1_min, 1)]
+    mes_qs = f"{anio}-{m:02d}"
+    prom = (sum(r["total"] for r in ranking) / len(ranking)) if ranking else 0
     alertas = []
     for r in ranking:
+        motivos = []
         nivel = next((n for u, n in umbrales if r["total"] >= (u or 10 ** 9)), 0)
         if nivel:
-            alertas.append({**r, "nivel": nivel})
-        elif r["racha"] >= (cfg.dias_racha_alerta or 3):
-            alertas.append({**r, "nivel": 0})
+            umbral = next(u for u, n in umbrales if n == nivel)
+            motivos.append(f"acumuló {min_a_texto(r['total'])}, por encima del umbral de "
+                           f"{min_a_texto(umbral)}")
+        if r["racha"] >= (cfg.dias_racha_alerta or 3):
+            motivos.append(f"{r['racha']} días seguidos con extra")
+        if prom and r["total"] >= prom * 2 and r["total"] > 0:
+            motivos.append(f"hizo {r['total'] / prom:.1f}× el promedio del mes")
+        if r["pendientes"]:
+            motivos.append(f"{r['pendientes']} día(s) sin resolver")
+        if not motivos:
+            continue
+        alertas.append({**r, "nivel": nivel, "motivos": motivos,
+                        "url": f"/asistencia/persona/{r['persona'].id}?mes={mes_qs}"})
 
     plantas_disp = sorted({j.planta_snap for j in _datos_mes(db, desde, hasta) if j.planta_snap})
     grupos_disp = sorted({j.grupo_snap for j in _datos_mes(db, desde, hasta) if j.grupo_snap})
@@ -1181,7 +1230,8 @@ def _meses_con_datos(db: Session, persona_id: int = None) -> list:
 @router.get("/persona/{persona_id}", response_class=HTMLResponse)
 async def persona_ficha(persona_id: int, request: Request,
                         db: Session = Depends(get_db),
-                        current_user=Depends(_reportes), mes: str = ""):
+                        current_user=Depends(_reportes), mes: str = "",
+                        foco: str = ""):
     p = db.query(AsistenciaPersona).get(persona_id)
     if p is None:
         return RedirectResponse("/asistencia/mes?err=Persona+inexistente", 303)
@@ -1329,6 +1379,7 @@ async def persona_ficha(persona_id: int, request: Request,
         "hay_next": next_m <= hoy,
         "meses": _meses_con_datos(db),
         "jornadas": jornadas, "alertas": alertas,
+        "foco": _parse_fecha(foco, None) if foco else None,
         "entradas": entradas, "salidas": salidas, "franjas": franjas,
         "ent_moda": ent_moda, "ent_n": ent_n, "sal_moda": sal_moda, "sal_n": sal_n,
         "por_dow": por_dow, "serie": serie,
