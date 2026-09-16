@@ -46,6 +46,7 @@ import email
 import imaplib
 import os
 import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
@@ -94,7 +95,30 @@ def _texto(valor) -> str:
 
 
 def _normalizar(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "")).strip().upper()
+    """Mayúsculas, sin acentos y con los espacios colapsados."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", s).strip().upper()
+
+
+# Palabras que no identifican al mail y que quien lo escribe agrega o saca sin
+# pensarlo, incluidos los prefijos de reenvío.
+_CONECTORES = {"DE", "DEL", "LA", "EL", "LOS", "LAS", "Y", "A", "RE", "RV", "FW", "FWD"}
+
+
+def _palabras_clave(s: str) -> set:
+    """Palabras significativas de un asunto, sin puntuación ni conectores.
+
+    POR QUÉ NO ALCANZA CON COMPARAR SUBCADENAS
+        El mail de balanza llega unos días como "HORAS DEL PERSONAL MTR I" y
+        otros como "HORAS DEL PERSONAL DE MTR I". Buscando el asunto con `in`,
+        ese "DE" de más hace que el filtro no lo encuentre y la planilla del día
+        se pierda sin ruido: entre el 09 y el 16/09/2026 llegaron siete envíos y
+        entraron dos. Comparar conjuntos de palabras tolera esa variación y, de
+        paso, los "Re:" y "Fwd:" de quien reenvía.
+    """
+    base = re.sub(r"[^A-Z0-9 ]+", " ", _normalizar(s))
+    return {p for p in base.split() if p and p not in _CONECTORES}
 
 
 def probar_conexion() -> dict:
@@ -141,8 +165,12 @@ def buscar_planillas(limite: int = 5) -> dict:
         return {"ok": False, "error": "El buzón no está configurado.", "mensajes": []}
 
     desde = (datetime.now(timezone.utc) - timedelta(days=c["dias"])).strftime("%d-%b-%Y")
-    asunto_norm = _normalizar(c["asunto"])
+    claves = _palabras_clave(c["asunto"])
     mensajes = []
+    # Los que vienen del remitente correcto pero cuyo asunto no da: se registran
+    # para que un cambio de redacción se vea en los logs y no haya que descubrirlo
+    # por la ausencia de datos.
+    descartados = []
 
     try:
         with imaplib.IMAP4_SSL(c["host"], c["port"], timeout=TIMEOUT_SEG) as m:
@@ -181,7 +209,9 @@ def buscar_planillas(limite: int = 5) -> dict:
                     continue
                 encabezados = email.message_from_bytes(cab[0][1])
                 asunto = _texto(encabezados.get("Subject"))
-                if asunto_norm and asunto_norm not in _normalizar(asunto):
+                if claves and not claves.issubset(_palabras_clave(asunto)):
+                    if len(descartados) < 15:
+                        descartados.append(asunto[:120])
                     continue
 
                 # Recién acá, con el asunto confirmado, se baja el mail entero.
@@ -218,7 +248,11 @@ def buscar_planillas(limite: int = 5) -> dict:
                     "contenido": adjunto,
                 })
 
-        return {"ok": True, "mensajes": mensajes, "error": None}
+        if descartados and not mensajes:
+            print("[buzon] ningun mail coincidio con el asunto "
+                  f"{c['asunto']!r}. Descartados: {descartados}", flush=True)
+        return {"ok": True, "mensajes": mensajes, "error": None,
+                "descartados": descartados}
     except imaplib.IMAP4.error as e:
         return {"ok": False, "mensajes": [], "error": f"El servidor rechazó el acceso: {e}"}
     except Exception as e:
