@@ -85,6 +85,39 @@ def ritmo_por_bodega_turno(db, session_id: int, dias: int = 3) -> float:
     return round(sum(pares.values()) / len(pares), 1) if pares else 0.0
 
 
+def turnos_resumen(db, session_id: int) -> list[dict]:
+    """Un renglón por turno, con los kilos separados por destino.
+
+    Es lo que alimenta el gráfico de ritmo: cada barra es un turno y se parte
+    entre lo nuestro y lo que va al depósito de un tercero.
+    """
+    turnos = (
+        db.query(OperationLiveShift)
+        .filter(OperationLiveShift.session_id == session_id)
+        .order_by(OperationLiveShift.shift_date, OperationLiveShift.shift_start)
+        .all()
+    )
+    out = []
+    for t in turnos:
+        kg = {d: 0 for d in DESTINOS_KG}
+        viajes, bodegas = 0, set()
+        for f in t.bodega_data:
+            for destino, campo in DESTINOS_KG.items():
+                kg[destino] += int(getattr(f, campo, 0) or 0)
+            viajes += int(f.viajes_mtr or 0)
+            bodegas.add(f.bodega_number)
+        nuestro = sum(kg[d] for d in NUESTRO)
+        out.append({
+            "fecha": t.shift_date, "inicio": t.shift_start, "fin": t.shift_end,
+            "numero": t.shift_number,
+            "kg": nuestro + kg["TERCERO"], "kg_nuestro": nuestro,
+            "kg_tercero": kg["TERCERO"], "kg_cv": kg["CV"],
+            "viajes": viajes, "bodegas": sorted(bodegas),
+            "notas": t.notes or "",
+        })
+    return out
+
+
 def avance(db, session) -> dict:
     """Plan contra real, bodega por bodega, y qué falta en cada una.
 

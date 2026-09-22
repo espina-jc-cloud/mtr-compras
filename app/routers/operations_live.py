@@ -2328,7 +2328,7 @@ async def delete_photo(
 # ══════════════════════════════════════════════════════════════════════════════
 
 from app.live_partes import parsear_parte, resumen as _resumen_parte, CAMPO, ETIQUETA
-from app.live_avance import avance as _avance, NUESTRO
+from app.live_avance import avance as _avance, turnos_resumen as _turnos_resumen, NUESTRO
 from app.models_live import OperationLiveStowItem
 
 
@@ -2343,7 +2343,9 @@ async def session_avance(
     return templates.TemplateResponse(
         request, "operations/live/avance.html",
         {"current_user": current_user, "session": session,
-         "av": _avance(db, session), "etiqueta": ETIQUETA},
+         "av": _avance(db, session),
+         "turnos": _turnos_resumen(db, session.id),
+         "etiqueta": ETIQUETA},
     )
 
 

@@ -2,13 +2,15 @@
 {% block title %}Avance — {{ session.ship_name }}{% endblock %}
 {% block content %}
 {% set t = av.totales %}
+{% set ajeno = session.tercero_nombre or 'tercero' %}
 
-<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
+<!-- ══ Encabezado ══════════════════════════════════════════════════════════ -->
+<div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
   <div>
     <h1 class="text-xl font-semibold text-gray-900">{{ session.ship_name }}</h1>
     <p class="text-sm text-gray-500 mt-0.5">
-      Avance contra el plan de estiba{% if session.tercero_nombre %} ·
-      lo que no es nuestro va a {{ session.tercero_nombre }}{% endif %}</p>
+      Avance contra el plan de estiba · {{ turnos | length }} turno{{ 's' if turnos | length != 1 }} cargado{{ 's' if turnos | length != 1 }}
+      {%- if session.tercero_nombre %} · lo que no es nuestro va a {{ session.tercero_nombre }}{% endif %}</p>
   </div>
   <div class="flex items-center gap-2">
     <a href="/operations/live/{{ session.id }}/parte"
@@ -29,92 +31,143 @@
 <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
   <p class="font-semibold text-amber-900">Falta el plan de estiba</p>
   <p class="text-sm text-amber-800 mt-1">
-    Sin el plan se puede saber cuánto bajó, pero no qué falta ni cuándo vuelve a entrar
-    mercadería nuestra: eso lo define el orden de descarga de cada bodega.
-    <a href="/operations/live/{{ session.id }}/plan" class="underline font-semibold">Cargalo acá</a>.
-  </p>
+    Sin el plan se sabe cuánto bajó, pero no qué falta ni cuándo vuelve a entrar mercadería
+    nuestra: eso lo define el orden de descarga de cada bodega.
+    <a href="/operations/live/{{ session.id }}/plan" class="underline font-semibold">Cargalo acá</a>.</p>
 </div>
 {% else %}
 
-<!-- Lo que viene -->
-{% if av.proxima_mtr %}
-{% set p = av.proxima_mtr %}
-<div class="rounded-xl border border-gray-200 border-l-4 border-l-blue-600 bg-white px-4 py-3 mb-5 shadow-sm">
-  <p class="font-semibold text-gray-900">Próxima carga nuestra: {{ p.item.product }}</p>
-  <p class="text-sm text-gray-600 mt-0.5">
-    {{ '%.0f'|format(p.restante) }} t en la bodega {{ p.bodega }}.
-    {% if p.desde < 0.15 %}Sale apenas se abra esa bodega.
-    {% else %}Sale a las {{ p.horas }} horas de abrirla, después de
-      {{ '{:,.0f}'.format(p.antes_t).replace(',','.') }} t de carga ajena.{% endif %}
-    Ritmo tomado: {{ '%.0f'|format(av.ritmo) }} t por bodega y turno{% if not av.ritmo_real %} (estimado: todavía no hay partes){% endif %}.
-  </p>
+<!-- ══ Barra de avance ═════════════════════════════════════════════════════ -->
+{% set pn = (t.desc_mtr / t.plan * 100) if t.plan else 0 %}
+{% set pa = ((t.desc - t.desc_mtr) / t.plan * 100) if t.plan else 0 %}
+<div class="flex h-9 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 mb-2">
+  {% if pn > 0 %}<div class="bg-blue-700 text-white text-xs font-semibold flex items-center px-2.5 whitespace-nowrap overflow-hidden border-r-2 border-white"
+    style="width: {{ pn }}%">{{ '{:,.0f}'.format(t.desc_mtr).replace(',','.') }} t</div>{% endif %}
+  {% if pa > 0 %}<div class="bg-amber-600 text-white text-xs font-semibold flex items-center px-2.5 whitespace-nowrap overflow-hidden"
+    style="width: {{ pa }}%">{{ '{:,.0f}'.format(t.desc - t.desc_mtr).replace(',','.') }} t</div>{% endif %}
 </div>
-{% else %}
-<div class="rounded-xl border border-gray-200 bg-white px-4 py-3 mb-5 shadow-sm">
-  <p class="font-semibold text-gray-900">No queda carga nuestra pendiente</p>
-  <p class="text-sm text-gray-600 mt-0.5">Todo lo que resta a bordo es de terceros.</p>
+<div class="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500 mb-6">
+  <span><i class="inline-block w-2.5 h-2.5 rounded-sm bg-blue-700 mr-1.5 align-[-1px]"></i>Nuestro</span>
+  <span><i class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-600 mr-1.5 align-[-1px]"></i>{{ ajeno | capitalize }}</span>
+  <span><i class="inline-block w-2.5 h-2.5 rounded-sm bg-gray-200 border border-gray-300 mr-1.5 align-[-1px]"></i>A bordo</span>
 </div>
-{% endif %}
 
-<!-- Cifras -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden mb-6">
-  {% for k, v, s in [
-      ('Descargado', '%.0f'|format(t.desc), t.pct ~ ' % de ' ~ '%.0f'|format(t.plan) ~ ' t'),
-      ('Resta a bordo', '%.0f'|format(t.resta), '%.0f'|format(t.resta / av.ritmo) ~ ' turnos al ritmo actual'),
-      ('Nuestro descargado', '%.0f'|format(t.desc_mtr), 'de ' ~ '%.0f'|format(t.plan_mtr) ~ ' t'),
-      ('Nuestro pendiente', '%.0f'|format(t.resta_mtr), 'el ' ~ (100 * t.resta_mtr / t.resta) | round | int ~ ' % de lo que falta' if t.resta else '—') ] %}
+<!-- ══ Cifras ══════════════════════════════════════════════════════════════ -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden mb-6">
+  {% set cifras = [
+    ('Descargado', '{:,.0f}'.format(t.desc).replace(',','.'), 't', t.pct ~ ' % de ' ~ '{:,.0f}'.format(t.plan).replace(',','.') ~ ' t', ''),
+    ('Resta a bordo', '{:,.0f}'.format(t.resta).replace(',','.'), 't', '%.1f'|format(t.resta / av.ritmo) ~ ' turnos al ritmo actual', ''),
+    ('Nuestro descargado', '{:,.0f}'.format(t.desc_mtr).replace(',','.'), 't', 'de ' ~ '{:,.0f}'.format(t.plan_mtr).replace(',','.') ~ ' t', ''),
+    ('Resta nuestro', '{:,.0f}'.format(t.resta_mtr).replace(',','.'), 't', ((100 * t.resta_mtr / t.resta) | round | int ~ ' % de lo que falta') if t.resta else 'terminado', 'hi'),
+    ('Ritmo por turno', '%.0f'|format(av.ritmo), 't', 'por bodega' ~ ('' if av.ritmo_real else ' (estimado)'), ''),
+    ('Viajes de camión', '{:,}'.format(turnos | sum(attribute='viajes')).replace(',','.'), '', 'informados en los partes', '')
+  ] %}
+  {% for k, v, u, s, c in cifras %}
   <div class="bg-white px-4 py-3">
-    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">{{ k }}</p>
-    <p class="text-2xl font-semibold text-gray-900 tabular-nums">{{ v }}<span class="text-sm text-gray-400 ml-1">t</span></p>
+    <p class="text-[10.5px] uppercase tracking-wide text-gray-400 font-semibold">{{ k }}</p>
+    <p class="text-2xl font-semibold tabular-nums {{ 'text-blue-700' if c == 'hi' else 'text-gray-900' }}">
+      {{ v }}{% if u %}<span class="text-sm text-gray-400 ml-0.5">{{ u }}</span>{% endif %}</p>
     <p class="text-xs text-gray-500">{{ s }}</p>
   </div>
   {% endfor %}
 </div>
 
-<!-- Bodegas -->
-<div class="grid md:grid-cols-2 gap-4">
-  {% for b in av.bodegas %}
+<!-- ══ Proyección ══════════════════════════════════════════════════════════ -->
+<div class="flex items-baseline justify-between gap-3 flex-wrap border-b border-gray-200 pb-2 mb-4">
+  <h2 class="text-lg font-semibold text-gray-900">Qué falta y cuándo</h2>
+  <p class="text-xs text-gray-500 max-w-2xl">Lo que queda en cada bodega, en el orden del plan, y en
+    cuántos turnos cae al ritmo de los últimos días. Supone que se respeta ese orden y que cada
+    bodega trabaja con una mano.</p>
+</div>
+
+{% if av.proxima_mtr %}
+{% set p = av.proxima_mtr %}
+<div class="rounded-xl border border-gray-200 border-l-4 border-l-blue-700 bg-white px-4 py-3 mb-4 shadow-sm">
+  <p class="font-semibold text-gray-900">Próxima carga nuestra: {{ p.item.product }}</p>
+  <p class="text-sm text-gray-600 mt-0.5">
+    {{ '%.0f'|format(p.restante) }} t en la bodega {{ p.bodega }}.
+    {% if p.desde < 0.15 %}Sale apenas se abra esa bodega.
+    {% else %}Sale a las {{ p.horas }} horas de abrirla, después de
+      {{ '{:,.0f}'.format(p.antes_t).replace(',','.') }} t con destino {{ ajeno }}.{% endif %}</p>
+</div>
+{% else %}
+<div class="rounded-xl border border-gray-200 bg-white px-4 py-3 mb-4 shadow-sm">
+  <p class="font-semibold text-gray-900">No queda carga nuestra pendiente</p>
+  <p class="text-sm text-gray-600 mt-0.5">Todo lo que resta a bordo es de {{ ajeno }}.</p>
+</div>
+{% endif %}
+
+<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+  {% for b in av.bodegas if b.resta > 0.5 %}
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
-    <div class="px-4 py-3 border-b border-gray-100">
+    <div class="px-4 py-2.5 border-b border-gray-100">
+      <div class="flex items-baseline justify-between gap-2">
+        <h3 class="font-semibold text-gray-900">Bodega {{ b.numero }}</h3>
+        <span class="text-xs text-gray-500 tabular-nums">{{ b.turnos }} turnos</span>
+      </div>
+      <p class="text-sm text-gray-500 tabular-nums">
+        restan <b class="text-gray-900">{{ '%.0f'|format(b.resta) }} t</b>
+        {%- if b.resta_mtr > 0.5 %} · <b class="text-blue-700">{{ '%.0f'|format(b.resta_mtr) }} t nuestras</b>
+        {%- else %} · nada nuestro{% endif %}</p>
+    </div>
+    <ol class="divide-y divide-gray-50">
+      {% for d in b["items"] if d.estado != 'descargado' %}
+      <li class="px-4 py-2 flex items-baseline justify-between gap-3 border-l-4
+        {{ 'border-l-blue-700 bg-blue-50/40' if d.item.destino in ['MTR','CV','DIRECTO'] else 'border-l-amber-600' }}">
+        <div class="min-w-0">
+          <p class="text-sm text-gray-900">{{ d.item.orden }}. {{ d.item.product }}</p>
+          <p class="text-xs text-gray-400">{{ d.item.client or '' }} ·
+            {{ 'nuestro' if d.item.destino in ['MTR','CV','DIRECTO'] else ajeno }}
+            {%- if d.estado == 'en curso' %} · en curso{% endif %}</p>
+        </div>
+        <div class="text-right whitespace-nowrap">
+          <span class="text-sm tabular-nums text-gray-700">{{ '%.0f'|format(d.restante) }} t</span>
+          <span class="block text-[11px] text-gray-400 tabular-nums">turno {{ d.desde }}–{{ d.hasta }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ══ Bodegas: el plan completo ═══════════════════════════════════════════ -->
+<div class="flex items-baseline justify-between gap-3 flex-wrap border-b border-gray-200 pb-2 mb-4">
+  <h2 class="text-lg font-semibold text-gray-900">Bodegas</h2>
+  <p class="text-xs text-gray-500">El plan entero, en orden de descarga. Lo que ya salió va en gris.</p>
+</div>
+<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+  {% for b in av.bodegas %}
+  <div class="bg-white border rounded-xl shadow-sm
+    {{ 'border-gray-300' if b.resta > 0.5 and b.desc > 0 else 'border-gray-200' }}">
+    <div class="px-4 py-2.5 border-b border-gray-100">
       <div class="flex items-center justify-between gap-2">
-        <h2 class="font-semibold text-gray-900">Bodega {{ b.numero }}</h2>
-        <span class="text-xs font-semibold px-2 py-1 rounded
+        <h3 class="font-semibold text-gray-900">Bodega {{ b.numero }}</h3>
+        <span class="text-[10.5px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded
           {% if b.resta <= 0.5 %}text-emerald-700 border border-emerald-600
           {% elif b.desc > 0 %}bg-red-600 text-white
           {% else %}text-gray-400 border border-gray-200{% endif %}">
-          {% if b.resta <= 0.5 %}finalizada{% elif b.desc > 0 %}en curso{% else %}pendiente{% endif %}
-        </span>
+          {% if b.resta <= 0.5 %}finalizada{% elif b.desc > 0 %}en curso{% else %}pendiente{% endif %}</span>
       </div>
       <p class="text-sm text-gray-500 mt-1 tabular-nums">
-        {{ '%.0f'|format(b.desc) }} / {{ '%.0f'|format(b.plan) }} t · {{ b.pct }} %
-        {% if b.resta_mtr > 0.5 %}· restan <b class="text-blue-700">{{ '%.0f'|format(b.resta_mtr) }} t nuestras</b>{% endif %}
-        {% if b.resta > 0.5 %}· {{ b.turnos }} turnos{% endif %}
-      </p>
+        {{ '{:,.0f}'.format(b.desc).replace(',','.') }} / {{ '{:,.0f}'.format(b.plan).replace(',','.') }} t · {{ b.pct }} %</p>
       <div class="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
-        <div class="h-full bg-gray-500" style="width: {{ [b.pct, 100] | min }}%"></div>
+        <div class="h-full {{ 'bg-emerald-600' if b.resta <= 0.5 else 'bg-gray-500' }}"
+          style="width: {{ [b.pct, 100] | min }}%"></div>
       </div>
     </div>
     <ul class="divide-y divide-gray-50">
-      {% for d in b.items %}
-      <li class="px-4 py-2 flex items-baseline justify-between gap-3 border-l-4
-        {% if d.item.destino in ['MTR','CV','DIRECTO'] %}border-l-blue-600{% else %}border-l-amber-600{% endif %}
-        {% if d.estado == 'descargado' %}opacity-45{% endif %}">
+      {% for d in b["items"] %}
+      <li class="px-4 py-1.5 flex items-baseline justify-between gap-3 border-l-4
+        {{ 'border-l-blue-700' if d.item.destino in ['MTR','CV','DIRECTO'] else 'border-l-amber-600' }}
+        {{ 'opacity-40' if d.estado == 'descargado' }}">
         <div class="min-w-0">
-          <p class="text-sm text-gray-900">{{ d.item.orden }}. {{ d.item.product }}</p>
-          <p class="text-xs text-gray-400">
-            {{ d.item.client or '' }} ·
-            {% if d.item.destino in ['MTR','CV','DIRECTO'] %}nuestro{% else %}{{ session.tercero_nombre or 'tercero' }}{% endif %}
-            {% if d.estado != 'descargado' %} · turno {{ d.desde }}–{{ d.hasta }}{% endif %}
-          </p>
+          <p class="text-sm text-gray-900 leading-tight">
+            <span class="text-[11px] text-gray-400 mr-1">{{ d.item.orden }}</span>{{ d.item.product }}</p>
+          <p class="text-[11px] text-gray-400">{{ d.item.client or '' }}
+            {%- if d.item.unidades %} · {{ '{:,}'.format(d.item.unidades).replace(',','.') }} bultos{% endif %}</p>
         </div>
-        <div class="text-right whitespace-nowrap">
-          <span class="text-sm tabular-nums text-gray-700">{{ '%.0f'|format(d.item.mt_net) }} t</span>
-          {% if d.estado == 'en curso' %}
-          <span class="block text-[11px] text-red-600">restan {{ '%.0f'|format(d.restante) }} t</span>
-          {% elif d.estado == 'descargado' %}
-          <span class="block text-[11px] text-emerald-700">salió</span>
-          {% endif %}
-        </div>
+        <span class="text-xs tabular-nums text-gray-600 whitespace-nowrap">{{ '%.0f'|format(d.item.mt_net) }} t</span>
       </li>
       {% endfor %}
     </ul>
@@ -122,10 +175,91 @@
   {% endfor %}
 </div>
 
+<!-- ══ Ritmo por turno ═════════════════════════════════════════════════════ -->
+{% if turnos %}
+<div class="flex items-baseline justify-between gap-3 flex-wrap border-b border-gray-200 pb-2 mb-4">
+  <h2 class="text-lg font-semibold text-gray-900">Ritmo por turno</h2>
+  <p class="text-xs text-gray-500">Lo pesado en balanza en cada turno de seis horas, separado por destino.</p>
+</div>
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-x-auto mb-8">
+  <svg id="ritmo" viewBox="0 0 980 300" class="block w-full h-auto" style="min-width:640px"
+    role="img" aria-label="Toneladas por turno, separadas entre carga nuestra y de terceros"></svg>
+</div>
+
+<script>
+(function(){
+  const T=[{% for x in turnos %}{d:"{{ x.fecha.strftime('%d/%m') }}",h:"{{ x.inicio }}",
+    n:{{ x.kg_nuestro }},a:{{ x.kg_tercero }},v:{{ x.viajes }},b:"{{ x.bodegas | join(', ') }}"}{{ "," if not loop.last }}{% endfor %}];
+  if(!T.length) return;
+  const W=980,H=300,L=52,R=12,TOP=24,BOT=48, iw=W-L-R, ih=H-TOP-BOT;
+  const fmt=n=>Math.round(n).toLocaleString('es-AR');
+  const max=Math.max(...T.map(t=>(t.n+t.a)))/1000;
+  const step=Math.max(100,Math.ceil(max/4/100)*100), ymax=Math.ceil(max/step)*step||100;
+  const y=v=>TOP+ih-(v/ymax)*ih, bw=iw/T.length, bar=Math.min(38,Math.max(5,bw-9));
+  let s='', dia='';
+  for(let v=0;v<=ymax;v+=step){
+    s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#f1f5f9"/>`;
+    s+=`<text x="${L-8}" y="${y(v)+3.5}" text-anchor="end" font-size="10" fill="#94a3b8" font-family="ui-monospace,monospace">${fmt(v)}</text>`;
+  }
+  s+=`<text x="${L-8}" y="${TOP-9}" text-anchor="end" font-size="10" fill="#94a3b8" font-family="ui-monospace,monospace">t</text>`;
+  T.forEach((t,i)=>{
+    const cx=L+bw*i+bw/2, x=cx-bar/2;
+    const hn=(t.n/1000/ymax)*ih, ha=(t.a/1000/ymax)*ih;
+    const ya=TOP+ih-ha, yn=ya-hn;
+    if(ha>0) s+=`<rect x="${x}" y="${ya}" width="${bar}" height="${ha}" fill="#d97706"/>`;
+    if(hn>0){const g=ha>0?2:0;
+      s+=`<rect x="${x}" y="${yn+g}" width="${bar}" height="${Math.max(1,hn-g)}" fill="#1d4ed8" rx="2"/>`;}
+    s+=`<title>${t.d} ${t.h} · bodega ${t.b||'—'} · ${t.v} viajes\nNuestro ${fmt(t.n/1000)} t · Terceros ${fmt(t.a/1000)} t</title>`;
+    s+=`<text x="${cx}" y="${H-BOT+14}" text-anchor="middle" font-size="9.5" fill="#94a3b8" font-family="ui-monospace,monospace">${t.h.slice(0,2)}</text>`;
+    if(t.d!==dia){
+      s+=`<line x1="${L+bw*i}" x2="${L+bw*i}" y1="${TOP}" y2="${H-BOT+20}" stroke="#e2e8f0"/>`;
+      s+=`<text x="${L+bw*i+5}" y="${H-BOT+29}" font-size="10" font-weight="600" fill="#64748b">${t.d}</text>`;
+      dia=t.d;
+    }
+  });
+  document.getElementById('ritmo').innerHTML=s;
+})();
+</script>
+
+<!-- ══ Turnos ══════════════════════════════════════════════════════════════ -->
+<div class="flex items-baseline justify-between gap-3 flex-wrap border-b border-gray-200 pb-2 mb-4">
+  <h2 class="text-lg font-semibold text-gray-900">Turnos</h2>
+  <p class="text-xs text-gray-500">Cada parte cargado, del más nuevo al más viejo.</p>
+</div>
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead><tr class="text-[10.5px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+      <th class="text-left px-4 py-2 font-semibold">Fecha</th>
+      <th class="text-left px-2 py-2 font-semibold">Turno</th>
+      <th class="text-left px-2 py-2 font-semibold">Bodegas</th>
+      <th class="text-right px-2 py-2 font-semibold">Nuestro</th>
+      <th class="text-right px-2 py-2 font-semibold">{{ ajeno | capitalize }}</th>
+      <th class="text-right px-2 py-2 font-semibold">Total</th>
+      <th class="text-right px-4 py-2 font-semibold">Viajes</th>
+    </tr></thead>
+    <tbody>
+      {% for x in turnos | reverse %}
+      <tr class="border-b border-gray-50 hover:bg-gray-50">
+        <td class="px-4 py-1.5 tabular-nums">{{ x.fecha.strftime('%d/%m') }}</td>
+        <td class="px-2 py-1.5 tabular-nums text-gray-600">{{ x.inicio }}–{{ x.fin or '··' }}</td>
+        <td class="px-2 py-1.5 text-gray-600">{{ x.bodegas | join(', ') or '—' }}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums {{ 'text-blue-700 font-semibold' if x.kg_nuestro else 'text-gray-300' }}">
+          {{ '{:,}'.format(x.kg_nuestro).replace(',','.') if x.kg_nuestro else '—' }}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums {{ 'text-amber-700' if x.kg_tercero else 'text-gray-300' }}">
+          {{ '{:,}'.format(x.kg_tercero).replace(',','.') if x.kg_tercero else '—' }}</td>
+        <td class="px-2 py-1.5 text-right tabular-nums text-gray-900">{{ '{:,}'.format(x.kg).replace(',','.') }}</td>
+        <td class="px-4 py-1.5 text-right tabular-nums text-gray-600">{{ x.viajes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <p class="text-xs text-gray-400 mt-6 max-w-3xl">
-  El plan está en toneladas netas y la balanza pesa bruto, así que una bodega puede pasar
-  el 100 %. Lo descargado se reparte sobre el plan siguiendo el orden de estiba: el ítem
-  que queda a mitad de camino se marca "en curso".
+  El plan está en toneladas netas y la balanza pesa bruto, así que una bodega puede pasar el
+  100 %. Lo descargado se reparte sobre el plan siguiendo el orden de estiba: el ítem que queda
+  a mitad de camino se marca "en curso".
 </p>
 {% endif %}
 {% endblock %}
