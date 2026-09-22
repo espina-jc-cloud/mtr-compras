@@ -1,10 +1,10 @@
 """
 Lector del buzón donde llega la planilla diaria de horas.
 
-Todas las mañanas llega un mail con asunto "HORAS DEL PERSONAL MTR" y el Excel
-adjunto. Este módulo se conecta por IMAP, busca ese mail, baja el adjunto y lo
-entrega; quien importa es app/asistencia_import.py, que ya sabe leer el
-formato.
+Todas las mañanas llega un mail de balanza con la planilla en un Excel adjunto
+y un asunto que cambia de redacción seguido, pero siempre dice "HORAS". Este
+módulo se conecta por IMAP, lo busca, baja el adjunto y lo entrega; quien
+importa es app/asistencia_import.py, que ya sabe leer el formato.
 
 POR QUÉ IMAP Y NO UN AGENTE CON IA
     El parser del Excel es determinístico y ya leyó 152 filas sin un solo
@@ -18,7 +18,8 @@ CONFIGURACIÓN (variables de entorno)
     ASISTENCIA_MAIL_USER      casilla
     ASISTENCIA_MAIL_PASSWORD  contraseña
     ASISTENCIA_MAIL_CARPETA   default INBOX
-    ASISTENCIA_MAIL_ASUNTO    default "HORAS DEL PERSONAL MTR"
+    ASISTENCIA_MAIL_ASUNTO    palabras clave, default "HORAS"; alcanza con que
+                              el asunto tenga UNA de ellas
     ASISTENCIA_MAIL_REMITENTE opcional, filtra por remitente
     ASISTENCIA_MAIL_DIAS      cuántos días hacia atrás mirar, default 7
 
@@ -73,7 +74,7 @@ def config() -> dict:
         # las rechaza así, sin decir por qué. Se limpian acá.
         "password": os.getenv("ASISTENCIA_MAIL_PASSWORD", "").replace(" ", "").strip(),
         "carpeta": os.getenv("ASISTENCIA_MAIL_CARPETA", "INBOX").strip() or "INBOX",
-        "asunto": os.getenv("ASISTENCIA_MAIL_ASUNTO", "HORAS DEL PERSONAL MTR").strip(),
+        "asunto": os.getenv("ASISTENCIA_MAIL_ASUNTO", "HORAS").strip(),
         "remitente": os.getenv("ASISTENCIA_MAIL_REMITENTE", "").strip(),
         "dias": int(os.getenv("ASISTENCIA_MAIL_DIAS", "7") or 7),
     }
@@ -110,12 +111,17 @@ def _palabras_clave(s: str) -> set:
     """Palabras significativas de un asunto, sin puntuación ni conectores.
 
     POR QUÉ NO ALCANZA CON COMPARAR SUBCADENAS
-        El mail de balanza llega unos días como "HORAS DEL PERSONAL MTR I" y
-        otros como "HORAS DEL PERSONAL DE MTR I". Buscando el asunto con `in`,
-        ese "DE" de más hace que el filtro no lo encuentre y la planilla del día
-        se pierda sin ruido: entre el 09 y el 16/09/2026 llegaron siete envíos y
-        entraron dos. Comparar conjuntos de palabras tolera esa variación y, de
-        paso, los "Re:" y "Fwd:" de quien reenvía.
+        Quien manda la planilla reescribe el asunto cada tanto. En dos semanas
+        llegó como "HORAS DEL PERSONAL MTR I", "HORAS DEL PERSONAL DE MTR I",
+        "HORAS PERSONAL AL 17/09/2026", "HORAS PERSONAL HASTA 20/09/2026" y
+        "HORAS" a secas. Buscar el asunto con `in` fallaba por un "DE" de más, y
+        exigir todas las palabras falló cuando dejó de escribir "MTR": las horas
+        quedaron sin cargar del 16 al 22/09/2026 sin que nada lo avisara.
+
+        Por eso alcanza con UNA palabra clave. Lo que de verdad filtra es el
+        remitente (ASISTENCIA_MAIL_REMITENTE), que el adjunto sea un Excel y que
+        el parser lo reconozca: un archivo que no sea la planilla queda en
+        "sin_novedad" sin tocar ningún dato.
     """
     base = re.sub(r"[^A-Z0-9 ]+", " ", _normalizar(s))
     return {p for p in base.split() if p and p not in _CONECTORES}
@@ -209,7 +215,7 @@ def buscar_planillas(limite: int = 5) -> dict:
                     continue
                 encabezados = email.message_from_bytes(cab[0][1])
                 asunto = _texto(encabezados.get("Subject"))
-                if claves and not claves.issubset(_palabras_clave(asunto)):
+                if claves and not (claves & _palabras_clave(asunto)):
                     if len(descartados) < 15:
                         descartados.append(asunto[:120])
                     continue
