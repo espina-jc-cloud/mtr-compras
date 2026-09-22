@@ -250,6 +250,23 @@ async def dia(request: Request, db: Session = Depends(get_db),
 
     atencion.sort(key=lambda t: (t[0], -(t[1].minutos_extra_detectada or 0)))
 
+    # ── Hace cuánto que no entra una planilla por mail ───────────────────────
+    # Dos veces se cortó la importación porque quien manda el mail cambió el
+    # asunto, y las dos veces lo descubrió el usuario días después: el 16/09/2026
+    # y el 22/09/2026, esta última con 101 h de extra de un fin de semana sin
+    # aparecer. El sistema tiene que decirlo él.
+    ultima = (db.query(AsistenciaImportacion)
+              .filter(AsistenciaImportacion.estado != "error")
+              .order_by(AsistenciaImportacion.id.desc()).first())
+    planilla_vieja = None
+    if ultima is not None and ultima.created_at:
+        horas = (datetime.utcnow() - ultima.created_at).total_seconds() / 3600
+        # 36 h: tolera el fin de semana largo de un sábado a la mañana sin avisar
+        # de más, pero no deja pasar dos días hábiles.
+        if horas >= 36:
+            planilla_vieja = {"horas": int(horas), "dias": int(horas // 24),
+                              "cuando": ultima.created_at}
+
     qp = db.query(func.count(AsistenciaPersona.id)).filter(
         AsistenciaPersona.activo == True,  # noqa: E712
         AsistenciaPersona.tipo == "mtr")
@@ -268,6 +285,7 @@ async def dia(request: Request, db: Session = Depends(get_db),
         "jornadas": sorted(jornadas, key=lambda j: (
             -(j.minutos_extra_detectada or 0), j.persona.apellido if j.persona else "")),
         "atencion": atencion,
+        "planilla_vieja": planilla_vieja,
         "kpis": kpis,
         "cargadas": len(jornadas),
         "personas_activas": personas_activas,

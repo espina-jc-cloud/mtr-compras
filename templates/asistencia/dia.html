@@ -94,6 +94,23 @@
 </div>
 
 <!-- ── Requiere atención ──────────────────────────────────────────────────── -->
+{% if planilla_vieja %}
+{# El importador puede cortarse sin dar error (ya pasó dos veces por un cambio
+   de asunto en el mail). Si nadie lo mira, los días nuevos simplemente no
+   aparecen. Este aviso es lo único que lo delata. #}
+<a href="/asistencia/importar"
+  class="block mb-5 rounded-xl border border-red-300 bg-red-50 px-4 py-3 hover:border-red-500 transition">
+  <p class="text-sm font-bold text-red-800">
+    Hace {{ planilla_vieja.dias }} día{{ 's' if planilla_vieja.dias != 1 }} que no entra una planilla por mail
+  </p>
+  <p class="text-xs text-red-700 mt-0.5">
+    La última importación fue el {{ planilla_vieja.cuando.strftime('%d/%m a las %H:%M') }} UTC.
+    Mientras no entre, los días nuevos quedan sin cargar y las horas extra no se ven.
+    Tocá acá para revisar el buzón o cargar la planilla a mano.
+  </p>
+</a>
+{% endif %}
+
 {% if atencion %}
 <div class="mb-5">
   <p class="text-xs font-bold text-red-700 uppercase tracking-wide mb-2">
