@@ -123,6 +123,9 @@ def run():
         _add_column(conn, "operation_live_sessions", "reconciled_at", "TIMESTAMP")
         _add_column(conn, "operation_live_shifts",       "turno_tipo",    "VARCHAR DEFAULT 'habil'")
         # Bodega: tipo de guinche y grampa por fila
+        # Destino a depósito de un tercero (Manuchar) y su nombre en la sesión.
+        _add_column(conn, "operation_live_bodega_data", "kg_tercero",    "INTEGER DEFAULT 0")
+        _add_column(conn, "operation_live_sessions",    "tercero_nombre", "VARCHAR")
         _add_column(conn, "operation_live_bodega_data", "tipo_guinche",  "VARCHAR")
         _add_column(conn, "operation_live_bodega_data", "tipo_grampa",   "VARCHAR")
         # Nómina de personal MTR (planilla de puestos del parte)

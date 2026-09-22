@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Pegar parte — {{ session.ship_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Pegar un parte</h1>
+    <p class="text-sm text-gray-500 mt-0.5">{{ session.ship_name }} · el mensaje del grupo, tal cual viene</p>
+  </div>
+  <a href="/operations/live/{{ session.id }}/avance"
+    class="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">Ver avance</a>
+</div>
+
+<form method="post" class="max-w-3xl">
+  <textarea name="texto" rows="9" id="texto"
+    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-xs bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+    placeholder="MACURU ARROW&#10;21-09-26 TURNO DE 12 A 18&#10;&#10;#4 Manuchar 7 viajes (198BB) 201540 kg&#10;#4 MTR 2 viajes (23BB) 22260 kg">{{ texto }}</textarea>
+
+  <div class="flex flex-wrap items-center gap-2 mt-3">
+    <button name="accion" value="leer"
+      class="bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">Leer el parte</button>
+    {% if leido and leido.ok %}
+    <button name="accion" value="guardar"
+      class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">
+      {% if leido.ya %}Reemplazar el turno{% else %}Guardar el turno{% endif %}</button>
+    {% endif %}
+    {% if leido and leido.ok and not leido.fecha %}
+    <label class="text-sm text-gray-600">Fecha:
+      <input type="date" name="fecha" required
+        class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm"></label>
+    {% endif %}
+  </div>
+
+  {% if leido %}
+    {% if not leido.ok %}
+    <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {{ leido.error }}</div>
+    {% else %}
+    <div class="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+      <div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 mb-3">
+        <p class="font-semibold text-gray-900">Turno {{ leido.turno }}</p>
+        <p class="text-sm text-gray-600 tabular-nums">
+          {% if leido.fecha %}{{ leido.fecha.strftime('%d/%m/%Y') }}{% else %}
+          <span class="text-amber-700">sin fecha en el parte</span>{% endif %}</p>
+        <p class="text-sm text-gray-600 tabular-nums ml-auto">
+          {{ '{:,}'.format(leido.resumen.kg).replace(',','.') }} kg ·
+          {{ leido.resumen.viajes }} viajes</p>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead><tr class="text-[11px] uppercase tracking-wide text-gray-400">
+          <th class="text-left pb-1.5">Bodega</th><th class="text-left pb-1.5">Destino</th>
+          <th class="text-right pb-1.5">Viajes</th><th class="text-right pb-1.5">Kilos</th>
+          <th class="text-right pb-1.5">Bultos</th></tr></thead>
+        <tbody>
+        {% for m in leido.movimientos %}
+        <tr class="border-t border-gray-50">
+          <td class="py-1.5 tabular-nums">{{ m.bodega or '—' }}</td>
+          <td class="py-1.5">
+            <span class="text-xs font-semibold px-2 py-0.5 rounded text-white
+              {% if m.destino == 'TERCERO' %}bg-amber-600{% else %}bg-blue-700{% endif %}">
+              {{ etiqueta[m.destino] }}</span></td>
+          <td class="py-1.5 text-right tabular-nums">{{ m.viajes }}</td>
+          <td class="py-1.5 text-right tabular-nums">
+            {% if m.kg %}{{ '{:,}'.format(m.kg).replace(',','.') }}{% else %}—{% endif %}</td>
+          <td class="py-1.5 text-right tabular-nums text-gray-500">{{ m.bultos or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      {% for a in leido.avisos %}
+      <p class="mt-3 text-sm text-amber-800 bg-amber-50 border-l-2 border-amber-500 px-3 py-2">{{ a }}</p>
+      {% endfor %}
+      {% if leido.ya %}
+      <p class="mt-3 text-sm text-amber-800 bg-amber-50 border-l-2 border-amber-500 px-3 py-2">
+        Ya hay un parte cargado para ese turno (Nº {{ leido.ya.shift_number }}).
+        Guardar reemplaza sus datos por bodega.</p>
+      {% endif %}
+      <p class="mt-3 text-xs text-gray-400">
+        El producto de cada bodega lo toma del plan de estiba: es el que está saliendo
+        según el orden de descarga.</p>
+    </div>
+    {% endif %}
+  {% endif %}
+</form>
+{% endblock %}

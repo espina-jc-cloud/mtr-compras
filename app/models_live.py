@@ -59,6 +59,10 @@ class OperationLiveSession(Base):
     closed_by     = Column(String, nullable=True)
     closing_notes = Column(Text, nullable=True)
 
+    # Cuando parte del barco va al depósito de otro (Manuchar en el Macuru Arrow).
+    # NULL = todo lo que baja es de MTR.
+    tercero_nombre = Column(String, nullable=True)
+
     # Fase 2: timestamps de cierre formal y reconciliación
     # status avanza: active → closed → reconciled
     closed_at     = Column(DateTime, nullable=True)
@@ -88,6 +92,12 @@ class OperationLiveSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="OperationLiveInvoice.id",
+    )
+    stow_items = relationship(
+        "OperationLiveStowItem",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="OperationLiveStowItem.bodega_number, OperationLiveStowItem.orden",
     )
     reconciliations = relationship(
         "OperationLiveReconciliation",
@@ -239,6 +249,11 @@ class OperationLiveBodegaData(Base):
     # kg_total_mtr = kg_deposito_mtr + kg_directo_mtr + kg_cv_mtr  (calculado en Python)
 
     # ── Datos Cooperativa (Parte Diario CPSN) ────────────────────────────────
+    # Depósito de un tercero (Manuchar, por ejemplo): es OTRO destino de la
+    # mercadería, no otra medición. Va aparte de kg_coop, que es lo que declara
+    # la cooperativa sobre la MISMA carga y sirve para conciliar la factura.
+    kg_tercero       = Column(Integer, nullable=False, default=0, server_default="0")
+
     viajes_coop      = Column(Integer, nullable=True)
     kg_coop          = Column(Integer, nullable=True)
     # delta = kg_total_mtr - kg_coop  (calculado en Python)
@@ -670,3 +685,53 @@ class OperationLivePhoto(Base):
         back_populates="photos",
         foreign_keys=[shift_id],
     )
+
+
+class OperationLiveStowItem(Base):
+    """Plan de estiba: qué hay en cada bodega y en qué orden se descarga.
+
+    POR QUÉ NO ALCANZA CON OperationLiveSessionProduct
+        Ese modelo dice qué trae el barco y para quién. Este dice DÓNDE está y
+        CUÁNDO sale, que es lo que contesta la pregunta que importa en medio del
+        operativo: cuándo vuelve a entrar mercadería a nuestro depósito. Sin el
+        orden, un producto de MTR que está último en la bodega parece disponible
+        cuando en realidad faltan dos días de carga ajena por encima.
+
+    ORDEN
+        Es el del plan de estiba del buque (la hoja APUNTADORES del Excel que
+        manda el despachante), no un orden nuestro: se descarga de arriba hacia
+        abajo y ese número es la secuencia real.
+
+    DESTINO
+        'MTR'     depósito propio
+        'TERCERO' depósito de otro (el nombre está en la sesión)
+        'CV'      costado de vapor, directo a camión
+    """
+    __tablename__ = "operation_live_stow_items"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    session_id    = Column(
+        Integer, ForeignKey("operation_live_sessions.id"), nullable=False, index=True
+    )
+    bodega_number = Column(Integer, nullable=False, index=True)
+    orden         = Column(Integer, nullable=False)
+
+    product       = Column(String, nullable=False)   # normalize_product() al guardar
+    client        = Column(String, nullable=True)
+    mt_net        = Column(Numeric(12, 3), nullable=False, default=0)
+    unidades      = Column(Integer, nullable=True)   # bolsones, atados, bultos
+    packing       = Column(String, nullable=True)
+
+    destino       = Column(String, nullable=False, default="MTR")
+    bl            = Column(String, nullable=True)
+    lote          = Column(String, nullable=True)
+
+    created_at    = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("OperationLiveSession", back_populates="stow_items")
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "bodega_number", "orden",
+                         name="uq_stow_session_bodega_orden"),
+    )
+

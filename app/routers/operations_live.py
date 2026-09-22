@@ -2317,3 +2317,251 @@ async def delete_photo(
             status_code=303,
         )
     return RedirectResponse(url=f"/operations/live/{sid}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Plan de estiba, pegar parte y avance
+#
+# El parte de turno ya se escribe cada seis horas en el grupo de WhatsApp.
+# Estas tres vistas evitan escribirlo dos veces: se carga el plan del buque una
+# sola vez, se pega el parte tal cual llega, y el avance sale solo.
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.live_partes import parsear_parte, resumen as _resumen_parte, CAMPO, ETIQUETA
+from app.live_avance import avance as _avance, NUESTRO
+from app.models_live import OperationLiveStowItem
+
+
+@router.get("/{sid}/avance", response_class=HTMLResponse)
+async def session_avance(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.live")),
+):
+    session = _get_session_or_404(sid, db)
+    return templates.TemplateResponse(
+        request, "operations/live/avance.html",
+        {"current_user": current_user, "session": session,
+         "av": _avance(db, session), "etiqueta": ETIQUETA},
+    )
+
+
+# ── Plan de estiba ────────────────────────────────────────────────────────────
+
+@router.get("/{sid}/plan", response_class=HTMLResponse)
+async def plan_form(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.live")),
+):
+    session = _get_session_or_404(sid, db)
+    items = (db.query(OperationLiveStowItem)
+             .filter(OperationLiveStowItem.session_id == sid)
+             .order_by(OperationLiveStowItem.bodega_number,
+                       OperationLiveStowItem.orden).all())
+    return templates.TemplateResponse(
+        request, "operations/live/plan.html",
+        {"current_user": current_user, "session": session, "items": items,
+         "error": request.query_params.get("error"),
+         "ok": request.query_params.get("ok")},
+    )
+
+
+@router.post("/{sid}/plan")
+async def plan_import(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.live")),
+    archivo: UploadFile = File(...),
+    tercero_nombre: str = Form(""),
+):
+    """Importa el plan de estiba desde la hoja APUNTADORES del Excel del despachante.
+
+    Formato esperado: un bloque por bodega encabezado por "BODEGA NÚMERO: n",
+    después una fila de títulos y una fila por producto. La columna de destino
+    dice "MTR" cuando la mercadería es nuestra y queda vacía cuando va a un
+    tercero — así viene el Excel y así se interpreta.
+    """
+    from openpyxl import load_workbook
+    import io, re as _re
+
+    session = _get_session_or_404(sid, db)
+    try:
+        wb = load_workbook(io.BytesIO(await archivo.read()), data_only=True)
+    except Exception as e:
+        return RedirectResponse(f"/operations/live/{sid}/plan?error=No+pude+abrir+el+Excel:+{e}",
+                                status_code=303)
+
+    hoja = next((h for h in wb.sheetnames if "APUNTADOR" in h.upper()), None)
+    if hoja is None:
+        return RedirectResponse(
+            f"/operations/live/{sid}/plan?error=El+Excel+no+tiene+hoja+APUNTADORES",
+            status_code=303)
+
+    nuevos, bodega = [], None
+    for fila in wb[hoja].iter_rows(values_only=True):
+        texto = " ".join(str(v) for v in fila if v is not None)
+        m = _re.search(r"BODEGA\s+N[ÚU]MERO\s*:?\s*(\d+)", texto.upper())
+        if m:
+            bodega = int(m.group(1))
+            continue
+        if bodega is None or not fila or fila[0] in (None, "") or \
+           str(fila[0]).strip().upper() == "ORDEN":
+            continue
+        try:
+            orden = int(fila[0])
+        except (TypeError, ValueError):
+            continue
+
+        destino_txt = str(fila[10] or "").strip().upper() if len(fila) > 10 else ""
+        nuevos.append(OperationLiveStowItem(
+            session_id=sid, bodega_number=bodega, orden=orden,
+            product=normalize_product(str(fila[4] or "").strip()),
+            client=str(fila[1] or "").strip() or None,
+            unidades=int(fila[5]) if isinstance(fila[5], (int, float)) else None,
+            mt_net=float(fila[6] or fila[7] or 0),
+            bl=str(fila[8] or "").strip() or None,
+            lote=str(fila[9] or "").strip() or None,
+            destino="MTR" if destino_txt == "MTR" else "TERCERO",
+        ))
+
+    if not nuevos:
+        return RedirectResponse(
+            f"/operations/live/{sid}/plan?error=No+encontr%C3%A9+ninguna+bodega+en+esa+hoja",
+            status_code=303)
+
+    # Reemplazo completo: el plan es una foto del buque, no se parchea.
+    db.query(OperationLiveStowItem).filter(
+        OperationLiveStowItem.session_id == sid).delete()
+    for it in nuevos:
+        db.add(it)
+    if tercero_nombre.strip():
+        session.tercero_nombre = tercero_nombre.strip()
+    db.commit()
+
+    bodegas = len({i.bodega_number for i in nuevos})
+    return RedirectResponse(
+        f"/operations/live/{sid}/plan?ok={len(nuevos)}+productos+en+{bodegas}+bodegas",
+        status_code=303)
+
+
+# ── Pegar un parte ────────────────────────────────────────────────────────────
+
+def _producto_de_bodega(db, sid: int, bodega: int, destino: str) -> tuple[str, str | None]:
+    """Qué producto se está descargando de esa bodega, según el plan.
+
+    El parte informa kilos por bodega y destino, nunca el producto. El plan sí
+    lo sabe: es el primer ítem de esa bodega que todavía no terminó de salir.
+    Sin plan cargado, queda "SIN DETALLAR" — el parte se guarda igual, pero el
+    avance por producto no se puede armar.
+    """
+    from app.live_avance import _kg_por_bodega
+    items = (db.query(OperationLiveStowItem)
+             .filter(OperationLiveStowItem.session_id == sid,
+                     OperationLiveStowItem.bodega_number == bodega)
+             .order_by(OperationLiveStowItem.orden).all())
+    if not items:
+        return "SIN DETALLAR", None
+    kg = _kg_por_bodega(db, sid).get(bodega, {})
+    desc_t = sum(kg.values()) / 1000
+    acum = 0.0
+    candidatos = [i for i in items if (i.destino in NUESTRO) == (destino in NUESTRO)]
+    for it in items:
+        acum += float(it.mt_net or 0)
+        if acum > desc_t and it in candidatos:
+            return it.product, it.client
+    return (candidatos[-1].product, candidatos[-1].client) if candidatos \
+        else (items[-1].product, items[-1].client)
+
+
+@router.get("/{sid}/parte", response_class=HTMLResponse)
+async def parte_form(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.live")),
+):
+    session = _get_session_or_404(sid, db)
+    return templates.TemplateResponse(
+        request, "operations/live/parte.html",
+        {"current_user": current_user, "session": session,
+         "texto": "", "leido": None, "etiqueta": ETIQUETA,
+         "ok": request.query_params.get("ok")},
+    )
+
+
+@router.post("/{sid}/parte", response_class=HTMLResponse)
+async def parte_post(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_perm("operaciones.live")),
+    texto: str = Form(""),
+    accion: str = Form("leer"),
+    fecha: str = Form(""),
+):
+    session = _get_session_or_404(sid, db)
+    hoy = _date.today()
+    por_defecto = _date.fromisoformat(fecha) if fecha else hoy
+    leido = parsear_parte(texto, por_defecto)
+
+    if leido.get("ok"):
+        leido["resumen"] = _resumen_parte(leido["movimientos"])
+        f = leido["fecha"] or por_defecto
+        leido["ya"] = (db.query(OperationLiveShift)
+                       .filter(OperationLiveShift.session_id == sid,
+                               OperationLiveShift.shift_date == f,
+                               OperationLiveShift.shift_start == f"{leido['desde']:02d}:00")
+                       .first())
+
+    ctx = {"current_user": current_user, "session": session, "texto": texto,
+           "leido": leido, "etiqueta": ETIQUETA, "ok": None}
+
+    if accion != "guardar" or not leido.get("ok"):
+        return templates.TemplateResponse(request, "operations/live/parte.html", ctx)
+
+    f = leido["fecha"] or por_defecto
+    inicio, fin = f"{leido['desde']:02d}:00", f"{leido['hasta'] % 24:02d}:00"
+
+    turno = leido.get("ya")
+    if turno is not None:
+        # Un turno recargado se reemplaza entero: es la misma regla que usa el
+        # formulario manual al guardar bodega_data.
+        for b in list(turno.bodega_data):
+            db.delete(b)
+    else:
+        ultimo = (db.query(OperationLiveShift)
+                  .filter(OperationLiveShift.session_id == sid)
+                  .order_by(desc(OperationLiveShift.shift_number)).first())
+        turno = OperationLiveShift(
+            session_id=sid, shift_number=(ultimo.shift_number + 1) if ultimo else 1,
+            shift_date=f, shift_start=inicio, shift_end=fin,
+            status="closed", supervisor_mtr=getattr(current_user, "username", None),
+            notes="Cargado pegando el parte del grupo.",
+        )
+        db.add(turno)
+        db.flush()
+
+    productos_sesion = {p.product for p in session.products}
+    for m in leido["movimientos"]:
+        if m["bodega"] is None:
+            continue
+        prod, cli = _producto_de_bodega(db, sid, m["bodega"], m["destino"])
+        if prod not in productos_sesion:
+            db.add(OperationLiveSessionProduct(session_id=sid, product=prod, client=cli))
+            productos_sesion.add(prod)
+        fila = OperationLiveBodegaData(
+            shift_id=turno.id, bodega_number=m["bodega"], product=prod,
+            viajes_mtr=m["viajes"],
+            kg_deposito_mtr=0, kg_directo_mtr=0, kg_cv_mtr=0, kg_tercero=0,
+        )
+        setattr(fila, CAMPO[m["destino"]], m["kg"] or 0)
+        db.add(fila)
+
+    db.commit()
+    return RedirectResponse(
+        f"/operations/live/{sid}/avance?ok=Parte+del+{f.strftime('%d/%m')}+turno+"
+        f"{leido['turno']}+guardado", status_code=303)

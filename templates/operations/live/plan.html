@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Plan de estiba — {{ session.ship_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Plan de estiba</h1>
+    <p class="text-sm text-gray-500 mt-0.5">{{ session.ship_name }} · qué hay en cada bodega y en qué orden sale</p>
+  </div>
+  <a href="/operations/live/{{ session.id }}/avance"
+    class="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">Ver avance</a>
+</div>
+
+{% if ok %}<div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Importado: {{ ok }}</div>{% endif %}
+{% if error %}<div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ error }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data"
+  class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 max-w-3xl mb-6">
+  <p class="text-sm text-gray-600 mb-3">
+    Subí el Excel del despachante. Se lee la hoja <b>APUNTADORES</b>: un bloque por bodega,
+    con el orden de descarga y la columna de destino, que dice MTR cuando la mercadería es
+    nuestra y queda vacía cuando va a un tercero.
+  </p>
+  <div class="flex flex-wrap items-end gap-3">
+    <label class="text-sm text-gray-600">Archivo
+      <input type="file" name="archivo" accept=".xlsx,.xlsm" required
+        class="block mt-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5"></label>
+    <label class="text-sm text-gray-600">Depósito del tercero
+      <input type="text" name="tercero_nombre" value="{{ session.tercero_nombre or '' }}"
+        placeholder="Manuchar"
+        class="block mt-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5"></label>
+    <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">
+      Importar plan</button>
+  </div>
+  {% if items %}
+  <p class="text-xs text-amber-700 mt-3">Ya hay un plan cargado: importar otro lo reemplaza entero.</p>
+  {% endif %}
+</form>
+
+{% if items %}
+{% set bodegas = items | groupby('bodega_number') %}
+<div class="grid md:grid-cols-2 gap-4">
+  {% for num, lista in bodegas %}
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
+    <div class="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between">
+      <h2 class="font-semibold text-gray-900">Bodega {{ num }}</h2>
+      <span class="text-sm text-gray-500 tabular-nums">
+        {{ '%.0f'|format(lista | sum(attribute='mt_net') | float) }} t · {{ lista | length }} productos</span>
+    </div>
+    <ul class="divide-y divide-gray-50">
+      {% for i in lista %}
+      <li class="px-4 py-2 flex items-baseline justify-between gap-3 border-l-4
+        {% if i.destino == 'TERCERO' %}border-l-amber-600{% else %}border-l-blue-600{% endif %}">
+        <div class="min-w-0">
+          <p class="text-sm text-gray-900">{{ i.orden }}. {{ i.product }}</p>
+          <p class="text-xs text-gray-400">{{ i.client or '' }}
+            {%- if i.unidades %} · {{ i.unidades }} bultos{% endif %}</p>
+        </div>
+        <span class="text-sm tabular-nums text-gray-600 whitespace-nowrap">{{ '%.0f'|format(i.mt_net) }} t</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

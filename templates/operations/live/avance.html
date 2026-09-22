@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Avance — {{ session.ship_name }}{% endblock %}
+{% block content %}
+{% set t = av.totales %}
+
+<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">{{ session.ship_name }}</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      Avance contra el plan de estiba{% if session.tercero_nombre %} ·
+      lo que no es nuestro va a {{ session.tercero_nombre }}{% endif %}</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/operations/live/{{ session.id }}/parte"
+      class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">Pegar un parte</a>
+    <a href="/operations/live/{{ session.id }}/plan"
+      class="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">Plan de estiba</a>
+    <a href="/operations/live/{{ session.id }}"
+      class="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">Turnos</a>
+  </div>
+</div>
+
+{% if request.query_params.get('ok') %}
+<div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+  {{ request.query_params.get('ok') }}</div>
+{% endif %}
+
+{% if av.sin_plan %}
+<div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+  <p class="font-semibold text-amber-900">Falta el plan de estiba</p>
+  <p class="text-sm text-amber-800 mt-1">
+    Sin el plan se puede saber cuánto bajó, pero no qué falta ni cuándo vuelve a entrar
+    mercadería nuestra: eso lo define el orden de descarga de cada bodega.
+    <a href="/operations/live/{{ session.id }}/plan" class="underline font-semibold">Cargalo acá</a>.
+  </p>
+</div>
+{% else %}
+
+<!-- Lo que viene -->
+{% if av.proxima_mtr %}
+{% set p = av.proxima_mtr %}
+<div class="rounded-xl border border-gray-200 border-l-4 border-l-blue-600 bg-white px-4 py-3 mb-5 shadow-sm">
+  <p class="font-semibold text-gray-900">Próxima carga nuestra: {{ p.item.product }}</p>
+  <p class="text-sm text-gray-600 mt-0.5">
+    {{ '%.0f'|format(p.restante) }} t en la bodega {{ p.bodega }}.
+    {% if p.desde < 0.15 %}Sale apenas se abra esa bodega.
+    {% else %}Sale a las {{ p.horas }} horas de abrirla, después de
+      {{ '{:,.0f}'.format(p.antes_t).replace(',','.') }} t de carga ajena.{% endif %}
+    Ritmo tomado: {{ '%.0f'|format(av.ritmo) }} t por bodega y turno{% if not av.ritmo_real %} (estimado: todavía no hay partes){% endif %}.
+  </p>
+</div>
+{% else %}
+<div class="rounded-xl border border-gray-200 bg-white px-4 py-3 mb-5 shadow-sm">
+  <p class="font-semibold text-gray-900">No queda carga nuestra pendiente</p>
+  <p class="text-sm text-gray-600 mt-0.5">Todo lo que resta a bordo es de terceros.</p>
+</div>
+{% endif %}
+
+<!-- Cifras -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden mb-6">
+  {% for k, v, s in [
+      ('Descargado', '%.0f'|format(t.desc), t.pct ~ ' % de ' ~ '%.0f'|format(t.plan) ~ ' t'),
+      ('Resta a bordo', '%.0f'|format(t.resta), '%.0f'|format(t.resta / av.ritmo) ~ ' turnos al ritmo actual'),
+      ('Nuestro descargado', '%.0f'|format(t.desc_mtr), 'de ' ~ '%.0f'|format(t.plan_mtr) ~ ' t'),
+      ('Nuestro pendiente', '%.0f'|format(t.resta_mtr), 'el ' ~ (100 * t.resta_mtr / t.resta) | round | int ~ ' % de lo que falta' if t.resta else '—') ] %}
+  <div class="bg-white px-4 py-3">
+    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">{{ k }}</p>
+    <p class="text-2xl font-semibold text-gray-900 tabular-nums">{{ v }}<span class="text-sm text-gray-400 ml-1">t</span></p>
+    <p class="text-xs text-gray-500">{{ s }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Bodegas -->
+<div class="grid md:grid-cols-2 gap-4">
+  {% for b in av.bodegas %}
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
+    <div class="px-4 py-3 border-b border-gray-100">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="font-semibold text-gray-900">Bodega {{ b.numero }}</h2>
+        <span class="text-xs font-semibold px-2 py-1 rounded
+          {% if b.resta <= 0.5 %}text-emerald-700 border border-emerald-600
+          {% elif b.desc > 0 %}bg-red-600 text-white
+          {% else %}text-gray-400 border border-gray-200{% endif %}">
+          {% if b.resta <= 0.5 %}finalizada{% elif b.desc > 0 %}en curso{% else %}pendiente{% endif %}
+        </span>
+      </div>
+      <p class="text-sm text-gray-500 mt-1 tabular-nums">
+        {{ '%.0f'|format(b.desc) }} / {{ '%.0f'|format(b.plan) }} t · {{ b.pct }} %
+        {% if b.resta_mtr > 0.5 %}· restan <b class="text-blue-700">{{ '%.0f'|format(b.resta_mtr) }} t nuestras</b>{% endif %}
+        {% if b.resta > 0.5 %}· {{ b.turnos }} turnos{% endif %}
+      </p>
+      <div class="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+        <div class="h-full bg-gray-500" style="width: {{ [b.pct, 100] | min }}%"></div>
+      </div>
+    </div>
+    <ul class="divide-y divide-gray-50">
+      {% for d in b.items %}
+      <li class="px-4 py-2 flex items-baseline justify-between gap-3 border-l-4
+        {% if d.item.destino in ['MTR','CV','DIRECTO'] %}border-l-blue-600{% else %}border-l-amber-600{% endif %}
+        {% if d.estado == 'descargado' %}opacity-45{% endif %}">
+        <div class="min-w-0">
+          <p class="text-sm text-gray-900">{{ d.item.orden }}. {{ d.item.product }}</p>
+          <p class="text-xs text-gray-400">
+            {{ d.item.client or '' }} ·
+            {% if d.item.destino in ['MTR','CV','DIRECTO'] %}nuestro{% else %}{{ session.tercero_nombre or 'tercero' }}{% endif %}
+            {% if d.estado != 'descargado' %} · turno {{ d.desde }}–{{ d.hasta }}{% endif %}
+          </p>
+        </div>
+        <div class="text-right whitespace-nowrap">
+          <span class="text-sm tabular-nums text-gray-700">{{ '%.0f'|format(d.item.mt_net) }} t</span>
+          {% if d.estado == 'en curso' %}
+          <span class="block text-[11px] text-red-600">restan {{ '%.0f'|format(d.restante) }} t</span>
+          {% elif d.estado == 'descargado' %}
+          <span class="block text-[11px] text-emerald-700">salió</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+
+<p class="text-xs text-gray-400 mt-6 max-w-3xl">
+  El plan está en toneladas netas y la balanza pesa bruto, así que una bodega puede pasar
+  el 100 %. Lo descargado se reparte sobre el plan siguiendo el orden de estiba: el ítem
+  que queda a mitad de camino se marca "en curso".
+</p>
+{% endif %}
+{% endblock %}
