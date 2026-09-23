@@ -60,6 +60,50 @@
   </a>
 </div>
 
+{% if av and not av.sin_plan %}
+{# Mientras descarga, lo que importa es cuánto falta y cuándo entra lo nuestro. #}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-5">
+  <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+    <h2 class="text-sm font-semibold text-gray-800">Cómo viene la descarga</h2>
+    <a href="/operations/live/{{ f.live.id }}/avance" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">Ver el detalle bodega por bodega →</a>
+  </div>
+
+  <div class="flex items-baseline gap-2 mb-1">
+    <span class="text-3xl font-bold text-gray-900 tabular-nums">{{ av.totales.pct }}<span class="text-lg text-gray-400">%</span></span>
+    <span class="text-sm text-gray-500">
+      {{ "{:,.0f}".format(av.totales.desc) | replace(",", ".") }} de
+      {{ "{:,.0f}".format(av.totales.plan) | replace(",", ".") }} t
+    </span>
+  </div>
+  <div class="bg-gray-100 rounded h-3 overflow-hidden mb-4">
+    <div class="h-full bg-indigo-600 rounded" style="width: {{ av.totales.pct if av.totales.pct <= 100 else 100 }}%"></div>
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+    <div><p class="text-[11px] uppercase tracking-wide text-gray-400">Falta</p>
+      <p class="font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(av.totales.resta) | replace(",", ".") }} t</p></div>
+    <div><p class="text-[11px] uppercase tracking-wide text-gray-400">De eso, nuestro</p>
+      <p class="font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(av.totales.resta_mtr) | replace(",", ".") }} t</p></div>
+    <div><p class="text-[11px] uppercase tracking-wide text-gray-400">Ritmo</p>
+      <p class="font-semibold text-gray-900 tabular-nums">{{ av.ritmo }} t<span class="text-xs text-gray-400"> /bodega-turno</span></p></div>
+    <div><p class="text-[11px] uppercase tracking-wide text-gray-400">Bodegas abiertas</p>
+      <p class="font-semibold text-gray-900 tabular-nums">{{ av.bodegas | selectattr("resta", "greaterthan", 0.5) | list | length }}</p></div>
+  </div>
+
+  {% if av.proxima_mtr %}
+  <div class="mt-4 pt-3 border-t border-gray-50">
+    <p class="text-[11px] uppercase tracking-wide text-gray-400">Lo próximo que entra a MTR</p>
+    <p class="text-sm text-gray-800 mt-0.5">
+      <span class="font-semibold">{{ av.proxima_mtr.item.product }}</span>
+      · bodega {{ av.proxima_mtr.bodega }}
+      · {{ "{:,.0f}".format(av.proxima_mtr.restante) | replace(",", ".") }} t
+      {%- if av.proxima_mtr.antes_t %} · faltan {{ "{:,.0f}".format(av.proxima_mtr.antes_t) | replace(",", ".") }} t de otros antes{% endif %}
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if not op %}
 <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-10 text-center mb-5">
   <p class="text-sm text-gray-600 font-medium">Todavía no hay resumen de balanza</p>

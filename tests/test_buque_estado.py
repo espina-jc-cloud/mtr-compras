@@ -48,20 +48,25 @@ def test_el_resumen_de_balanza_le_gana_al_arribo():
                      ultima=date(2026, 9, 11), hoy=HOY) == TERMINADO
 
 
-def test_un_operativo_abierto_sin_movimiento_reciente_ya_termino():
-    """Tres resúmenes quedaron sin "Fecha Finalizacion" porque nunca llegó la
-    versión final. IC PROGRESS es de noviembre de 2025: no está descargando."""
-    vieja = HOY - timedelta(days=DIAS_SIN_MOVIMIENTO + 1)
+def test_el_resumen_cierra_aunque_le_falte_la_fecha_de_cierre():
+    """El caso OCEAN INNOVATION: el Excel trae "Fecha Finalizacion: --".
+
+    Esa celda a veces queda sin completar. Balanza manda el resumen cuando el
+    buque terminó, así que el mail es el hecho y la celda un dato que falta.
+    Leer la celda como "sigue descargando" dejaba al Ocean en curso con su
+    propio resumen ya cargado, y al IC PROGRESS desde noviembre de 2025.
+    """
     assert estado_de(None, _Live("active"), _Resumen(cerrado=False),
-                     ultima=vieja, hoy=HOY) == TERMINADO
+                     ultima=HOY, hoy=HOY) == TERMINADO
 
 
-def test_con_movimiento_en_los_ultimos_dias_si_esta_descargando():
-    reciente = HOY - timedelta(days=DIAS_SIN_MOVIMIENTO)
-    assert estado_de(None, _Live("active"), _Resumen(cerrado=False),
-                     ultima=reciente, hoy=HOY) == DESCARGANDO
+def test_descargando_es_tener_partes_recientes_y_todavia_no_el_resumen():
+    """La ventana en la que de verdad hace falta mirar el buque."""
     assert estado_de(None, _Live("active"), None,
                      ultima=HOY, hoy=HOY) == DESCARGANDO
+    assert estado_de(None, _Live("active"), None,
+                     ultima=HOY - timedelta(days=DIAS_SIN_MOVIMIENTO),
+                     hoy=HOY) == DESCARGANDO
 
 
 def test_un_live_viejo_sin_resumen_tambien_esta_terminado():

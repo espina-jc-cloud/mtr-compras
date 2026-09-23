@@ -65,8 +65,6 @@
       {% if can_module(user, "operaciones") %}
       <p class="nav-group-label sb-group">Operación</p>
       {% if can(user, "operaciones.arribos") %}{{ item("/buques", "Buques", p.startswith("/buques") or p.startswith("/operations/arribos"), "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4") }}{% endif %}
-      {% if can(user, "operaciones.live") %}{{ item("/operations/live", "Operativos Live", p.startswith("/operations/live"), "M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z", _badges.turnos) }}{% endif %}
-      {% if can(user, "operaciones.finalizados") %}{{ item("/operations", "Operativos", p == "/operations" or p.startswith("/operations/dashboard") or p.startswith("/operations/import"), "M5 13l4 4L19 7") }}{% endif %}
       {% if can(user, "operaciones.diarias") %}{{ item("/operations/daily", "Operaciones Diarias", p.startswith("/operations/daily"), "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z") }}{% endif %}
       {% if can(user, "operaciones.despachos") %}{{ item("/despachos", "Despachos", p.startswith("/despachos"), "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4") }}{% endif %}
       {% if can(user, "operaciones.tarifas_propias") %}{{ item("/tarifario", "Tarifas", p.startswith("/tarifario"), "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z") }}{% endif %}

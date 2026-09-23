@@ -19,19 +19,26 @@ CÓMO SE DECIDE AHORA
     que el arribo diga "esperado" es una intención que alguien escribió antes.
     Entre un hecho y una intención, gana el hecho.
 
-        resumen cerrado                     → terminado
-        hubo movimiento en los últimos días → descargando
+        llegó el resumen de balanza         → terminado
+        turno cargado en los últimos días   → descargando
         el arribo dice cancelado            → cancelado
         hay ETB                             → confirmado
         sólo la nominación                  → esperado
 
-    "Descargando" pide movimiento reciente, no que el operativo esté abierto.
-    Tres resúmenes de balanza quedaron sin "Fecha Finalizacion" porque nunca
-    llegó la versión final —IC PROGRESS es de noviembre de 2025— y un turno de
-    Live se queda abierto siempre que alguien se olvida de cerrarlo. Tomar eso
-    como "está descargando ahora" llenaba la pantalla de barcos que se fueron
-    hace meses, que es justo lo que hay que evitar: si la sección de lo urgente
-    tiene ruido, se deja de mirar.
+    EL RESUMEN DE BALANZA CIERRA EL BUQUE
+        Balanza manda ese mail cuando el buque terminó: "Envío resumen de
+        descarga y transportes afectadas al buque de referencia". El mail es el
+        aviso de cierre.
+
+        Adentro del Excel hay una celda "Fecha Finalizacion" que a veces queda
+        en "--" porque nadie la completó. Leerla como "sigue descargando" hacía
+        que el OCEAN INNOVATION figurara en curso con su resumen ya cargado, y
+        arrastraba al IC PROGRESS desde noviembre de 2025. La celda es un dato
+        que falta; el mail es un hecho.
+
+    "Descargando" queda entonces para el buque que tiene partes de turno
+    recientes y todavía no tiene resumen — que es exactamente la ventana en la
+    que hace falta mirarlo.
 
 LO QUE NO HACE
     No escribe el estado derivado en ningún lado. Si mañana cambia la regla,
@@ -80,17 +87,16 @@ def estado_de(arribo, live, resumen, ultima=None, hoy=None) -> str:
     último turno—; sin ella, un operativo abierto se da por terminado.
     """
     hoy = hoy or date.today()
-    if resumen is not None and resumen.cerrado:
-        return TERMINADO
+    if resumen is not None:
+        return TERMINADO                 # balanza sólo lo manda al terminar
     hubo_movimiento = (ultima is not None
                        and (hoy - ultima).days <= DIAS_SIN_MOVIMIENTO)
-    if hubo_movimiento and (resumen is not None
-                            or (live is not None and live.status == "active")):
+    if hubo_movimiento and live is not None and live.status == "active":
         return DESCARGANDO
     if ultima is not None:
         # Hubo movimiento alguna vez y hace días que no: el buque se fue, lo
-        # haya cerrado alguien o no. Vale igual para un operativo de Live que
-        # quedó abierto sin resumen de balanza.
+        # haya cerrado alguien o no. Pasa con los operativos de Live que quedan
+        # abiertos porque nadie los cierra.
         return TERMINADO
     if arribo is not None:
         if arribo.estado == "cancelado":

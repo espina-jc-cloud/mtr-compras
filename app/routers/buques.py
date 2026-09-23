@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app import arribos_sync, balanza_sync
 from app.buque_analitica import analizar
+from app.live_avance import avance
 from app.buque_ficha import DESCARGANDO, ESPERADO, CONFIRMADO, TERMINADO, fichas, panorama
 from app.database import get_db
 from app.models_buques import BuqueOperativo
@@ -140,8 +141,16 @@ async def ficha(buque_slug: str, request: Request, db: Session = Depends(get_db)
     if pedido:
         elegido = next((o for o in f["operativos"] if str(o.id) == pedido), None)
         op = elegido or op
+    # El avance por bodega sólo tiene sentido mientras el buque descarga: una
+    # vez que llegó el resumen de balanza, los pesajes son la fuente buena.
+    av = None
+    if f["live"] is not None and f["resumen"] is None:
+        try:
+            av = avance(db, f["live"])
+        except Exception:
+            av = None
     return templates.TemplateResponse(request, "buques/ficha.html", {
-        "user": current_user, "f": f, "op": op,
+        "user": current_user, "f": f, "op": op, "av": av,
         "a": analizar(op) if op is not None else None,
         "recorrido": _recorrido(f),
     })
