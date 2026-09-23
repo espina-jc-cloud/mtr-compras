@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from app.routers import auth, dashboard, purchases, suppliers, documents, users, quotes, equipment, maintenance, fuel, invoices
+from app.routers import buques
 from app.routers import fuel_invoices
 from app.routers import operations
 from app.routers import operations_live
@@ -72,6 +73,7 @@ app.include_router(transporte.router)
 # no sea capturado por /operations/{op_id} (que intenta parsear "live" como int).
 app.include_router(operations_live.router)
 app.include_router(daily_operations.router)
+app.include_router(buques.router)   # /operations/buques — antes que operations (/{op_id})
 app.include_router(arribos.router)   # /operations/arribos — antes que operations (/{op_id})
 app.include_router(operations.router)
 app.include_router(despachos.router)
@@ -136,16 +138,31 @@ def _una_pasada_de_arribos() -> str:
 
     db = SessionLocal()
     try:
+        from app import balanza_sync
+
         r = arribos_sync.sincronizar(db)
         nom, lu = r["nominaciones"], r["lineup"]
         if not r["ok"]:
             return f"ERROR: {r['error']}"
         altas = len(nom.get("altas", []))
         tocados = len(lu.get("tocados", []))
-        if not altas and not tocados:
-            return "sin novedades"
-        return (f"{altas} alta(s) por nominación · "
-                f"{tocados} actualizado(s) por el line-up {lu.get('fecha') or ''}")
+        # Los resúmenes de buque llegan a la misma casilla y no tiene sentido
+        # abrirla dos veces: se revisan en la misma pasada.
+        b = balanza_sync.sincronizar(db)
+        cerrados = len(b.get("altas", [])) if b["ok"] else 0
+        actualizados = len(b.get("reemplazos", [])) if b["ok"] else 0
+        partes = []
+        if altas:
+            partes.append(f"{altas} alta(s) por nominación")
+        if tocados:
+            partes.append(f"{tocados} actualizado(s) por el line-up {lu.get('fecha') or ''}")
+        if cerrados:
+            partes.append(f"{cerrados} resumen(es) de buque nuevo(s)")
+        if actualizados:
+            partes.append(f"{actualizados} resumen(es) actualizado(s)")
+        if not b["ok"]:
+            partes.append(f"balanza: {b['error']}")
+        return " · ".join(partes) or "sin novedades"
     finally:
         db.close()
 

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}{{ op.buque }} — Análisis del operativo{% endblock %}
+{% block content %}
+
+{#
+  Análisis de un operativo terminado.
+
+  Todo sale de los pesajes, uno por camión: no hay ningún total escrito a mano,
+  así que ninguna cifra puede contradecir a otra. El orden va de lo que se
+  pregunta primero —cuánto entró y en cuánto tiempo— a lo que sólo se pregunta
+  cuando algo salió mal: quién puso los camiones y cuánto tardaron adentro.
+
+  Las barras usan un solo tono: acá se comparan magnitudes de una misma medida,
+  no categorías distintas. Un color por transportista sugeriría que el color
+  significa algo.
+#}
+
+{% macro barra(valor, maximo, etiqueta, detalle="", ancho_etiqueta="10rem") %}
+<div class="flex items-center gap-3 text-sm">
+  <div class="shrink-0 text-gray-600 truncate" style="width: {{ ancho_etiqueta }}" title="{{ etiqueta }}">{{ etiqueta }}</div>
+  <div class="flex-1 bg-gray-100 rounded h-5 overflow-hidden">
+    <div class="h-full bg-indigo-600 rounded" style="width: {{ (valor / maximo * 100) if maximo else 0 }}%"></div>
+  </div>
+  <div class="shrink-0 text-right tabular-nums text-gray-800 font-medium" style="width: 5.5rem">{{ detalle }}</div>
+</div>
+{% endmacro %}
+
+{% macro tile(titulo, valor, unidad="", nota="") %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+  <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ titulo }}</p>
+  <p class="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{{ valor }}<span class="text-sm font-semibold text-gray-400 ml-1">{{ unidad }}</span></p>
+  {% if nota %}<p class="text-[11px] text-gray-400 mt-0.5">{{ nota }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+<div class="flex items-start justify-between gap-3 mb-1 flex-wrap">
+  <div class="flex items-center gap-3 min-w-0">
+    <a href="/operations/buques" class="text-gray-400 hover:text-gray-600">←</a>
+    <h1 class="text-xl font-bold text-gray-900">{{ op.buque }}</h1>
+    {% if not op.cerrado %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">en curso</span>{% endif %}
+  </div>
+</div>
+<p class="text-sm text-gray-500 mb-5 pl-7">
+  {{ op.cliente or "Sin cliente" }}{% if op.producto %} · {{ op.producto }}{% endif %}
+  {%- if op.inicio %} · descargó del {{ op.inicio.strftime("%d/%m/%Y") }}{% if op.fin and op.fin != op.inicio %} al {{ op.fin.strftime("%d/%m/%Y") }}{% endif %}{% endif %}
+  {%- if op.operativo_nro %} · operativo n° {{ op.operativo_nro }}{% endif %}
+</p>
+
+<!-- ── Lo que hay que saber primero ─────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+  {{ tile("Descargado", "{:,.0f}".format(a.neto_t) | replace(",", "."), "t", "balanza MTR") }}
+  {{ tile("Viajes", a.viajes, "", "{} camiones distintos".format(a.camiones_distintos)) }}
+  {{ tile("Promedio", "%.1f"|format(a.promedio_t), "t", "por viaje") }}
+  {{ tile("Ritmo", "{:,.0f}".format(a.ritmo_t_dia) | replace(",", "."), "t/día", "{} día(s) con movimiento".format(a.dias_con_movimiento)) }}
+  {{ tile("Duración", "%.0f"|format(a.horas), "h", "del primer al último camión") }}
+</div>
+
+<!-- ── Permanencia y diferencia de balanza: las dos que nadie mira ──────── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-800">Cuánto tarda un camión adentro</h2>
+    <p class="text-xs text-gray-500 mt-0.5 mb-3">
+      De la pesada de entrada a la de salida. Un camión que tarda el doble no es un camión lento:
+      son viajes que ese día no se hicieron.
+    </p>
+    <div class="flex items-end gap-6">
+      <div>
+        <p class="text-3xl font-bold text-gray-900 tabular-nums">{{ a.permanencia.mediana }}<span class="text-base font-semibold text-gray-400 ml-1">min</span></p>
+        <p class="text-[11px] text-gray-400">la mitad tarda menos</p>
+      </div>
+      <div>
+        <p class="text-2xl font-bold text-gray-700 tabular-nums">{{ a.permanencia.p90 }}<span class="text-sm font-semibold text-gray-400 ml-1">min</span></p>
+        <p class="text-[11px] text-gray-400">9 de cada 10</p>
+      </div>
+      <div>
+        <p class="text-2xl font-bold text-gray-500 tabular-nums">{{ a.permanencia.minimo if a.permanencia.minimo else "menos de 1" }}<span class="text-sm font-semibold text-gray-400 ml-1">min</span></p>
+        <p class="text-[11px] text-gray-400">el más rápido</p>
+      </div>
+    </div>
+    <p class="text-[11px] text-gray-400 mt-3">
+      Medido sobre {{ a.permanencia.medidos }} de {{ a.viajes }} viajes.
+      {%- if a.permanencia.largos %} {{ a.permanencia.largos }} quedaron afuera por pasar de 6 horas: no son esperas, son pesajes mal cargados.{% endif %}
+    </p>
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-800">Nuestra balanza contra la de origen</h2>
+    <p class="text-xs text-gray-500 mt-0.5 mb-3">
+      Diferencia entre lo que pesamos y el peso declarado en el remito de origen, sumada en todo el operativo.
+    </p>
+    <div class="flex items-end gap-6">
+      <div>
+        <p class="text-3xl font-bold tabular-nums {{ 'text-emerald-600' if a.diferencia_kg|abs < 3000 else 'text-amber-600' }}">
+          {{ "+" if a.diferencia_kg > 0 }}{{ "{:,.0f}".format(a.diferencia_kg) | replace(",", ".") }}<span class="text-base font-semibold text-gray-400 ml-1">kg</span>
+        </p>
+        <p class="text-[11px] text-gray-400">
+          {% if a.diferencia_pct is not none %}{{ "%+.3f"|format(a.diferencia_pct) }} % sobre {{ "{:,.0f}".format(a.origen_t) | replace(",", ".") }} t de origen{% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="text-lg font-semibold text-gray-700 tabular-nums">{{ "%.1f"|format((a.diferencia_kg / a.viajes) if a.viajes else 0) }}<span class="text-xs font-semibold text-gray-400 ml-1">kg/viaje</span></p>
+        <p class="text-[11px] text-gray-400">promedio por camión</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Ritmo día por día ────────────────────────────────────────────────── -->
+{% if a.dias|length > 1 %}
+{% set max_dia = a.dias | map(attribute="t") | max %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="text-sm font-semibold text-gray-800 mb-1">Ritmo día por día</h2>
+  <p class="text-xs text-gray-500 mb-4">Toneladas descargadas cada jornada.</p>
+  <div class="space-y-1.5">
+    {% for d in a.dias %}
+    {{ barra(d.t, max_dia, d.etiqueta,
+             "{:,.0f} t".format(d.t) | replace(",", "."), "6rem") }}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Turnos y transportistas ──────────────────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+  {% if a.turnos|length > 1 %}
+  {% set max_turno = a.turnos | map(attribute="t") | max %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-1">En qué turno se movió</h2>
+    <p class="text-xs text-gray-500 mb-4">Dónde está la capacidad y dónde el cuello de botella.</p>
+    <div class="space-y-1.5">
+      {% for t in a.turnos %}
+      {{ barra(t.t, max_turno, t.nombre,
+               "{:,.0f} t".format(t.t) | replace(",", "."), "6rem") }}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% set max_hora = a.horas_dia | map(attribute="t") | max %}
+  {% if max_hora %}
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-1">A qué hora entran los camiones</h2>
+    <p class="text-xs text-gray-500 mb-4">Toneladas por hora del día, sumando todas las jornadas.</p>
+    <div class="flex items-end gap-px h-28">
+      {% for h in a.horas_dia %}
+      <div class="flex-1 flex flex-col justify-end h-full" title="{{ h.hora }}:00 — {{ h.t }} t">
+        <div class="bg-indigo-600 rounded-t" style="height: {{ (h.t / max_hora * 100) if max_hora else 0 }}%"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+      <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Transportistas ───────────────────────────────────────────────────── -->
+{% if a.transportes %}
+{% set max_tr = a.transportes | map(attribute="t") | max %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="text-sm font-semibold text-gray-800 mb-1">Quién puso los camiones</h2>
+  <p class="text-xs text-gray-500 mb-4">{{ a.transportes|length }} transportista(s) en el operativo.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 border-b border-gray-100">
+          <th class="py-2">Transportista</th>
+          <th class="py-2 w-1/3">Participación</th>
+          <th class="py-2 text-right">Viajes</th>
+          <th class="py-2 text-right">Toneladas</th>
+          <th class="py-2 text-right">Prom. / viaje</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for t in a.transportes %}
+        <tr>
+          <td class="py-2 pr-3 font-medium text-gray-800">{{ t.nombre }}</td>
+          <td class="py-2 pr-3">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-gray-100 rounded h-2.5 overflow-hidden">
+                <div class="h-full bg-indigo-600 rounded" style="width: {{ (t.t / max_tr * 100) if max_tr else 0 }}%"></div>
+              </div>
+              <span class="text-xs text-gray-500 tabular-nums w-9 text-right">{{ t.pct }}%</span>
+            </div>
+          </td>
+          <td class="py-2 text-right text-gray-700 tabular-nums">{{ t.viajes }}</td>
+          <td class="py-2 text-right font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(t.t) | replace(",", ".") }}</td>
+          <td class="py-2 text-right text-gray-500 tabular-nums">{{ "%.1f"|format(t.promedio_t) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Camiones ─────────────────────────────────────────────────────────── -->
+{% if a.camiones %}
+<details class="bg-white border border-gray-100 rounded-2xl shadow-sm mb-5">
+  <summary class="cursor-pointer select-none px-5 py-3 text-sm font-semibold text-gray-800">
+    Camión por camión
+    <span class="font-normal text-gray-400">— {{ a.camiones_distintos }} patentes</span>
+  </summary>
+  <div class="px-5 pb-5 overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 border-b border-gray-100">
+          <th class="py-2">Patente</th><th class="py-2 text-right">Viajes</th>
+          <th class="py-2 text-right">Toneladas</th><th class="py-2 text-right">Prom. / viaje</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for c in a.camiones %}
+        <tr>
+          <td class="py-1.5 font-medium text-gray-800">{{ c.nombre }}</td>
+          <td class="py-1.5 text-right text-gray-700 tabular-nums">{{ c.viajes }}</td>
+          <td class="py-1.5 text-right text-gray-900 tabular-nums">{{ "{:,.0f}".format(c.t) | replace(",", ".") }}</td>
+          <td class="py-1.5 text-right text-gray-500 tabular-nums">{{ "%.1f"|format(c.promedio_t) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
+
+<p class="text-[11px] text-gray-400">
+  Todo lo de esta página sale de los {{ a.viajes }} pesajes del resumen que mandó balanza
+  {%- if op.mail_fecha %} el {{ op.mail_fecha.strftime("%d/%m/%Y") }}{% endif %}
+  {%- if op.archivo %} ({{ op.archivo }}){% endif %}.
+  {%- if op.avisos %} {{ op.avisos }}{% endif %}
+</p>
+
+{% endblock %}

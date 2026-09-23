@@ -481,9 +481,16 @@ async def arribo_detail(arribo_id: int, request: Request, db: Session = Depends(
     a = db.query(ProximoArribo).filter(ProximoArribo.id == arribo_id, ProximoArribo.deleted_at.is_(None)).first()
     if not a:
         raise HTTPException(status_code=404)
+    # El mismo buque visto desde el otro extremo: si balanza ya mandó el
+    # resumen, desde acá se llega al análisis de cómo terminó.
+    from app.models_buques import BuqueOperativo
+    resumen = (db.query(BuqueOperativo)
+               .filter(BuqueOperativo.buque_canon == a.buque_canon)
+               .order_by(BuqueOperativo.inicio.desc().nullslast()).first())
     return templates.TemplateResponse(request, "operations/arribos/detail.html", {
         "user": current_user, "a": a, "estado_css": ARRIBO_ESTADO_CSS,
         "estado_labels": ARRIBO_ESTADO_LABELS, "lineup_fields": LINEUP_FIELDS,
+        "resumen": resumen,
     })
 
 

@@ -100,6 +100,7 @@ def _add_column(conn, table, column, col_type):
 def run():
     is_prod = not DATABASE_URL.startswith("sqlite")
 
+    from app import models_buques  # noqa: F401  (registra las tablas de buque)
     Base.metadata.create_all(bind=engine)
     # Las tablas `operations` y `operation_trips` se crean automáticamente aquí.
     print(f"✓ Tablas creadas ({DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL})")
