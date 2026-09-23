@@ -174,7 +174,18 @@ def _lineup_value(vessel, field):
 
 # ── LISTADO ─────────────────────────────────────────────────────────────────
 
-@router.get("", response_class=HTMLResponse)
+
+# ── Esta lista se fue a /buques ──────────────────────────────────────────────
+# Mostraba el mismo barco que Próximos Arribos y que Buques terminados, cada
+# una con su propio estado, y para entender un operativo había que saltar entre
+# las tres. Ahora hay un solo módulo. La pantalla no se borra —se llega a ella
+# desde la ficha del buque, que es donde el operativo tiene sentido— pero deja
+# de ser una puerta de entrada que compite.
+@router.get("", response_class=HTMLResponse, include_in_schema=False)
+async def _a_buques():
+    return RedirectResponse("/buques", status_code=307)
+
+@router.get("/lista", response_class=HTMLResponse)
 async def list_arribos(request: Request, db: Session = Depends(get_db), current_user=Depends(_guard)):
     def qp(n, d=""):
         v = request.query_params.getlist(n)
