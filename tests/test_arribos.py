@@ -32,6 +32,10 @@ from app.nominacion_ocr import _fecha, _numero
      ["MV PAIWAN DIAMOND", "KYVELI GS"], "UREA"),
     # Respondido y reenviado: los prefijos no pueden tapar el buque.
     ("RE: [EXT] RE: NOMINACIÓN MV KOCIEWIE - MAP", ["MV KOCIEWIE"], "MAP"),
+    # Al reenviar, Carlos le agrega las fechas al asunto. Quedarse con todo lo
+    # que sigue al guión dejaba la mercadería como "MAP 17/18 SEP 2026".
+    ("RV: NOMINACIÓN MV  OCEAN INNOVATION - MAP 17/18 SEP 2026",
+     ["MV OCEAN INNOVATION"], "MAP"),
 ])
 def test_asunto_de_nominacion(asunto, buques, producto):
     assert buques_del_asunto(asunto) == buques

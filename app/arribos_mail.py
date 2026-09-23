@@ -91,8 +91,24 @@ def buques_del_asunto(asunto: str) -> list[str]:
 
 
 def producto_del_asunto(asunto: str) -> str:
+    """El producto que dice el asunto, después del guión.
+
+    El asunto se reenvía con agregados. Javier manda
+    "NOMINACIÓN MV OCEAN INNOVATION - MAP" y en el reenvío llegó
+    "RV: NOMINACIÓN MV  OCEAN INNOVATION - MAP 17/18 SEP 2026": quedarse con
+    todo lo que sigue al guión dejaba la mercadería como
+    "MAP 17/18 SEP 2026". El producto es lo que viene antes del primer pedazo
+    con números — MAP, DAP, UREA, AMSUL, MOP no los tienen.
+    """
     partes = re.split(r"\s+[-–]\s+", _sin_acentos(asunto))
-    return re.sub(r"\s+", " ", partes[-1]).strip() if len(partes) > 1 else ""
+    if len(partes) < 2:
+        return ""
+    palabras = []
+    for palabra in re.sub(r"\s+", " ", partes[-1]).strip().split():
+        if any(c.isdigit() for c in palabra):
+            break
+        palabras.append(palabra)
+    return " ".join(palabras).strip()
 
 
 def servicios_del_cuerpo(texto: str) -> list[str]:
