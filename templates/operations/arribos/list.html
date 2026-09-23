@@ -2,24 +2,57 @@
 {% block title %}Próximos Arribos — MTR{% endblock %}
 {% block content %}
 
-<div class="flex items-center justify-between mb-5 gap-2 flex-wrap">
+{#
+  Línea de tiempo de arribos.
+
+  La pregunta que contesta no es "qué buques hay" sino "qué se me viene encima
+  y dónde tengo aire". Por eso se agrupa por día y no por estado: dos buques el
+  mismo martes son un problema de grúas y de camiones, y en una tabla ordenada
+  por ETB eso hay que descubrirlo restando fechas de cabeza.
+#}
+
+<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
   <div>
-    <h1 class="text-xl font-semibold text-gray-900">Próximos Arribos</h1>
-    <p class="text-sm text-gray-500">{{ arribos|length }} buque(s) en seguimiento</p>
+    <h1 class="text-xl font-semibold text-gray-900">Próximos arribos</h1>
+    <p class="text-sm text-gray-500">
+      {{ arribos|length }} buque{{ "s" if arribos|length != 1 }} en seguimiento
+      {%- if hoy %} · hoy es {{ hoy.strftime("%d/%m/%Y") }}{% endif %}
+    </p>
   </div>
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-2 flex-wrap">
+    <form method="post" action="/operations/arribos/revisar-correo">
+      <button type="submit"
+              class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+        Revisar correo
+      </button>
+    </form>
+    <a href="/operations/arribos/new" class="inline-flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">+ Cargar buque</a>
+    <a href="/operations/arribos/import" class="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl">Subir line-up</a>
     <a href="/operations/arribos/board" class="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl">Vista compartible</a>
-    <a href="/operations/arribos/import" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">Importar lineup PDF</a>
-    <a href="/operations/arribos/new" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">+ Nuevo</a>
   </div>
 </div>
 
-{% if saved %}
-<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 mb-5 text-sm">✓ {{ saved }}</div>
+{% if saved %}<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 mb-4 text-sm">✓ {{ saved }}</div>{% endif %}
+{% if error %}<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ error }}</div>{% endif %}
+
+{% if a_confirmar %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+  <p class="text-sm font-semibold text-amber-900">
+    {{ a_confirmar|length }} buque{{ "s" if a_confirmar|length != 1 }} esperando que confirmes los datos
+  </p>
+  <p class="text-xs text-amber-800 mt-0.5">
+    Entraron solos por la nominación de Nutrien. El ETB y las toneladas salen de una captura
+    de pantalla del mail, así que conviene mirarlos antes de programar nada.
+  </p>
+  <div class="flex flex-wrap gap-1.5 mt-2">
+    {% for a in a_confirmar %}
+    <a href="/operations/arribos/{{ a.id }}" class="text-xs font-semibold bg-white border border-amber-300 text-amber-900 rounded-lg px-2 py-1 hover:bg-amber-100">{{ a.buque }}</a>
+    {% endfor %}
+  </div>
+</div>
 {% endif %}
 
-<!-- Filtros -->
-<form method="get" data-autofilter data-remember="arribos" class="flex flex-wrap gap-2 items-center mb-4 text-sm">
+<form method="get" data-autofilter data-remember="arribos" class="flex flex-wrap gap-2 items-center mb-5 text-sm">
   <select name="estado" class="border border-gray-200 rounded-lg px-3 py-2 bg-white">
     <option value="">Todos los estados</option>
     {% for val, label in estados %}<option value="{{ val }}" {{ "selected" if params.estado == val }}>{{ label }}</option>{% endfor %}
@@ -29,44 +62,96 @@
   <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white font-semibold px-4 py-2 rounded-lg">Filtrar</button>
 </form>
 
-<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-  {% if arribos %}
-  <table data-sort class="w-full text-sm">
-    <thead>
-      <tr class="text-left text-xs font-semibold text-gray-500 bg-gray-50">
-        <th class="px-4 py-2.5">Estado</th>
-        <th class="px-4 py-2.5">Buque</th>
-        <th class="px-4 py-2.5">Cliente</th>
-        <th class="px-4 py-2.5">Ready est.</th>
-        <th class="px-4 py-2.5">ETB</th>
-        <th class="px-4 py-2.5">ETC</th>
-        <th class="px-4 py-2.5">Muelle</th>
-        <th class="px-4 py-2.5">Últ. actualización</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-50">
-      {% for a in arribos %}
-      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/operations/arribos/{{ a.id }}'">
-        <td class="px-4 py-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ a.estado }}</span></td>
-        <td class="px-4 py-3 font-medium text-gray-900">{{ a.buque }}
-          {% if a.mercaderia %}<span class="text-gray-400 text-xs block">{{ a.mercaderia }}</span>{% endif %}
-        </td>
-        <td class="px-4 py-3 text-gray-600">{{ a.cliente or "—" }}</td>
-        <td class="px-4 py-3 text-gray-700 font-medium">{{ a.ready or "—" }}</td>
-        <td class="px-4 py-3 text-gray-700">{{ a.etb or "—" }}</td>
-        <td class="px-4 py-3 text-gray-700">{{ a.etc or "—" }}</td>
-        <td class="px-4 py-3 text-gray-600">{{ a.muelle or "—" }}{% if a.posicion %} <span class="text-gray-400 text-xs">{{ a.posicion }}</span>{% endif %}</td>
-        <td class="px-4 py-3 text-gray-400 text-xs">
-          {{ a.last_update_at | fmt_ar("%d/%m %H:%M") if a.last_update_at else "—" }}
-          {% if a.last_update_source %}<span class="block">{{ "lineup" if a.last_update_source == "lineup" else "manual" }}</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  {% with msg="No hay arribos en seguimiento.", action_href="/operations/arribos/new", action_label="Cargar el primero" %}{% include "partials/_empty.html" %}{% endwith %}
+{% macro tarjeta(a) %}
+<a href="/operations/arribos/{{ a.id }}"
+   class="block bg-white border border-gray-100 {{ 'border-l-4 border-l-amber-400' if a.a_confirmar }} rounded-xl shadow-sm hover:shadow-md transition px-4 py-3">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-semibold text-gray-900">{{ a.buque }}</span>
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado) }}</span>
+        {% if a.origen_alta == "nominacion" %}
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">entró solo</span>
+        {% endif %}
+        {% if a.a_confirmar %}
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">a confirmar</span>
+        {% endif %}
+      </div>
+      <p class="text-sm text-gray-500 mt-0.5">
+        {{ a.cliente or "Sin cliente" }}{% if a.mercaderia %} · {{ a.mercaderia }}{% endif %}
+        {%- if a.procedencia %} · desde {{ a.procedencia }}{% endif %}
+      </p>
+    </div>
+    <div class="text-right shrink-0">
+      {% if a.tonelaje_mtr or a.tonelaje_estimado %}
+      <p class="text-base font-semibold text-gray-900 tabular-nums">
+        {{ "{:,.0f}".format(a.tonelaje_mtr or a.tonelaje_estimado) | replace(",", ".") }} t
+      </p>
+      {% endif %}
+      {% if a.posicion or a.muelle %}
+      <p class="text-xs text-gray-500">{{ a.posicion or a.muelle }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="flex items-center gap-x-5 gap-y-1 flex-wrap mt-2 pt-2 border-t border-gray-50 text-xs text-gray-500">
+    <span><span class="text-gray-400">ETB</span> <span class="font-medium text-gray-700">{{ a.etb or "—" }}</span></span>
+    <span><span class="text-gray-400">Ready</span> <span class="font-medium text-gray-700">{{ a.ready or "—" }}</span></span>
+    <span><span class="text-gray-400">ETC</span> <span class="font-medium text-gray-700">{{ a.etc or "—" }}</span></span>
+    {% if a.agencia %}<span><span class="text-gray-400">Agencia</span> <span class="font-medium text-gray-700">{{ a.agencia }}</span></span>{% endif %}
+    {% if a.last_update_at %}
+    <span class="ml-auto text-gray-400">
+      {{ {"lineup": "line-up", "nominacion": "nominación", "manual": "a mano"}.get(a.last_update_source, a.last_update_source or "") }}
+      · {{ a.last_update_at | fmt_ar("%d/%m %H:%M") }}
+    </span>
+    {% endif %}
+  </div>
+</a>
+{% endmacro %}
+
+{% if grupos or sin_fecha %}
+
+{% for g in grupos %}
+<section class="mb-7">
+  <h2 class="text-xs font-bold uppercase tracking-wider mb-3
+             {{ 'text-red-600' if g.nombre == 'Atrasados' else 'text-gray-400' }}">{{ g.nombre }}</h2>
+
+  {% for d in g.dias %}
+  {% if d.hueco %}
+  <div class="flex items-center gap-3 py-2 pl-20 sm:pl-28">
+    <span class="h-px flex-1 bg-gray-100"></span>
+    <span class="text-[11px] text-gray-300">{{ d.hueco }} día{{ "s" if d.hueco != 1 }} sin arribos</span>
+    <span class="h-px flex-1 bg-gray-100"></span>
+  </div>
   {% endif %}
-</div>
+
+  <div class="flex gap-3 sm:gap-5 mb-3">
+    <div class="w-16 sm:w-24 shrink-0 text-right pt-2">
+      <p class="text-[11px] font-bold uppercase tracking-wide {{ 'text-indigo-600' if d.hoy else 'text-gray-400' }}">{{ d.mes }}</p>
+      <p class="text-xl font-bold leading-tight {{ 'text-indigo-600' if d.hoy else 'text-gray-800' }}">{{ d.fecha.day }}</p>
+      <p class="text-[11px] {{ 'text-indigo-500 font-semibold' if d.hoy else 'text-gray-400' }}">{{ d.etiqueta.split(" ")[0] }}</p>
+      {% if d.faltan > 0 %}<p class="text-[11px] text-gray-300 mt-0.5">en {{ d.faltan }} d</p>{% endif %}
+    </div>
+    <div class="flex-1 min-w-0 space-y-2 border-l-2 {{ 'border-indigo-200' if d.hoy else 'border-gray-100' }} pl-3 sm:pl-5 py-1">
+      {% for a in d.arribos %}{{ tarjeta(a) }}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endfor %}
+
+{% if sin_fecha %}
+<section class="mb-7">
+  <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Nominados, todavía sin fecha</h2>
+  <p class="text-xs text-gray-400 mb-3">Nutrien ya los confirmó pero no hay ETB. Aparecen acá hasta que el line-up traiga la fecha.</p>
+  <div class="space-y-2">
+    {% for a in sin_fecha %}{{ tarjeta(a) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% else %}
+{% with msg="No hay arribos en seguimiento.", action_href="/operations/arribos/new", action_label="Cargar el primero" %}{% include "partials/_empty.html" %}{% endwith %}
+{% endif %}
 
 {% endblock %}

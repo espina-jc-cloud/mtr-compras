@@ -6,7 +6,8 @@ del lineup PDF (solo actualiza MIS buques, no carga todo el puerto) → edición
 manual posterior. Historial mínimo de cambios en ArriboUpdate.
 """
 from datetime import datetime, date
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric
+from sqlalchemy import (Boolean, Column, Date, DateTime, ForeignKey, Integer,
+                        LargeBinary, Numeric, String, Text)
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -32,7 +33,14 @@ ARRIBO_ESTADO_CSS = {
     "cancelado":  "bg-red-50 text-red-600",
 }
 
-ARRIBO_FUENTES = [("manual", "Manual"), ("lineup", "Lineup PDF")]
+ARRIBO_FUENTES = [("manual", "Manual"), ("lineup", "Lineup PDF"),
+                  ("nominacion", "Nominación por mail")]
+
+# De dónde salió el alta. Importa para la pantalla: los de Nutrien entran
+# solos y el resto se cargan a mano, y conviene distinguirlos de un vistazo.
+ARRIBO_ORIGENES = [("manual", "Carga manual"),
+                   ("nominacion", "Nominación de Nutrien"),
+                   ("lineup", "Line-up del puerto")]
 
 
 class ProximoArribo(Base):
@@ -60,6 +68,22 @@ class ProximoArribo(Base):
     amarre          = Column(String(120), nullable=True)
     observaciones   = Column(Text, nullable=True)
     comentario_operativo = Column(Text, nullable=True)
+
+    # Nominación de Nutrien (ver app/arribos_mail.py y app/nominacion_ocr.py)
+    origen_alta     = Column(String(20), nullable=False, default="manual", index=True)
+    # Message-ID del correo que lo originó: es lo que evita dar de alta dos
+    # veces el mismo buque cuando la nominación se reenvía o se responde.
+    mail_message_id = Column(String(255), nullable=True, index=True)
+    proveedor       = Column(String(120), nullable=True)
+    tonelaje_mtr    = Column(Numeric(12, 2), nullable=True)   # lo que baja en MTR
+    demurrage       = Column(Numeric(12, 2), nullable=True)
+    servicios       = Column(Text, nullable=True)             # uno por renglón
+    # Lo que se leyó de la captura de pantalla no se da por cierto hasta que
+    # alguien lo mira: un ETB mal leído mueve camiones y gente.
+    a_confirmar     = Column(Boolean, nullable=False, default=False, index=True)
+    # La captura se guarda con el arribo para poder confirmarla sin ir al mail.
+    nominacion_img  = Column(LargeBinary, nullable=True)
+    nominacion_img_tipo = Column(String(40), nullable=True)
 
     # Trazabilidad
     last_update_source = Column(String(20), nullable=True)   # manual / lineup

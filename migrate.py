@@ -106,6 +106,24 @@ def run():
 
     # ── Migraciones seguras de columnas nuevas ────────────────────────────────
     with engine.connect() as conn:
+        # Próximos Arribos: nominaciones de Nutrien que entran por correo.
+        for col, tipo in (("origen_alta", "VARCHAR"), ("mail_message_id", "VARCHAR"),
+                          ("proveedor", "VARCHAR"), ("tonelaje_mtr", "NUMERIC"),
+                          ("demurrage", "NUMERIC"), ("servicios", "TEXT"),
+                          ("a_confirmar", "BOOLEAN"),
+                          ("nominacion_img", "BYTEA" if is_prod else "BLOB"),
+                          ("nominacion_img_tipo", "VARCHAR")):
+            _add_column(conn, "proximos_arribos", col, tipo)
+        # Las filas que ya existían quedan como carga manual, que es lo que son.
+        for sql in ("UPDATE proximos_arribos SET origen_alta='manual' "
+                    "WHERE origen_alta IS NULL",
+                    "UPDATE proximos_arribos SET a_confirmar=%s "
+                    "WHERE a_confirmar IS NULL" % ("false" if is_prod else "0")):
+            try:
+                conn.execute(text(sql)); conn.commit()
+            except Exception:
+                conn.rollback()
+
         _add_column(conn, "purchases",  "purchase_date",  "TIMESTAMP")
         _add_column(conn, "purchases",  "deleted_at",     "TIMESTAMP")
         _add_column(conn, "purchases",  "deleted_reason", "TEXT")

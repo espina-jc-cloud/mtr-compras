@@ -5,11 +5,12 @@ Alta manual + enriquecimiento por import del lineup PDF de San Nicolás
 (solo actualiza los buques que el usuario sigue) + edición manual + historial.
 """
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from urllib.parse import quote_plus
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
@@ -20,6 +21,7 @@ from app.models_arribos import (
     ProximoArribo, ArriboUpdate,
     ARRIBO_ESTADOS, ARRIBO_ESTADO_LABELS, ARRIBO_ESTADO_CSS,
 )
+from app import arribos_sync
 from app.lineup_parser import parse_lineup_pdf, canon_vessel
 from app.templates import templates
 
@@ -38,6 +40,74 @@ LINEUP_FIELDS = [
     ("agencia",    "Agencia"),
     ("procedencia","Procedencia"),
 ]
+
+
+DIAS_ES  = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun",
+            "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def _etiqueta_dia(f: date, hoy: date) -> str:
+    if f == hoy:
+        return "Hoy"
+    if f == hoy + timedelta(days=1):
+        return "Mañana"
+    if f == hoy - timedelta(days=1):
+        return "Ayer"
+    return f"{DIAS_ES[f.weekday()]} {f.day}"
+
+
+def _linea_de_tiempo(arribos, hoy: date) -> tuple[list, list]:
+    """Los arribos agrupados por día y por tramo, para la línea de tiempo.
+
+    POR QUÉ NO ALCANZABA CON UNA TABLA ORDENADA POR FECHA
+        La pregunta que se hace alguien al abrir esto no es "qué buques hay"
+        sino "qué se me viene encima esta semana y dónde tengo aire". Una
+        tabla de veinte filas ordenadas por ETB obliga a leerlas todas y
+        restar fechas de cabeza. Agrupadas por día, dos buques el mismo martes
+        se ven como lo que son: un problema de grúas y de camiones.
+
+    Los días vacíos no se dibujan uno por uno —serían treinta renglones en
+    blanco—: se resumen en "3 días sin arribos", que es la información útil.
+    """
+    fin_semana = hoy + timedelta(days=6 - hoy.weekday())
+    fin_proxima = fin_semana + timedelta(days=7)
+
+    def tramo(f):
+        if f < hoy:
+            return "Atrasados", 0
+        if f <= fin_semana:
+            return "Esta semana", 1
+        if f <= fin_proxima:
+            return "La semana que viene", 2
+        return "Más adelante", 3
+
+    por_dia = {}
+    sin_fecha = []
+    for a in arribos:
+        if a.fecha_estimada is None:
+            sin_fecha.append(a)
+        else:
+            por_dia.setdefault(a.fecha_estimada, []).append(a)
+
+    grupos, anterior = [], None
+    for f in sorted(por_dia):
+        nombre, orden = tramo(f)
+        if not grupos or grupos[-1]["nombre"] != nombre:
+            grupos.append({"nombre": nombre, "orden": orden, "dias": []})
+            anterior = None
+        hueco = (f - anterior).days - 1 if anterior else 0
+        grupos[-1]["dias"].append({
+            "fecha": f,
+            "etiqueta": _etiqueta_dia(f, hoy),
+            "mes": MESES_ES[f.month - 1],
+            "hoy": f == hoy,
+            "faltan": (f - hoy).days,
+            "hueco": hueco if hueco > 0 else 0,
+            "arribos": por_dia[f],
+        })
+        anterior = f
+    return grupos, sin_fecha
 
 
 def _dec(s):
@@ -131,12 +201,80 @@ async def list_arribos(request: Request, db: Session = Depends(get_db), current_
         ProximoArribo.updated_at.desc(),
     ).all()
 
+    hoy = date.today()
+    grupos, sin_fecha = _linea_de_tiempo(arribos, hoy)
     return templates.TemplateResponse(request, "operations/arribos/list.html", {
         "user": current_user, "arribos": arribos,
+        "grupos": grupos, "sin_fecha": sin_fecha, "hoy": hoy,
+        "a_confirmar": [a for a in arribos if a.a_confirmar],
         "estados": ARRIBO_ESTADOS, "estado_css": ARRIBO_ESTADO_CSS,
+        "estado_labels": ARRIBO_ESTADO_LABELS,
         "params": {"estado": q_estado, "cliente": q_cli, "q": q_texto},
         "saved": request.query_params.get("saved"),
+        "error": request.query_params.get("error"),
     })
+
+
+# ── Correo: nominaciones de Nutrien y line-up ────────────────────────────────
+
+@router.post("/revisar-correo")
+async def revisar_correo(db: Session = Depends(get_db), current_user=Depends(_guard)):
+    """Trae del buzón lo que haya y vuelve al listado con el resumen.
+
+    Corre también sola cada hora (ver app/main.py). El botón existe igual
+    porque cuando alguien está esperando un buque no quiere enterarse dentro
+    de cincuenta minutos.
+    """
+    r = arribos_sync.sincronizar(db, getattr(current_user, "id", None))
+    nom, lu = r["nominaciones"], r["lineup"]
+    if not r["ok"]:
+        return RedirectResponse(
+            f"/operations/arribos?error={quote_plus(r['error'] or 'Falló la revisión del correo.')}",
+            status_code=303)
+
+    partes = []
+    altas = len(nom.get("altas", []))
+    partes.append(f"{altas} buque(s) nuevo(s) desde las nominaciones" if altas
+                  else "Sin nominaciones nuevas")
+    if not nom.get("ocr"):
+        partes.append("el ETB hay que cargarlo a mano (falta la API key para leer "
+                      "la captura de la nominación)")
+    tocados = len(lu.get("tocados", []))
+    if lu.get("archivo"):
+        partes.append(f"line-up {lu.get('fecha') or ''} aplicado: "
+                      f"{tocados} buque(s) actualizado(s)" if tocados
+                      else f"line-up {lu.get('fecha') or ''} sin cambios")
+    return RedirectResponse(
+        f"/operations/arribos?saved={quote_plus(' · '.join(partes))}", status_code=303)
+
+
+@router.post("/{arribo_id}/confirmar")
+async def confirmar_arribo(arribo_id: int, db: Session = Depends(get_db),
+                           current_user=Depends(_guard)):
+    """Marca como mirados los datos que salieron de la captura de la nominación."""
+    a = db.get(ProximoArribo, arribo_id)
+    if not a or a.deleted_at:
+        raise HTTPException(404)
+    a.a_confirmar = False
+    a.last_update_at = datetime.utcnow()
+    db.add(ArriboUpdate(arribo_id=a.id, source="manual",
+                        created_by_id=getattr(current_user, "id", None),
+                        resumen="Datos de la nominación confirmados"))
+    db.commit()
+    return RedirectResponse(f"/operations/arribos/{arribo_id}?saved="
+                            + quote_plus("Datos confirmados"), status_code=303)
+
+
+@router.get("/{arribo_id}/nominacion")
+async def imagen_nominacion(arribo_id: int, db: Session = Depends(get_db),
+                            current_user=Depends(_guard)):
+    """La captura que vino en el mail, para confirmar el ETB sin ir al correo."""
+    a = db.get(ProximoArribo, arribo_id)
+    if not a or not a.nominacion_img:
+        raise HTTPException(404)
+    return Response(content=a.nominacion_img,
+                    media_type=a.nominacion_img_tipo or "image/png",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 
 # ── VISTA COMPARTIBLE (board) ─────────────────────────────────────────────────

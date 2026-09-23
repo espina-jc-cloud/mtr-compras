@@ -129,6 +129,56 @@ async def _revisar_buzon_periodicamente():
         await asyncio.sleep(intervalo * 60)
 
 
+def _una_pasada_de_arribos() -> str:
+    """Una revisión del correo de arribos. Corre en un hilo, como la de horas."""
+    from app.database import SessionLocal
+    from app import arribos_sync
+
+    db = SessionLocal()
+    try:
+        r = arribos_sync.sincronizar(db)
+        nom, lu = r["nominaciones"], r["lineup"]
+        if not r["ok"]:
+            return f"ERROR: {r['error']}"
+        altas = len(nom.get("altas", []))
+        tocados = len(lu.get("tocados", []))
+        if not altas and not tocados:
+            return "sin novedades"
+        return (f"{altas} alta(s) por nominación · "
+                f"{tocados} actualizado(s) por el line-up {lu.get('fecha') or ''}")
+    finally:
+        db.close()
+
+
+# ── Correo de Próximos Arribos: revisión periódica ───────────────────────────
+# Las nominaciones y los line-up llegan de a poco a lo largo del día, así que
+# no hace falta la frecuencia del buzón de horas. Una vez por hora alcanza.
+# Se desactiva con ARRIBOS_MAIL_INTERVALO_MIN=0.
+async def _revisar_arribos_periodicamente():
+    import asyncio
+
+    intervalo = int(os.getenv("ARRIBOS_MAIL_INTERVALO_MIN", "60") or 0)
+    if intervalo <= 0:
+        return
+    await asyncio.sleep(120)   # después de migrate.py y del buzón de horas
+
+    while True:
+        try:
+            from app import asistencia_mail          # misma casilla, misma config
+            if asistencia_mail.configurado():
+                resumen = await asyncio.to_thread(_una_pasada_de_arribos)
+                print(f"[arribos] {resumen}", flush=True)
+        except Exception as e:
+            print(f"[arribos] ERROR inesperado: {type(e).__name__}: {e}", flush=True)
+        await asyncio.sleep(intervalo * 60)
+
+
+@app.on_event("startup")
+async def start_arribos_task():
+    import asyncio
+    asyncio.create_task(_revisar_arribos_periodicamente())
+
+
 @app.on_event("startup")
 async def start_buzon_task():
     import asyncio
