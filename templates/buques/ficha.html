@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ f.buque }} — Buque{% endblock %}
+{% block content %}
+
+{#
+  La ficha del buque: todo su recorrido en una sola página.
+
+  Antes había que abrir tres pantallas para responder "¿cómo va este barco?" y
+  cada una contestaba distinto. Acá arriba está el recorrido —nominado, ETB,
+  descargando, terminado— y debajo el detalle de la etapa en la que está.
+#}
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/buques" class="text-gray-400 hover:text-gray-600">←</a>
+  <h1 class="text-xl font-bold text-gray-900">{{ f.buque }}</h1>
+  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ f.css }}">{{ f.etiqueta }}</span>
+</div>
+<p class="text-sm text-gray-500 mb-5 pl-7">
+  {{ f.cliente or "Sin cliente" }}{% if f.producto %} · {{ f.producto }}{% endif %}
+</p>
+
+<!-- ── El recorrido ─────────────────────────────────────────────────────── -->
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-5">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    {% for paso in recorrido %}
+    <div class="relative">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="w-2.5 h-2.5 rounded-full shrink-0 {{ 'bg-indigo-600' if paso.hecho else 'bg-gray-200' }}"></span>
+        <span class="text-[11px] font-semibold uppercase tracking-wide {{ 'text-gray-700' if paso.hecho else 'text-gray-300' }}">{{ paso.titulo }}</span>
+      </div>
+      <p class="text-sm pl-[1.125rem] {{ 'text-gray-900 font-medium' if paso.hecho else 'text-gray-300' }}">{{ paso.valor or "—" }}</p>
+      {% if paso.nota %}<p class="text-[11px] text-gray-400 pl-[1.125rem]">{{ paso.nota }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Qué se puede hacer con este buque ────────────────────────────────── -->
+<div class="flex flex-wrap items-center gap-2 mb-5">
+  {% if f.live and can(user, "operaciones.live") %}
+  <a href="/operations/live/{{ f.live.id }}/avance" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+    Ver el avance por bodega
+  </a>
+  <a href="/operations/live/{{ f.live.id }}/parte" class="inline-flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">
+    Pegar un parte
+  </a>
+  {% elif f.estado == "descargando" and can(user, "operaciones.live") %}
+  <a href="/operations/live/new?buque={{ f.buque | urlencode }}{% if f.cliente %}&cliente={{ f.cliente | urlencode }}{% endif %}{% if f.producto %}&producto={{ f.producto | urlencode }}{% endif %}"
+     class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">
+    Iniciar operativo Live
+  </a>
+  {% endif %}
+  {% if f.arribo %}
+  <a href="/operations/arribos/{{ f.arribo.id }}/edit" class="inline-flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">
+    Editar datos del arribo
+  </a>
+  {% endif %}
+  <a href="/buscar?q={{ f.buque | urlencode }}" class="inline-flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold px-4 py-2.5 rounded-xl">
+    Buscar en todo el sistema
+  </a>
+</div>
+
+{% if not op %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-10 text-center mb-5">
+  <p class="text-sm text-gray-600 font-medium">Todavía no hay resumen de balanza</p>
+  <p class="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+    El análisis del operativo —ritmo, transportistas, permanencia de los camiones y diferencia
+    de balanza— aparece acá cuando balanza manda el Excel con los pesajes.
+  </p>
+</div>
+{% else %}
+{% include "operations/buques/_analisis.html" %}
+{% endif %}
+
+{% if f.operativos|length > 1 %}
+<div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+  <h2 class="text-sm font-semibold text-gray-800 mb-1">Otras veces que vino</h2>
+  <p class="text-xs text-gray-500 mb-3">{{ f.operativos|length }} operativos de este mismo buque.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-semibold text-gray-500 border-b border-gray-100">
+          <th class="py-2">Descarga</th><th class="py-2">Cliente</th><th class="py-2">Producto</th>
+          <th class="py-2 text-right">Viajes</th><th class="py-2 text-right">Toneladas</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for o in f.operativos %}
+        <tr class="{{ 'bg-indigo-50/40' if op and o.id == op.id }}">
+          <td class="py-2">
+            <a href="/buques/{{ f.slug }}?op={{ o.id }}" class="font-medium text-indigo-600 hover:text-indigo-800">
+              {{ o.inicio.strftime("%d/%m/%Y") if o.inicio else "—" }}
+              {%- if o.fin and o.fin != o.inicio %} → {{ o.fin.strftime("%d/%m") }}{% endif %}
+            </a>
+          </td>
+          <td class="py-2 text-gray-600">{{ o.cliente or "—" }}</td>
+          <td class="py-2 text-gray-600">{{ o.producto or "—" }}</td>
+          <td class="py-2 text-right text-gray-700 tabular-nums">{{ o.viajes }}</td>
+          <td class="py-2 text-right font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(o.neto_kg / 1000) | replace(",", ".") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

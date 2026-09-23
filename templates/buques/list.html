@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Buques — MTR{% endblock %}
+{% block content %}
+
+{#
+  Una sola pantalla para todo el recorrido de un buque.
+
+  Antes esto eran tres: Próximos Arribos, Operativos Live y Buques terminados,
+  cada una con su propio estado del mismo barco. El MV KOCIEWIE terminó de
+  descargar el 11/09 y Próximos Arribos lo seguía mostrando como que venía.
+
+  Acá el estado no se guarda: se deriva de la evidencia, y el orden de la
+  pantalla es el orden en que importa — lo que está pasando ahora arriba, lo
+  que viene después, y lo terminado al final.
+#}
+
+<div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Buques</h1>
+    <p class="text-sm text-gray-500">Lo que viene, lo que está descargando y lo que terminó</p>
+  </div>
+  <div class="flex items-center gap-2 flex-wrap">
+    <form method="post" action="/buques/revisar-correo">
+      <button type="submit" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">Revisar correo</button>
+    </form>
+    <a href="/operations/arribos/new" class="inline-flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm">+ Cargar buque</a>
+  </div>
+</div>
+
+{% if saved %}<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 mb-4 text-sm">✓ {{ saved }}</div>{% endif %}
+{% if error %}<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ error }}</div>{% endif %}
+
+<!-- ── El panorama ──────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3 {{ 'ring-1 ring-amber-200' if vista.descargando }}">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Descargando ahora</p>
+    <p class="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{{ vista.descargando }}</p>
+  </div>
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Por venir</p>
+    <p class="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{{ vista.por_venir }}</p>
+  </div>
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Terminados este mes</p>
+    <p class="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{{ vista.terminados_mes }}</p>
+  </div>
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm px-4 py-3">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Toneladas del mes</p>
+    <p class="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{{ "{:,.0f}".format(vista.toneladas_mes) | replace(",", ".") }}</p>
+  </div>
+</div>
+
+{% macro fila(f, mostrar_toneladas=True) %}
+<a href="/buques/{{ f.slug }}" class="block bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition px-4 py-3">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-semibold text-gray-900">{{ f.buque }}</span>
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ f.css }}">{{ f.etiqueta }}</span>
+      </div>
+      <p class="text-sm text-gray-500 mt-0.5">
+        {{ f.cliente or "Sin cliente" }}{% if f.producto %} · {{ f.producto }}{% endif %}
+        {%- if f.arribo and f.arribo.etb %} · ETB {{ f.arribo.etb }}{% endif %}
+      </p>
+    </div>
+    <div class="text-right shrink-0">
+      {% if mostrar_toneladas and f.toneladas %}
+      <p class="text-base font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(f.toneladas) | replace(",", ".") }} t</p>
+      <p class="text-xs text-gray-400">{{ f.viajes }} viajes</p>
+      {% elif f.fecha %}
+      <p class="text-sm font-medium text-gray-700">{{ f.fecha.strftime("%d/%m/%Y") }}</p>
+      {% endif %}
+    </div>
+  </div>
+</a>
+{% endmacro %}
+
+{% macro seccion(titulo, bajada, items, mostrar_t=True, vacio="") %}
+<section class="mb-7">
+  <h2 class="text-sm font-bold text-gray-800">{{ titulo }}
+    <span class="ml-1 text-xs font-semibold text-gray-400">{{ items|length }}</span>
+  </h2>
+  <p class="text-xs text-gray-400 mb-3">{{ bajada }}</p>
+  {% if items %}
+  <div class="space-y-2">{% for f in items %}{{ fila(f, mostrar_t) }}{% endfor %}</div>
+  {% else %}
+  <p class="text-sm text-gray-400 bg-white border border-gray-100 rounded-xl px-4 py-5 text-center">{{ vacio }}</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{{ seccion("Descargando ahora",
+           "Con movimiento en los últimos días.",
+           descargando, False,
+           "Ningún buque descargando.") }}
+
+{{ seccion("Por venir",
+           "Nominados por el cliente. La fecha la trae el line-up del puerto.",
+           por_venir, False,
+           "No hay buques anunciados.") }}
+
+<section>
+  <div class="flex items-end justify-between gap-3 mb-1 flex-wrap">
+    <h2 class="text-sm font-bold text-gray-800">Terminados
+      <span class="ml-1 text-xs font-semibold text-gray-400">{{ terminados_total }}</span>
+    </h2>
+    <form method="get" class="flex gap-2 items-center text-sm">
+      <input type="text" name="q" value="{{ params.q }}" placeholder="Buscar buque" class="border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+      <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white font-semibold px-3 py-1.5 rounded-lg">Buscar</button>
+    </form>
+  </div>
+  <p class="text-xs text-gray-400 mb-3">Con el resumen de balanza cargado: entrá para ver el análisis del operativo.</p>
+  {% if terminados %}
+  <div class="space-y-2">{% for f in terminados %}{{ fila(f) }}{% endfor %}</div>
+  {% if not params.q and terminados_total > terminados|length %}
+  <p class="text-center mt-3">
+    <a href="/buques?todos=1" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">Ver los {{ terminados_total }}</a>
+  </p>
+  {% endif %}
+  {% else %}
+  <p class="text-sm text-gray-400 bg-white border border-gray-100 rounded-xl px-4 py-5 text-center">
+    {{ "Ningún buque coincide con la búsqueda." if params.q else "Todavía no llegó ningún resumen de balanza." }}
+  </p>
+  {% endif %}
+</section>
+
+{% endblock %}

@@ -48,7 +48,7 @@
     </a>
     {% endif %}
     {% if resumen %}
-    <a href="/operations/buques/{{ resumen.id }}"
+    <a href="/buques/{{ resumen.buque_canon | lower | replace(' ', '-') }}"
       class="inline-flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M7 12l3-3 3 3 4-4M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
       Cómo terminó ({{ resumen.viajes }} viajes)

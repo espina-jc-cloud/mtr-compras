@@ -1,20 +1,13 @@
-{% extends "base.html" %}
-{% block title %}{{ op.buque }} — Análisis del operativo{% endblock %}
-{% block content %}
-
 {#
-  Análisis de un operativo terminado.
+  Análisis de un operativo, a partir de sus pesajes.
 
-  Todo sale de los pesajes, uno por camión: no hay ningún total escrito a mano,
-  así que ninguna cifra puede contradecir a otra. El orden va de lo que se
-  pregunta primero —cuánto entró y en cuánto tiempo— a lo que sólo se pregunta
-  cuando algo salió mal: quién puso los camiones y cuánto tardaron adentro.
+  Se incluye desde la ficha del buque. Todo sale de los pesajes, uno por
+  camión: no hay ningún total escrito a mano, así que ninguna cifra puede
+  contradecir a otra. Las barras usan un solo tono porque se comparan
+  magnitudes de una misma medida, no categorías distintas.
 
-  Las barras usan un solo tono: acá se comparan magnitudes de una misma medida,
-  no categorías distintas. Un color por transportista sugeriría que el color
-  significa algo.
+  Espera en el contexto: `op` (el operativo) y `a` (lo que devuelve analizar()).
 #}
-
 {% macro barra(valor, maximo, etiqueta, detalle="", ancho_etiqueta="10rem") %}
 <div class="flex items-center gap-3 text-sm">
   <div class="shrink-0 text-gray-600 truncate" style="width: {{ ancho_etiqueta }}" title="{{ etiqueta }}">{{ etiqueta }}</div>
@@ -32,20 +25,6 @@
   {% if nota %}<p class="text-[11px] text-gray-400 mt-0.5">{{ nota }}</p>{% endif %}
 </div>
 {% endmacro %}
-
-<div class="flex items-start justify-between gap-3 mb-1 flex-wrap">
-  <div class="flex items-center gap-3 min-w-0">
-    <a href="/operations/buques" class="text-gray-400 hover:text-gray-600">←</a>
-    <h1 class="text-xl font-bold text-gray-900">{{ op.buque }}</h1>
-    {% if not op.cerrado %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">en curso</span>{% endif %}
-  </div>
-</div>
-<p class="text-sm text-gray-500 mb-5 pl-7">
-  {{ op.cliente or "Sin cliente" }}{% if op.producto %} · {{ op.producto }}{% endif %}
-  {%- if op.inicio %} · descargó del {{ op.inicio.strftime("%d/%m/%Y") }}{% if op.fin and op.fin != op.inicio %} al {{ op.fin.strftime("%d/%m/%Y") }}{% endif %}{% endif %}
-  {%- if op.operativo_nro %} · operativo n° {{ op.operativo_nro }}{% endif %}
-</p>
-
 <!-- ── Lo que hay que saber primero ─────────────────────────────────────── -->
 <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
   {{ tile("Descargado", "{:,.0f}".format(a.neto_t) | replace(",", "."), "t", "balanza MTR") }}
@@ -232,4 +211,3 @@
   {%- if op.avisos %} {{ op.avisos }}{% endif %}
 </p>
 
-{% endblock %}

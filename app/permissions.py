@@ -47,7 +47,7 @@ MODULES = [
     {
         "key": "operaciones", "label": "Operaciones",
         "subs": [
-            {"key": "operaciones.arribos",          "label": "Próximos Arribos",     "prefixes": ["/operations/arribos"]},
+            {"key": "operaciones.arribos",          "label": "Buques",               "prefixes": ["/buques", "/operations/arribos"]},
             {"key": "operaciones.despachos",        "label": "Despachos",            "prefixes": ["/despachos"]},
             {"key": "operaciones.diarias",          "label": "Operaciones Diarias",  "prefixes": ["/operations/daily"]},
             {"key": "operaciones.live",             "label": "Operativos Live",      "prefixes": ["/operations/live"]},
