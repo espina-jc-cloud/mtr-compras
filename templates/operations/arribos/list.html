@@ -35,23 +35,6 @@
 {% if saved %}<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 mb-4 text-sm">✓ {{ saved }}</div>{% endif %}
 {% if error %}<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ error }}</div>{% endif %}
 
-{% if a_confirmar %}
-<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
-  <p class="text-sm font-semibold text-amber-900">
-    {{ a_confirmar|length }} buque{{ "s" if a_confirmar|length != 1 }} esperando que confirmes los datos
-  </p>
-  <p class="text-xs text-amber-800 mt-0.5">
-    Entraron solos por la nominación de Nutrien. El ETB y las toneladas salen de una captura
-    de pantalla del mail, así que conviene mirarlos antes de programar nada.
-  </p>
-  <div class="flex flex-wrap gap-1.5 mt-2">
-    {% for a in a_confirmar %}
-    <a href="/operations/arribos/{{ a.id }}" class="text-xs font-semibold bg-white border border-amber-300 text-amber-900 rounded-lg px-2 py-1 hover:bg-amber-100">{{ a.buque }}</a>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 <form method="get" data-autofilter data-remember="arribos" class="flex flex-wrap gap-2 items-center mb-5 text-sm">
   <select name="estado" class="border border-gray-200 rounded-lg px-3 py-2 bg-white">
     <option value="">Todos los estados</option>
@@ -64,7 +47,7 @@
 
 {% macro tarjeta(a) %}
 <a href="/operations/arribos/{{ a.id }}"
-   class="block bg-white border border-gray-100 {{ 'border-l-4 border-l-amber-400' if a.a_confirmar }} rounded-xl shadow-sm hover:shadow-md transition px-4 py-3">
+   class="block bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition px-4 py-3">
   <div class="flex items-start justify-between gap-3 flex-wrap">
     <div class="min-w-0">
       <div class="flex items-center gap-2 flex-wrap">
@@ -72,9 +55,6 @@
         <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {{ estado_css.get(a.estado, 'bg-gray-100 text-gray-600') }}">{{ estado_labels.get(a.estado, a.estado) }}</span>
         {% if a.origen_alta == "nominacion" %}
         <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">entró solo</span>
-        {% endif %}
-        {% if a.a_confirmar %}
-        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">a confirmar</span>
         {% endif %}
       </div>
       <p class="text-sm text-gray-500 mt-0.5">
@@ -143,7 +123,7 @@
 {% if sin_fecha %}
 <section class="mb-7">
   <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Nominados, todavía sin fecha</h2>
-  <p class="text-xs text-gray-400 mb-3">Nutrien ya los confirmó pero no hay ETB. Aparecen acá hasta que el line-up traiga la fecha.</p>
+  <p class="text-xs text-gray-400 mb-3">Nutrien ya los nominó pero todavía no hay ETB. Aparecen acá hasta que el line-up traiga la fecha, o hasta que se la pongas vos.</p>
   <div class="space-y-2">
     {% for a in sin_fecha %}{{ tarjeta(a) }}{% endfor %}
   </div>

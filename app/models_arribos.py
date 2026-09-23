@@ -69,7 +69,7 @@ class ProximoArribo(Base):
     observaciones   = Column(Text, nullable=True)
     comentario_operativo = Column(Text, nullable=True)
 
-    # Nominación de Nutrien (ver app/arribos_mail.py y app/nominacion_ocr.py)
+    # Nominación de Nutrien (ver app/arribos_mail.py y app/arribos_sync.py)
     origen_alta     = Column(String(20), nullable=False, default="manual", index=True)
     # Message-ID del correo que lo originó: es lo que evita dar de alta dos
     # veces el mismo buque cuando la nominación se reenvía o se responde.
@@ -78,10 +78,11 @@ class ProximoArribo(Base):
     tonelaje_mtr    = Column(Numeric(12, 2), nullable=True)   # lo que baja en MTR
     demurrage       = Column(Numeric(12, 2), nullable=True)
     servicios       = Column(Text, nullable=True)             # uno por renglón
-    # Lo que se leyó de la captura de pantalla no se da por cierto hasta que
-    # alguien lo mira: un ETB mal leído mueve camiones y gente.
+    # Quedó de cuando el ETB se leía de la captura con un modelo de visión.
+    # Ya no se usa: los datos entran y se corrigen editando. No se borra la
+    # columna para no tocar el esquema de producción por nada.
     a_confirmar     = Column(Boolean, nullable=False, default=False, index=True)
-    # La captura se guarda con el arribo para poder confirmarla sin ir al mail.
+    # La captura se guarda con el arribo para poder leer el ETB sin ir al mail.
     nominacion_img  = Column(LargeBinary, nullable=True)
     nominacion_img_tipo = Column(String(40), nullable=True)
 

@@ -187,6 +187,10 @@ async def list_arribos(request: Request, db: Session = Depends(get_db), current_
     aq = db.query(ProximoArribo).filter(ProximoArribo.deleted_at.is_(None))
     if q_estado in ARRIBO_ESTADO_LABELS:
         aq = aq.filter(ProximoArribo.estado == q_estado)
+    else:
+        # Un buque que ya se fue no es un próximo arribo. Se siguen pudiendo
+        # ver eligiendo su estado en el filtro.
+        aq = aq.filter(ProximoArribo.estado.notin_(("finalizado", "cancelado")))
     if q_cli:
         aq = aq.filter(ProximoArribo.cliente.ilike(f"%{q_cli}%"))
     if q_texto:
@@ -206,7 +210,6 @@ async def list_arribos(request: Request, db: Session = Depends(get_db), current_
     return templates.TemplateResponse(request, "operations/arribos/list.html", {
         "user": current_user, "arribos": arribos,
         "grupos": grupos, "sin_fecha": sin_fecha, "hoy": hoy,
-        "a_confirmar": [a for a in arribos if a.a_confirmar],
         "estados": ARRIBO_ESTADOS, "estado_css": ARRIBO_ESTADO_CSS,
         "estado_labels": ARRIBO_ESTADO_LABELS,
         "params": {"estado": q_estado, "cliente": q_cli, "q": q_texto},
@@ -236,9 +239,9 @@ async def revisar_correo(db: Session = Depends(get_db), current_user=Depends(_gu
     altas = len(nom.get("altas", []))
     partes.append(f"{altas} buque(s) nuevo(s) desde las nominaciones" if altas
                   else "Sin nominaciones nuevas")
-    if not nom.get("ocr"):
-        partes.append("el ETB hay que cargarlo a mano (falta la API key para leer "
-                      "la captura de la nominación)")
+    cerrados = len(r.get("cerrados", []))
+    if cerrados:
+        partes.append(f"{cerrados} buque(s) que ya pasaron, cerrados")
     tocados = len(lu.get("tocados", []))
     if lu.get("archivo"):
         partes.append(f"line-up {lu.get('fecha') or ''} aplicado: "
@@ -248,27 +251,10 @@ async def revisar_correo(db: Session = Depends(get_db), current_user=Depends(_gu
         f"/operations/arribos?saved={quote_plus(' · '.join(partes))}", status_code=303)
 
 
-@router.post("/{arribo_id}/confirmar")
-async def confirmar_arribo(arribo_id: int, db: Session = Depends(get_db),
-                           current_user=Depends(_guard)):
-    """Marca como mirados los datos que salieron de la captura de la nominación."""
-    a = db.get(ProximoArribo, arribo_id)
-    if not a or a.deleted_at:
-        raise HTTPException(404)
-    a.a_confirmar = False
-    a.last_update_at = datetime.utcnow()
-    db.add(ArriboUpdate(arribo_id=a.id, source="manual",
-                        created_by_id=getattr(current_user, "id", None),
-                        resumen="Datos de la nominación confirmados"))
-    db.commit()
-    return RedirectResponse(f"/operations/arribos/{arribo_id}?saved="
-                            + quote_plus("Datos confirmados"), status_code=303)
-
-
 @router.get("/{arribo_id}/nominacion")
 async def imagen_nominacion(arribo_id: int, db: Session = Depends(get_db),
                             current_user=Depends(_guard)):
-    """La captura que vino en el mail, para confirmar el ETB sin ir al correo."""
+    """La captura que vino en el mail, para leer el ETB sin ir al correo."""
     a = db.get(ProximoArribo, arribo_id)
     if not a or not a.nominacion_img:
         raise HTTPException(404)

@@ -3,8 +3,15 @@ Alimenta Próximos Arribos desde el correo: nominaciones de Nutrien y line-ups.
 
 LAS DOS FUENTES NO HACEN LO MISMO
     La NOMINACIÓN es la que da de alta: es Nutrien diciendo "este buque viene y
-    lo trabajan ustedes". Trae el buque, el producto, los servicios y —dentro de
-    una captura de pantalla— el ETB y las toneladas.
+    lo trabajan ustedes". Del correo se toma lo que está escrito: el buque, el
+    producto y los servicios.
+
+    EL ETB NO SE LEE DEL CORREO
+        Viene dentro de una captura de pantalla de la planilla de Javier, y
+        sacarlo de ahí requiere un modelo de visión. No vale la pena: la fecha
+        llega igual en el próximo line-up, que es texto y se lee sin adivinar.
+        La captura se guarda con el arribo para poder mirarla y escribir el ETB
+        a mano si hace falta antes.
 
     El LINE-UP no da de alta a nadie. Es la programación del puerto entero, con
     quince o veinte buques que en su mayoría no son nuestros. Lo que hace es
@@ -25,17 +32,19 @@ IDEMPOTENTE
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 
 from app.arribos_mail import (buscar_lineups, buscar_nominaciones,
                               imagen_de_la_tabla)
 from app.lineup_parser import canon_vessel, parse_lineup_pdf
 from app.models_arribos import ArriboUpdate, ProximoArribo
-from app.nominacion_ocr import disponible as ocr_disponible
-from app.nominacion_ocr import leer as ocr_leer
-
 PARECIDO_MINIMO = 0.90
+
+# Días después de la fecha prevista tras los cuales un buque que sigue
+# "esperado" ya no está esperado: pasó. Una descarga dura días, no semanas, así
+# que siete es margen de sobra incluso para una demora larga.
+DIAS_PARA_DARLO_POR_PASADO = 7
 
 # Lo operativo es del puerto: cuándo amarra, dónde y con qué agencia. Acá el
 # line-up manda siempre, porque es la programación oficial.
@@ -95,53 +104,33 @@ def _fecha_estimada(arribo):
 
 # ── Nominaciones ──────────────────────────────────────────────────────────────
 
-def _fila_para(filas: list[dict], nombre: str) -> dict | None:
-    canon = canon_vessel(nombre)
-    for f in filas:
-        if _parecidos(canon_vessel(f["buque"]), canon):
-            return f
-    return None
-
-
-def _alta_por_nominacion(db, mail, nombre, fila, usuario_id):
-    """Da de alta el buque con lo que dice el mail y lo que se leyó de la imagen."""
+def _alta_por_nominacion(db, mail, nombre, usuario_id):
+    """Da de alta el buque con lo que el correo dice en texto."""
     img = imagen_de_la_tabla(mail["imagenes"])
     a = ProximoArribo(
         buque=re.sub(r"\s+", " ", nombre).strip(),
         buque_canon=canon_vessel(nombre),
         cliente="NUTRIEN",
-        mercaderia=(fila or {}).get("producto") or mail["producto"] or None,
-        procedencia=(fila or {}).get("origen"),
-        proveedor=(fila or {}).get("proveedor"),
-        tonelaje_estimado=(fila or {}).get("mt_total"),
-        tonelaje_mtr=(fila or {}).get("mt_mtr"),
-        demurrage=(fila or {}).get("demurrage"),
+        mercaderia=mail["producto"] or None,
         servicios="\n".join(mail["servicios"]) or None,
         operacion="DESCARGA",
         estado="esperado",
         origen_alta="nominacion",
         mail_message_id=mail["message_id"],
-        # Todo lo que sale de una captura queda para que alguien lo mire; y si
-        # no se pudo leer, con más razón: el ETB está vacío.
-        a_confirmar=True,
+        # La captura de la planilla se guarda para poder mirar el ETB sin abrir
+        # el correo, aunque el sistema no la interprete.
         nominacion_img=(img or {}).get("datos"),
         nominacion_img_tipo=(img or {}).get("tipo"),
         last_update_source="nominacion",
         last_update_at=datetime.utcnow(),
         created_by_id=usuario_id,
     )
-    etb = (fila or {}).get("etb")
-    if etb:
-        a.etb = etb.strftime("%d/%m/%Y")
-        a.fecha_estimada = etb
     db.add(a)
     db.flush()
     db.add(ArriboUpdate(
         arribo_id=a.id, source="nominacion", created_by_id=usuario_id,
-        resumen=f'Alta automática desde la nominación "{mail["asunto"]}"'
-                + (f' · ETB {a.etb} y {a.tonelaje_mtr or a.tonelaje_estimado or "?"} t '
-                   "leídos de la captura (a confirmar)" if etb else
-                   " · la captura no se pudo leer: falta cargar ETB y toneladas")))
+        resumen=f'Alta automática desde la nominación "{mail["asunto"]}". '
+                "El ETB lo trae el line-up."))
     return a
 
 
@@ -152,21 +141,13 @@ def sincronizar_nominaciones(db, usuario_id=None, limite=40, dias=None) -> dict:
 
     altas, ya_estaban = [], set()
     for mail in r["mensajes"]:
-        # El OCR cuesta una llamada por mail: sólo se pide si hay algún buque
-        # que todavía no seguimos. Una nominación reenviada cinco veces no
-        # tiene por qué pagarse cinco veces.
         nuevos = [n for n in mail["buques"] if buscar_arribo(db, n) is None]
         ya_estaban.update(set(mail["buques"]) - set(nuevos))
-        if not nuevos:
-            continue
-        filas = ocr_leer(mail["imagenes"])          # [] si no hay API key
         for nombre in nuevos:
-            altas.append(_alta_por_nominacion(
-                db, mail, nombre, _fila_para(filas, nombre), usuario_id))
+            altas.append(_alta_por_nominacion(db, mail, nombre, usuario_id))
     db.commit()
     return {"ok": True, "error": None, "altas": altas,
-            "ya_estaban": sorted(ya_estaban),
-            "vistos": len(r["mensajes"]), "ocr": ocr_disponible()}
+            "ya_estaban": sorted(ya_estaban), "vistos": len(r["mensajes"])}
 
 
 # ── Line-up ───────────────────────────────────────────────────────────────────
@@ -227,10 +208,45 @@ def sincronizar_lineup(db, usuario_id=None, dias=None) -> dict:
             "fecha": fecha_lineup, "buques": len(vessels), "asunto": mail["asunto"]}
 
 
+def cerrar_los_que_ya_pasaron(db, usuario_id=None, hoy: date | None = None) -> list:
+    """Da por finalizados los buques cuya fecha quedó muy atrás.
+
+    POR QUÉ HACE FALTA
+        Nadie vuelve a entrar a marcar "finalizado" cuando el buque se fue: se
+        hace lo urgente y el registro queda. Sin esto la pantalla arrastra el
+        MV TAI HONOR de junio arriba de todo, bajo el título "Atrasados", y lo
+        que debería ser una alerta —este buque se demoró— pasa a ser ruido que
+        se aprende a ignorar. Una alerta que siempre está encendida no avisa
+        nada.
+
+    No toca los que están amarrados u operando: esos están pasando ahora,
+    aunque la fecha prevista haya quedado atrás.
+    """
+    hoy = hoy or date.today()
+    limite = hoy - timedelta(days=DIAS_PARA_DARLO_POR_PASADO)
+    viejos = (db.query(ProximoArribo)
+              .filter(ProximoArribo.deleted_at.is_(None),
+                      ProximoArribo.estado.in_(("esperado", "confirmado")),
+                      ProximoArribo.fecha_estimada.isnot(None),
+                      ProximoArribo.fecha_estimada < limite)
+              .all())
+    for a in viejos:
+        dias = (hoy - a.fecha_estimada).days
+        a.estado = "finalizado"
+        a.last_update_at = datetime.utcnow()
+        db.add(ArriboUpdate(
+            arribo_id=a.id, source="manual", created_by_id=usuario_id,
+            resumen=f"Cerrado solo: la fecha prevista ({a.fecha_estimada:%d/%m/%Y}) "
+                    f"quedó {dias} días atrás y seguía como {a.estado!r}."))
+    return viejos
+
+
 def sincronizar(db, usuario_id=None) -> dict:
-    """Las dos pasadas, en orden: primero las altas, después la actualización."""
+    """Las tres pasadas: altas, actualización y cierre de lo que ya pasó."""
     nom = sincronizar_nominaciones(db, usuario_id)
     lu = sincronizar_lineup(db, usuario_id)
-    return {"nominaciones": nom, "lineup": lu,
+    cerrados = cerrar_los_que_ya_pasaron(db, usuario_id)
+    db.commit()
+    return {"nominaciones": nom, "lineup": lu, "cerrados": cerrados,
             "ok": nom.get("ok") and lu.get("ok"),
             "error": nom.get("error") or lu.get("error")}

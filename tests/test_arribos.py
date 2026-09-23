@@ -17,9 +17,13 @@ import pytest
 
 from app.arribos_mail import (buques_del_asunto, imagen_de_la_tabla,
                               producto_del_asunto, servicios_del_cuerpo)
-from app.arribos_sync import COMERCIAL, OPERATIVO, _BASURA, _parecidos
+from app.arribos_sync import (COMERCIAL, DIAS_PARA_DARLO_POR_PASADO, OPERATIVO,
+                               _BASURA, _parecidos, cerrar_los_que_ya_pasaron)
 from app.lineup_parser import canon_vessel
-from app.nominacion_ocr import _fecha, _numero
+# ProximoArribo tiene una relación con User: sin importar los modelos enteros,
+# SQLAlchemy no puede resolver ese nombre al construir el objeto.
+from app import models  # noqa: F401
+from app.models_arribos import ProximoArribo
 
 
 # ── El asunto de la nominación ───────────────────────────────────────────────
@@ -98,27 +102,54 @@ def test_la_basura_del_pdf_no_es_un_valor():
     assert "X" in _BASURA and "-" in _BASURA and "" in _BASURA
 
 
-# ── Lectura de la captura ────────────────────────────────────────────────────
+# ── Cerrar los que ya pasaron ────────────────────────────────────────────────
 
-@pytest.mark.parametrize("crudo, esperado", [
-    ("4,400.00", 4400.0),        # como lo escribe la planilla en inglés
-    ("4.400,00", 4400.0),        # y como se escribiría en castellano
-    ("$ 18,500.00", 18500.0),
-    ("1100", 1100.0),
-    ("", None), (None, None), (0, None),
-])
-def test_numeros_de_la_planilla(crudo, esperado):
-    assert _numero(crudo) == esperado
+class _FakeQuery:
+    """Un query mínimo: filter() encadenable y all() que devuelve la lista."""
+    def __init__(self, filas):
+        self._filas = filas
+
+    def filter(self, *_):
+        return self
+
+    def all(self):
+        return self._filas
 
 
-@pytest.mark.parametrize("crudo, esperado", [
-    ("2026-09-17", date(2026, 9, 17)),
-    ("17/09/2026", date(2026, 9, 17)),
-    ("no es una fecha", None),
-    (None, None),
-])
-def test_fechas_de_la_planilla(crudo, esperado):
-    assert _fecha(crudo) == esperado
+class _FakeDB:
+    def __init__(self, filas):
+        self._filas = filas
+        self.agregados = []
+
+    def query(self, *_):
+        return _FakeQuery(self._filas)
+
+    def add(self, x):
+        self.agregados.append(x)
+
+
+def test_cierra_el_que_quedo_meses_atras():
+    """El MV TAI HONOR de junio no puede seguir encabezando "Atrasados".
+
+    Una alerta que siempre está encendida deja de avisar: se aprende a
+    ignorarla, y con ella el buque que sí se demoró de verdad.
+    """
+    viejo = ProximoArribo(buque="MV TAI HONOR", buque_canon="TAI HONOR",
+                          estado="esperado", fecha_estimada=date(2026, 6, 27))
+    db = _FakeDB([viejo])
+    cerrados = cerrar_los_que_ya_pasaron(db, hoy=date(2026, 9, 23))
+    assert cerrados == [viejo]
+    assert viejo.estado == "finalizado"
+    assert db.agregados, "tiene que quedar registrado por qué se cerró"
+
+
+def test_el_margen_es_de_una_semana():
+    """Una descarga dura días: siete es margen de sobra para una demora larga.
+
+    El filtro corre en SQL, así que acá se verifica la constante — bajarla a
+    dos días cerraría buques que todavía están descargando.
+    """
+    assert DIAS_PARA_DARLO_POR_PASADO == 7
 
 
 # ── Cuál de las imágenes del mail es la tabla ────────────────────────────────
