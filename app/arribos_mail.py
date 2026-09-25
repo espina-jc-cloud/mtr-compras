@@ -145,8 +145,10 @@ def imagen_de_la_tabla(imagenes: list[dict]) -> dict | None:
     puede ser cualquier cosa — en la nominación del MV KOCIEWIE era una foto
     del buque.
 
-    Si Pillow no está o ninguna imagen tiene forma de tira, devuelve la
-    primera: es mejor mostrar algo que no mostrar nada.
+    Si ninguna tiene forma de tira devuelve None, no la primera. La
+    nominación del MV MERAIO no traía tabla y quedaba guardada la firma de
+    MTR: una imagen inútil rotulada "captura de la nominación", y una llamada
+    al modelo que no podía salir bien. Mejor decir que no llegó.
     """
     if not imagenes:
         return None
@@ -155,7 +157,7 @@ def imagen_de_la_tabla(imagenes: list[dict]) -> dict | None:
 
         from PIL import Image
     except Exception:
-        return imagenes[0]
+        return None
 
     candidatas = []
     for i in imagenes:
@@ -166,7 +168,7 @@ def imagen_de_la_tabla(imagenes: list[dict]) -> dict | None:
         if alto and ancho >= TABLA_ANCHO_MINIMO and ancho / alto >= TABLA_RATIO_MINIMO:
             candidatas.append((ancho / alto, ancho, i))
     if not candidatas:
-        return imagenes[0]
+        return None
     return max(candidatas, key=lambda x: (x[0], x[1]))[2]
 
 

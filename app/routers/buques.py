@@ -140,7 +140,7 @@ COLUMNAS_COMPARTIR = [
     ("etc", "ETC", False),
     ("producto", "Producto", True),
     ("cliente", "Cliente", True),
-    ("t_buque", "Total del buque", False),
+    ("t_buque", "MT total nominado", False),
     ("muelle", "Muelle / posición", False),
     ("agencia", "Agencia", False),
 ]

@@ -20,6 +20,17 @@ POR QUÉ HACE FALTA UN MODELO DE VISIÓN
         Nicolás MTR. Sólo importa el nuestro. Leer el ETB de la columna de al
         lado sería peor que no leer nada, porque parecería un dato válido.
 
+LA CAPTURA ES CHICA Y HAY QUE AGRANDARLA
+    Javier pega la fila de su planilla tal como sale: 874 píxeles de ancho y
+    texto de seis. A ese tamaño el modelo confunde dígitos — leyó 3.100 donde
+    decía 1.100 y "NITSON" donde decía NITRON, y no dos veces igual. Ampliada
+    al triple leyó 1.100 y NITRON tres veces seguidas.
+
+    Un tonelaje mal leído es peor que ninguno: con 3.100 en vez de 1.100 se
+    preparan camiones y gente para el triple de carga. Por eso además se lee
+    DOS VECES y sólo se acepta lo que coincide; si las dos lecturas difieren,
+    no se devuelve nada y queda dicho por qué.
+
 LO QUE LEE DE ACÁ NUNCA SE DA POR CIERTO
     Todo lo que salga de la imagen entra al sistema marcado "a confirmar". Una
     fecha mal leída en un ETB mueve camiones y personal: que el dato exista
@@ -68,6 +79,37 @@ _PROMPT = (
 
 _MEDIA = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
           "gif": "image/gif", "webp": "image/webp"}
+
+# Ancho al que conviene llevar la captura antes de mandarla. Por debajo de esto
+# el texto de la planilla queda demasiado chico para leer los dígitos.
+ANCHO_OBJETIVO = 2600
+AMPLIACION_MAXIMA = 4
+
+# Campos que tienen que coincidir entre las dos lecturas para aceptar la fila.
+# Son los que mueven decisiones; el resto es contexto.
+CLAVES_QUE_DEBEN_COINCIDIR = ("mt_mtr", "mt_total", "etb")
+
+
+def _ampliar(datos: bytes) -> bytes:
+    """Agranda la captura para que el texto sea legible. Si no puede, la deja."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except Exception:
+        return datos
+    try:
+        im = Image.open(BytesIO(datos))
+        if im.width >= ANCHO_OBJETIVO:
+            return datos
+        factor = min(AMPLIACION_MAXIMA, max(2, round(ANCHO_OBJETIVO / im.width)))
+        im = im.convert("RGB").resize((im.width * factor, im.height * factor),
+                                      Image.LANCZOS)
+        buf = BytesIO()
+        im.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception:
+        return datos
 
 
 def _media_type(nombre: str, tipo: str = "") -> str:
@@ -145,7 +187,35 @@ def _fecha(v) -> date | None:
     return None
 
 
+def _coinciden(a: dict, b: dict) -> bool:
+    return all(a.get(k) == b.get(k) for k in CLAVES_QUE_DEBEN_COINCIDIR)
+
+
 def leer(imagenes: list[dict]) -> list[dict]:
+    """Las filas de la captura, sólo las que dos lecturas leyeron igual."""
+    primera = _leer_una(imagenes)
+    if not primera:
+        return []
+    segunda = _leer_una(imagenes)
+    if not segunda:
+        print("[nominacion_ocr] la segunda lectura no devolvió nada: "
+              "no confirmo la primera", flush=True)
+        return []
+
+    por_buque = {f["buque"]: f for f in segunda}
+    firmes = []
+    for f in primera:
+        otra = por_buque.get(f["buque"])
+        if otra is not None and _coinciden(f, otra):
+            firmes.append(f)
+        else:
+            print(f"[nominacion_ocr] {f['buque']}: las dos lecturas no coinciden "
+                  f"({f.get('mt_mtr')} vs {(otra or {}).get('mt_mtr')} t) — "
+                  "queda para cargar a mano", flush=True)
+    return firmes
+
+
+def _leer_una(imagenes: list[dict]) -> list[dict]:
     """Las filas de la tabla de la nominación.
 
     `imagenes` es [{"nombre", "tipo", "datos"}] tal como las devuelve
@@ -158,8 +228,8 @@ def leer(imagenes: list[dict]) -> list[dict]:
     if not imagenes or not disponible():
         return []
 
-    payload = [{"media": _media_type(i.get("nombre", ""), i.get("tipo", "")),
-                "b64": base64.standard_b64encode(i["datos"]).decode("ascii")}
+    payload = [{"media": "image/png",
+                "b64": base64.standard_b64encode(_ampliar(i["datos"])).decode("ascii")}
                for i in imagenes if i.get("datos")]
     if not payload:
         return []
@@ -167,15 +237,23 @@ def leer(imagenes: list[dict]) -> list[dict]:
     try:
         texto = (_preguntar_openai(payload) if _proveedor() == "openai"
                  else _preguntar_anthropic(payload))
-    except Exception:
+    except Exception as e:
+        # Tragarse la falla en silencio hacía que una clave vencida, un límite
+        # de tasa y una librería faltante se vieran todos igual: "sin
+        # toneladas". El arribo se carga lo mismo, pero el motivo queda escrito.
+        print(f"[nominacion_ocr] no pude leer la captura: "
+              f"{type(e).__name__}: {e}", flush=True)
         return []
 
     m = re.search(r"\{.*\}", texto or "", re.S)
     if not m:
+        print(f"[nominacion_ocr] el modelo no devolvió JSON: "
+              f"{(texto or '')[:160]!r}", flush=True)
         return []
     try:
         crudo = json.loads(m.group(0))
-    except Exception:
+    except Exception as e:
+        print(f"[nominacion_ocr] JSON inválido: {e}", flush=True)
         return []
 
     out = []

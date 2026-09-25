@@ -175,11 +175,15 @@ def test_elige_la_tira_ancha_y_no_el_logo():
     assert imagen_de_la_tabla([foto, logo, tabla])["nombre"] == "tabla.png"
 
 
-def test_sin_ninguna_tira_se_queda_con_la_primera():
-    """Mejor mostrar algo que no mostrar nada: la confirma una persona igual."""
-    a = {"nombre": "a.png", "tipo": "image/png", "datos": _png(512, 182)}
-    b = {"nombre": "b.png", "tipo": "image/png", "datos": _png(400, 300)}
-    assert imagen_de_la_tabla([a, b])["nombre"] == "a.png"
+def test_sin_ninguna_tira_no_guarda_nada():
+    """La nominación del MV MERAIO no traía tabla y se guardó la firma de MTR.
+
+    Quedaba una imagen inútil rotulada "captura de la nominación" y una
+    llamada al modelo que no podía salir bien. Vale más decir que no llegó.
+    """
+    firma = {"nombre": "firma.png", "tipo": "image/png", "datos": _png(637, 209)}
+    logo = {"nombre": "logo.png", "tipo": "image/png", "datos": _png(512, 182)}
+    assert imagen_de_la_tabla([firma, logo]) is None
     assert imagen_de_la_tabla([]) is None
 
 
