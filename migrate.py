@@ -112,6 +112,7 @@ def run():
                           ("proveedor", "VARCHAR"), ("tonelaje_mtr", "NUMERIC"),
                           ("demurrage", "NUMERIC"), ("servicios", "TEXT"),
                           ("a_confirmar", "BOOLEAN"),
+                          ("tonelaje_origen", "VARCHAR"),
                           ("nominacion_img", "BYTEA" if is_prod else "BLOB"),
                           ("nominacion_img_tipo", "VARCHAR")):
             _add_column(conn, "proximos_arribos", col, tipo)

@@ -91,7 +91,7 @@
           <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-200">
             <th class="px-4 py-3">Buque</th>
             {% for clave, etiqueta, _ in columnas %}
-            <th class="px-4 py-3 {{ 'text-right' if clave == 'toneladas' }}" data-col="{{ clave }}">{{ etiqueta }}</th>
+            <th class="px-4 py-3 {{ 'text-right' if clave in ('t_mtr', 't_buque') }}" data-col="{{ clave }}">{{ etiqueta }}</th>
             {% endfor %}
           </tr>
         </thead>
@@ -99,6 +99,9 @@
           {% for f in fichas %}
           <tr class="fila-buque" data-slug="{{ f.slug }}" data-estado="{{ f.estado }}">
             <td class="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{{ f.buque }}</td>
+            <td class="px-4 py-3 text-right tabular-nums font-semibold whitespace-nowrap {{ 'text-gray-900' if f.t_mtr else 'text-amber-600' }}" data-col="t_mtr">
+              {{ "{:,.0f}".format(f.t_mtr) | replace(",", ".") if f.t_mtr else "a confirmar" }}
+            </td>
             <td class="px-4 py-3 text-center" data-col="estado">
               <span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ f.css }}">{{ f.etiqueta|upper }}</span>
             </td>
@@ -107,8 +110,8 @@
             <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="etc">{{ (f.arribo.etc if f.arribo else None) or "—" }}</td>
             <td class="px-4 py-3 text-gray-700" data-col="producto">{{ f.producto or "—" }}</td>
             <td class="px-4 py-3 text-gray-600" data-col="cliente">{{ f.cliente or "—" }}</td>
-            <td class="px-4 py-3 text-right tabular-nums text-gray-800 whitespace-nowrap" data-col="toneladas">
-              {{ "{:,.0f}".format(f.toneladas) | replace(",", ".") if f.toneladas else "—" }}
+            <td class="px-4 py-3 text-right tabular-nums text-gray-500 whitespace-nowrap" data-col="t_buque">
+              {{ "{:,.0f}".format(f.t_buque) | replace(",", ".") if f.t_buque else "—" }}
             </td>
             <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="muelle">
               {{ (f.arribo.posicion if f.arribo else None) or (f.arribo.muelle if f.arribo else None) or "—" }}

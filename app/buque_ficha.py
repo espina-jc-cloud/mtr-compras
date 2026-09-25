@@ -190,6 +190,15 @@ def fichas(db, incluir_terminados: bool = True) -> list[dict]:
             "fecha": _fecha_orden(a, r),
             "toneladas": round(int(r.neto_kg or 0) / 1000) if r is not None else None,
             "viajes": (r.viajes if r is not None else None),
+            # Lo que baja en MTR: mientras el buque no descargó es lo que
+            # declaró el cliente; después, lo que efectivamente pesó la balanza.
+            "t_mtr": (round(int(r.neto_kg or 0) / 1000) if r is not None
+                      else (round(float(a.tonelaje_mtr)) if a is not None
+                            and a.tonelaje_mtr else None)),
+            "t_mtr_origen": ("balanza" if r is not None
+                             else (a.tonelaje_origen if a is not None else None)),
+            "t_buque": (round(float(a.tonelaje_estimado))
+                        if a is not None and a.tonelaje_estimado else None),
             "ultima_actividad": ultima,
         })
     return sorted(out, key=lambda x: (ORDEN[x["estado"]],

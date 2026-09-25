@@ -76,6 +76,10 @@ class ProximoArribo(Base):
     mail_message_id = Column(String(255), nullable=True, index=True)
     proveedor       = Column(String(120), nullable=True)
     tonelaje_mtr    = Column(Numeric(12, 2), nullable=True)   # lo que baja en MTR
+    # De dónde salió ese número. No es lo mismo lo que declaró el cliente que
+    # lo que dice el line-up del puerto: cuando hay que discutir una factura,
+    # la diferencia entre las dos fuentes es el tema de la discusión.
+    tonelaje_origen = Column(String(20), nullable=True)   # nominacion/lineup/manual
     demurrage       = Column(Numeric(12, 2), nullable=True)
     servicios       = Column(Text, nullable=True)             # uno por renglón
     # Quedó de cuando el ETB se leía de la captura con un modelo de visión.

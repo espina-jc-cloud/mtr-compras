@@ -181,3 +181,85 @@ def test_sin_ninguna_tira_se_queda_con_la_primera():
     b = {"nombre": "b.png", "tipo": "image/png", "datos": _png(400, 300)}
     assert imagen_de_la_tabla([a, b])["nombre"] == "a.png"
     assert imagen_de_la_tabla([]) is None
+
+
+# ── Toneladas del line-up ────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("crudo, esperado", [
+    ("23.158", 23158.0),     # el PDF usa punto de miles: no son 23 toneladas
+    ("1.506", 1506.0),
+    ("349", 349.0),
+    ("1.234,5", 1234.5),     # y coma decimal
+    ("", None), ("X", None), ("0,5", None),
+])
+def test_toneladas_del_lineup(crudo, esperado):
+    from app.lineup_parser import parse_tons
+    assert parse_tons(crudo) == esperado
+
+
+def test_el_tonelaje_propio_no_es_el_del_buque():
+    """Un buque trae carga de varios operadores, y sólo parte es nuestra.
+
+    El OCEAN INNOVATION declara 24.750 t en el line-up del 21/09 y sólo 4.400
+    las opera MTR —las mismas 4.400 que decía la nominación de Nutrien—.
+    Mostrar el total como si fuera nuestro sería inflar el número por seis.
+    """
+    from app.lineup_parser import _sumar_tons
+    buque = {"tons": None, "tons_mtr": None}
+    filas = [
+        ["OCEAN INOVATION", "MARSA", "MAP", "BUNGE", "9.900", "PTP"],
+        ["", "", "MAP", "NUTRIEN", "4.400", "MTR"],
+        ["", "", "UREA", "OTRO", "10.450", "PTP"],
+    ]
+    for f in filas:
+        _sumar_tons(buque, f)
+    assert buque["tons"] == 24750.0
+    assert buque["tons_mtr"] == 4400.0
+
+
+def test_el_lineup_no_pisa_un_tonelaje_ya_cargado():
+    """Si alguien ya lo puso a mano, el PDF no lo corrige."""
+    from app.arribos_sync import TONELAJES
+    assert set(TONELAJES) == {"tonelaje_estimado", "tonelaje_mtr"}
+    codigo = open("app/arribos_sync.py", encoding="utf-8").read()
+    assert "getattr(a, campo) is not None" in codigo
+
+
+# ── Toneladas a MTR: de dónde salen y quién le gana a quién ─────────────────
+
+def test_la_fila_de_la_captura_se_asigna_al_buque_correcto():
+    """La captura puede traer dos buques nominados en el mismo mail."""
+    from app.arribos_sync import _fila_para
+    filas = [{"buque": "MV PAIWAN DIAMOND", "mt_mtr": 2000.0},
+             {"buque": "KYVELI GS", "mt_mtr": 6000.0}]
+    assert _fila_para(filas, "KYVELI GS")["mt_mtr"] == 6000.0
+    assert _fila_para(filas, "MV PAIWAN DIAMOND")["mt_mtr"] == 2000.0
+    assert _fila_para(filas, "MV OSSA") is None
+
+
+def test_el_lineup_no_pisa_las_toneladas_que_declaro_el_cliente():
+    """Nutrien dice cuánto baja en MTR; el puerto informa todo el buque.
+
+    El OCEAN INNOVATION declara 24.750 t en el line-up y 4.400 en la
+    nominación. Si el line-up pisara ese número, el depósito se prepararía
+    para seis veces la carga que va a recibir.
+    """
+    codigo = open("app/arribos_sync.py", encoding="utf-8").read()
+    # Sólo completa lo que está vacío...
+    assert "if not nuevo or getattr(a, campo) is not None:" in codigo
+    # ...y deja constancia de que el número lo puso el puerto.
+    assert 'a.tonelaje_origen = "lineup"' in codigo
+
+
+def test_la_nominacion_marca_su_propio_origen():
+    codigo = open("app/arribos_sync.py", encoding="utf-8").read()
+    assert 'tonelaje_origen="nominacion" if fila.get("mt_mtr") else None' in codigo
+
+
+def test_las_toneladas_a_mtr_van_primero_y_tildadas_al_compartir():
+    """Es el dato que decide camiones, gente y depósito: no puede quedar
+    escondido detrás de un checkbox que nadie tilda."""
+    from app.routers.buques import COLUMNAS_COMPARTIR
+    clave, etiqueta, por_defecto = COLUMNAS_COMPARTIR[0]
+    assert clave == "t_mtr" and por_defecto is True
+    assert "MTR" in etiqueta

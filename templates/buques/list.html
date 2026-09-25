@@ -65,11 +65,18 @@
       </p>
     </div>
     <div class="text-right shrink-0">
-      {% if mostrar_toneladas and f.toneladas %}
-      <p class="text-base font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(f.toneladas) | replace(",", ".") }} t</p>
-      <p class="text-xs text-gray-400">{{ f.viajes }} viajes</p>
+      {% if f.t_mtr %}
+      <p class="text-base font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(f.t_mtr) | replace(",", ".") }} t</p>
+      <p class="text-xs text-gray-400">
+        {%- if f.t_mtr_origen == "balanza" %}{{ f.viajes }} viajes · balanza
+        {%- elif f.t_mtr_origen == "lineup" %}a MTR · según el line-up
+        {%- else %}a MTR{% endif %}
+      </p>
       {% elif f.fecha %}
       <p class="text-sm font-medium text-gray-700">{{ f.fecha.strftime("%d/%m/%Y") }}</p>
+      <p class="text-xs text-amber-600">sin toneladas</p>
+      {% else %}
+      <p class="text-xs text-amber-600">sin toneladas</p>
       {% endif %}
     </div>
   </div>

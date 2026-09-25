@@ -154,6 +154,26 @@ def extract_pdf_date(full_text: str) -> str | None:
 
 # ── Normalización para matching ───────────────────────────────────────────────
 
+def parse_tons(raw) -> float | None:
+    """Las toneladas de una fila del lineup: '23.158' → 23158.
+
+    El PDF las escribe con punto de miles y coma decimal. Un valor menor a 1 no
+    es un tonelaje: es un resto de parseo.
+    """
+    s = re.sub(r"[^\d.,]", "", str(raw or "")).strip()
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(".", "")          # 23.158 son 23158 toneladas, no 23,158
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return v if v >= 1 else None
+
+
 def canon_vessel(name: str) -> str:
     """Clave de comparación: mayúsculas, sin M/V, sin dimensiones, espacios únicos."""
     s = (name or "").upper().split("\n")[0]
@@ -165,6 +185,23 @@ def canon_vessel(name: str) -> str:
 
 
 # ── Parser principal ────────────────────────────────────────────────────────────
+
+def _sumar_tons(vessel, row):
+    """Suma el tonelaje de una fila de carga al buque en curso.
+
+    Se lleva aparte lo que opera MTR: el lineup lista todas las cargas del
+    buque, y de un mismo barco puede haber mercadería de otro operador. Mandar
+    ese total como si fuera nuestro sería inflar el número.
+    """
+    if vessel is None or len(row) < 6:
+        return
+    t = parse_tons(row[4])
+    if t is None:
+        return
+    vessel["tons"] = (vessel["tons"] or 0) + t
+    if "MTR" in str(row[5] or "").upper():
+        vessel["tons_mtr"] = (vessel["tons_mtr"] or 0) + t
+
 
 def parse_lineup_pdf(file_bytes: bytes):
     """Devuelve (pdf_date_iso, vessels). `vessels` = lista de dicts, uno por buque.
@@ -202,12 +239,25 @@ def parse_lineup_pdf(file_bytes: bytes):
                 if muelle_cand:
                     current_muelle = muelle_cand
 
+                # Un buque ocupa varias filas: la primera lo nombra y las que
+                # siguen son sus otras cargas, cada una con su tonelaje, su
+                # cliente y su operador. El parser sólo miraba la primera, y por
+                # eso las toneladas nunca llegaban al sistema.
+                actual = None
                 for row in table:
-                    if (len(row) < 12 or is_separator_row(row) or is_column_header_row(row)
-                            or is_total_row(row) or is_empty_row(row)):
+                    if len(row) < 12 or is_column_header_row(row):
+                        continue
+                    if is_separator_row(row) or is_total_row(row):
+                        # El renglón TOTAL repite la suma: sumarlo la duplicaría.
+                        actual = None if is_separator_row(row) else actual
                         continue
                     col0 = re.sub(r"^X\s*\n?", "", str(row[0] or "").strip()).strip()
-                    if not col0 or col0 == "X" or is_dimension_only(col0):
+                    es_continuacion = (not col0 or col0 == "X" or is_dimension_only(col0))
+
+                    if es_continuacion:
+                        _sumar_tons(actual, row)
+                        continue
+                    if is_empty_row(row):
                         continue
                     name = clean_vessel_name(col0)
                     if not name:
@@ -215,6 +265,7 @@ def parse_lineup_pdf(file_bytes: bytes):
                     cn = canon_vessel(name)
                     # Descartar ruido (filas 'X X X', restos) — exigir 3 letras seguidas.
                     if not cn or cn in seen_canon or not re.search(r"[A-Z]{3}", cn):
+                        actual = None
                         continue
                     seen_canon.add(cn)
                     vessels.append({
@@ -229,7 +280,11 @@ def parse_lineup_pdf(file_bytes: bytes):
                         "origen":      extract_origin(str(row[10] or "")),
                         "etc":         cell_join(row[11]),
                         "muelle":      current_muelle,
+                        "tons":        None,   # total del buque en el puerto
+                        "tons_mtr":    None,   # lo que opera MTR
                     })
+                    actual = vessels[-1]
+                    _sumar_tons(actual, row)
     finally:
         pdf.close()
 

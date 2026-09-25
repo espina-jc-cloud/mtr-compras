@@ -6,12 +6,19 @@ LAS DOS FUENTES NO HACEN LO MISMO
     lo trabajan ustedes". Del correo se toma lo que está escrito: el buque, el
     producto y los servicios.
 
-    EL ETB NO SE LEE DEL CORREO
-        Viene dentro de una captura de pantalla de la planilla de Javier, y
-        sacarlo de ahí requiere un modelo de visión. No vale la pena: la fecha
-        llega igual en el próximo line-up, que es texto y se lee sin adivinar.
-        La captura se guarda con el arribo para poder mirarla y escribir el ETB
-        a mano si hace falta antes.
+    LAS TONELADAS SALEN DE LA CAPTURA
+        Cuántas toneladas bajan en MTR es el dato que decide todo lo demás —
+        cuántos camiones, cuánta gente, cuánto depósito—, y sólo lo dice
+        Nutrien. Vive dentro de una captura de pantalla de la planilla de
+        Javier, así que se lee con un modelo de visión (app/nominacion_ocr.py).
+
+        No es lo mismo que el tonelaje del line-up: el puerto informa TODA la
+        carga del buque, de todos los operadores. El OCEAN INNOVATION declara
+        24.750 t en el puerto y sólo 4.400 son nuestras. Por eso se guarda
+        también de dónde salió cada número.
+
+        La captura queda guardada con el arribo: si el OCR falla o no hay
+        clave, se mira y se escribe a mano.
 
     El LINE-UP no da de alta a nadie. Es la programación del puerto entero, con
     quince o veinte buques que en su mayoría no son nuestros. Lo que hace es
@@ -37,6 +44,8 @@ from difflib import SequenceMatcher
 
 from app.arribos_mail import (buscar_lineups, buscar_nominaciones,
                               imagen_de_la_tabla)
+from app.nominacion_ocr import disponible as ocr_disponible
+from app.nominacion_ocr import leer as ocr_leer
 from app.lineup_parser import canon_vessel, parse_lineup_pdf
 from app.models_arribos import ArriboUpdate, ProximoArribo
 PARECIDO_MINIMO = 0.90
@@ -62,6 +71,14 @@ COMERCIAL = {"mercaderia": "material", "procedencia": "origen"}
 
 # Valores que el PDF trae como relleno y no significan nada.
 _BASURA = {"", "-", "—", "X", "S/D", "N/D"}
+
+# Toneladas: el line-up las trae y la nominación no —viven dentro de una
+# captura de pantalla—. Se cargan sólo si el campo está vacío, con el mismo
+# criterio que el resto de lo comercial.
+#     Van dos números distintos y no da lo mismo cuál se muestra: el buque
+#     puede traer carga de varios operadores. El OCEAN INNOVATION declara
+#     24.750 t en el puerto y sólo 4.400 son nuestras.
+TONELAJES = {"tonelaje_estimado": "tons", "tonelaje_mtr": "tons_mtr"}
 
 
 def _parecidos(a: str, b: str) -> bool:
@@ -104,14 +121,28 @@ def _fecha_estimada(arribo):
 
 # ── Nominaciones ──────────────────────────────────────────────────────────────
 
-def _alta_por_nominacion(db, mail, nombre, usuario_id):
-    """Da de alta el buque con lo que el correo dice en texto."""
+def _fila_para(filas: list[dict], nombre: str) -> dict | None:
+    """La fila de la captura que corresponde a este buque."""
+    canon = canon_vessel(nombre)
+    return next((f for f in filas
+                 if _parecidos(canon_vessel(f["buque"]), canon)), None)
+
+
+def _alta_por_nominacion(db, mail, nombre, usuario_id, fila=None):
+    """Da de alta el buque con lo que dice el correo y lo que se leyó de la captura."""
     img = imagen_de_la_tabla(mail["imagenes"])
+    fila = fila or {}
     a = ProximoArribo(
         buque=re.sub(r"\s+", " ", nombre).strip(),
         buque_canon=canon_vessel(nombre),
         cliente="NUTRIEN",
-        mercaderia=mail["producto"] or None,
+        mercaderia=fila.get("producto") or mail["producto"] or None,
+        procedencia=fila.get("origen"),
+        proveedor=fila.get("proveedor"),
+        tonelaje_estimado=fila.get("mt_total"),
+        tonelaje_mtr=fila.get("mt_mtr"),
+        tonelaje_origen="nominacion" if fila.get("mt_mtr") else None,
+        demurrage=fila.get("demurrage"),
         servicios="\n".join(mail["servicios"]) or None,
         operacion="DESCARGA",
         estado="esperado",
@@ -125,12 +156,17 @@ def _alta_por_nominacion(db, mail, nombre, usuario_id):
         last_update_at=datetime.utcnow(),
         created_by_id=usuario_id,
     )
+    etb = fila.get("etb")
+    if etb:
+        a.etb = etb.strftime("%d/%m/%Y")
+        a.fecha_estimada = etb
     db.add(a)
     db.flush()
+    leido = (f"{a.tonelaje_mtr:,.0f} t para MTR".replace(",", ".")
+             if a.tonelaje_mtr else "sin toneladas: la captura no se pudo leer")
     db.add(ArriboUpdate(
         arribo_id=a.id, source="nominacion", created_by_id=usuario_id,
-        resumen=f'Alta automática desde la nominación "{mail["asunto"]}". '
-                "El ETB lo trae el line-up."))
+        resumen=f'Alta automática desde la nominación "{mail["asunto"]}" · {leido}'))
     return a
 
 
@@ -143,11 +179,19 @@ def sincronizar_nominaciones(db, usuario_id=None, limite=40, dias=None) -> dict:
     for mail in r["mensajes"]:
         nuevos = [n for n in mail["buques"] if buscar_arribo(db, n) is None]
         ya_estaban.update(set(mail["buques"]) - set(nuevos))
+        if not nuevos:
+            continue
+        # El OCR cuesta una llamada por mail: sólo se pide si hay algún buque
+        # que todavía no seguimos. Una nominación reenviada cinco veces no
+        # tiene por qué pagarse cinco veces.
+        filas = ocr_leer(mail["imagenes"])
         for nombre in nuevos:
-            altas.append(_alta_por_nominacion(db, mail, nombre, usuario_id))
+            altas.append(_alta_por_nominacion(
+                db, mail, nombre, usuario_id, _fila_para(filas, nombre)))
     db.commit()
     return {"ok": True, "error": None, "altas": altas,
-            "ya_estaban": sorted(ya_estaban), "vistos": len(r["mensajes"])}
+            "ya_estaban": sorted(ya_estaban), "vistos": len(r["mensajes"]),
+            "ocr": ocr_disponible()}
 
 
 # ── Line-up ───────────────────────────────────────────────────────────────────
@@ -173,6 +217,17 @@ def aplicar_lineup(db, vessels, archivo, usuario_id=None) -> list[dict]:
                 continue                     # ya lo dijo el cliente: no se toca
             setattr(a, campo, nuevo)
             cambios.append(f"{campo}: — → {nuevo}")
+        for campo, clave in TONELAJES.items():
+            nuevo = v.get(clave)
+            if not nuevo or getattr(a, campo) is not None:
+                continue
+            setattr(a, campo, round(float(nuevo), 2))
+            if campo == "tonelaje_mtr":
+                # Queda dicho que lo puso el puerto: el line-up informa toda la
+                # carga del buque y su columna de operador no siempre coincide
+                # con lo que el cliente nos declaró.
+                a.tonelaje_origen = "lineup"
+            cambios.append(f"{campo}: — → {nuevo:,.0f} t".replace(",", "."))
         if not cambios:
             continue
         fecha = _fecha_estimada(a)
@@ -241,12 +296,50 @@ def cerrar_los_que_ya_pasaron(db, usuario_id=None, hoy: date | None = None) -> l
     return viejos
 
 
+def completar_toneladas_guardadas(db, usuario_id=None) -> list:
+    """Lee las toneladas de las capturas que ya están guardadas con el arribo.
+
+    Los buques que entraron antes de que el OCR estuviera disponible quedaron
+    sin tonelaje, pero su captura se guardó igual. Se lee de ahí y no del
+    buzón: es el mismo archivo, sin volver a bajar cien mails.
+    """
+    if not ocr_disponible():
+        return []
+    pendientes = (db.query(ProximoArribo)
+                  .filter(ProximoArribo.deleted_at.is_(None),
+                          ProximoArribo.nominacion_img.isnot(None),
+                          ProximoArribo.tonelaje_mtr.is_(None))
+                  .all())
+    tocados = []
+    for a in pendientes:
+        filas = ocr_leer([{"nombre": "captura",
+                           "tipo": a.nominacion_img_tipo or "image/png",
+                           "datos": a.nominacion_img}])
+        fila = _fila_para(filas, a.buque)
+        if not fila or not fila.get("mt_mtr"):
+            continue
+        a.tonelaje_mtr = fila["mt_mtr"]
+        a.tonelaje_estimado = a.tonelaje_estimado or fila.get("mt_total")
+        a.tonelaje_origen = "nominacion"
+        a.proveedor = a.proveedor or fila.get("proveedor")
+        a.procedencia = a.procedencia or fila.get("origen")
+        a.last_update_at = datetime.utcnow()
+        db.add(ArriboUpdate(
+            arribo_id=a.id, source="nominacion", created_by_id=usuario_id,
+            resumen=f"Toneladas leídas de la captura de la nominación: "
+                    f"{fila['mt_mtr']:,.0f} t para MTR".replace(",", ".")))
+        tocados.append(a)
+    return tocados
+
+
 def sincronizar(db, usuario_id=None) -> dict:
     """Las tres pasadas: altas, actualización y cierre de lo que ya pasó."""
     nom = sincronizar_nominaciones(db, usuario_id)
+    rellenados = completar_toneladas_guardadas(db, usuario_id)
     lu = sincronizar_lineup(db, usuario_id)
     cerrados = cerrar_los_que_ya_pasaron(db, usuario_id)
     db.commit()
     return {"nominaciones": nom, "lineup": lu, "cerrados": cerrados,
+            "toneladas": rellenados,
             "ok": nom.get("ok") and lu.get("ok"),
             "error": nom.get("error") or lu.get("error")}
