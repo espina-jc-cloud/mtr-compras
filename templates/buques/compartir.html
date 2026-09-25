@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Compartir arribos — MTR{% endblock %}
+{% block content %}
+
+{#
+  Vista para sacarle captura y mandarla por WhatsApp.
+
+  Lo que se manda afuera casi nunca es todo lo que hay: a un cliente le
+  interesan sus buques, al depósito los de esta semana, a la agencia el ETB y
+  nada más. Por eso se elige en el momento qué buques y qué columnas entran —
+  y los controles no salen en la foto.
+
+  La selección viaja en el link, así que la misma vista se puede volver a abrir
+  igual mañana sin rearmarla.
+#}
+
+<div id="envoltorio" class="max-w-5xl mx-auto">
+
+  <div class="flex items-center justify-between gap-3 mb-4 no-captura">
+    <a href="/buques" class="text-gray-400 hover:text-gray-600 text-sm">← Volver a Buques</a>
+    <div class="flex items-center gap-2">
+      <button type="button" id="btn-modo"
+              class="text-sm font-semibold bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-xl">
+        Ocultar controles
+      </button>
+      <button type="button" onclick="window.print()"
+              class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-2">
+        Imprimir / PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Qué entra en la captura ────────────────────────────────────────── -->
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-5 no-captura">
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Título</label>
+      <input type="text" id="titulo" value="Próximos arribos"
+             class="w-full sm:w-96 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+    </div>
+
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+      Buques <span class="normal-case font-normal text-gray-400">— destildá los que no querés mandar</span>
+    </p>
+    <div class="flex flex-wrap gap-1.5 mb-1">
+      <button type="button" data-grupo="todos" class="chip-grupo text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">Todos</button>
+      <button type="button" data-grupo="ninguno" class="chip-grupo text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">Ninguno</button>
+      <button type="button" data-grupo="descargando" class="chip-grupo text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">Solo descargando</button>
+      <button type="button" data-grupo="por_venir" class="chip-grupo text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">Solo los que vienen</button>
+    </div>
+    <div class="flex flex-wrap gap-2 mb-4 mt-2">
+      {% for f in fichas %}
+      <label class="inline-flex items-center gap-1.5 text-sm bg-white border border-gray-200 rounded-full px-3 py-1 cursor-pointer select-none hover:bg-gray-50">
+        <input type="checkbox" class="sel-buque" data-slug="{{ f.slug }}" data-estado="{{ f.estado }}"
+               {{ "checked" if f.estado in ("descargando", "confirmado", "esperado") }}>
+        <span>{{ f.buque }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columnas</p>
+    <div class="flex flex-wrap gap-2">
+      {% for clave, etiqueta, por_defecto in columnas %}
+      <label class="inline-flex items-center gap-1.5 text-sm bg-white border border-gray-200 rounded-full px-3 py-1 cursor-pointer select-none hover:bg-gray-50">
+        <input type="checkbox" class="sel-col" data-col="{{ clave }}" {{ "checked" if por_defecto }}>
+        <span>{{ etiqueta }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Lo que sale en la foto ─────────────────────────────────────────── -->
+  <div id="tarjeta" class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+    <div class="px-6 py-5 flex items-center gap-4" style="background:linear-gradient(135deg,#0e1c3f 0%,#1b2f5e 100%)">
+      <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden">
+        <img src="/static/logo_mtr.png" alt="MTR" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.parentNode.innerHTML='<span class=\'font-black text-xl\' style=\'color:#16264f\'>MTR</span>'">
+      </div>
+      <div class="flex-1 min-w-0">
+        <p id="titulo-tarjeta" class="font-black text-white text-xl leading-tight tracking-tight">Próximos arribos</p>
+        <p class="text-sm" style="color:#9db0d6">Puerto San Nicolás</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-white font-semibold text-sm">{{ hoy.strftime("%d/%m/%Y") }}</p>
+        <p class="text-xs" style="color:#9db0d6"><span id="cuenta">0</span> buques</p>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-200">
+            <th class="px-4 py-3">Buque</th>
+            {% for clave, etiqueta, _ in columnas %}
+            <th class="px-4 py-3 {{ 'text-right' if clave == 'toneladas' }}" data-col="{{ clave }}">{{ etiqueta }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for f in fichas %}
+          <tr class="fila-buque" data-slug="{{ f.slug }}" data-estado="{{ f.estado }}">
+            <td class="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{{ f.buque }}</td>
+            <td class="px-4 py-3 text-center" data-col="estado">
+              <span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ f.css }}">{{ f.etiqueta|upper }}</span>
+            </td>
+            <td class="px-4 py-3 text-gray-800 font-medium whitespace-nowrap" data-col="etb">{{ (f.arribo.etb if f.arribo else None) or (f.fecha.strftime("%d/%m/%Y") if f.fecha else "—") }}</td>
+            <td class="px-4 py-3 text-gray-700 whitespace-nowrap" data-col="ready">{{ (f.arribo.ready if f.arribo else None) or "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="etc">{{ (f.arribo.etc if f.arribo else None) or "—" }}</td>
+            <td class="px-4 py-3 text-gray-700" data-col="producto">{{ f.producto or "—" }}</td>
+            <td class="px-4 py-3 text-gray-600" data-col="cliente">{{ f.cliente or "—" }}</td>
+            <td class="px-4 py-3 text-right tabular-nums text-gray-800 whitespace-nowrap" data-col="toneladas">
+              {{ "{:,.0f}".format(f.toneladas) | replace(",", ".") if f.toneladas else "—" }}
+            </td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="muelle">
+              {{ (f.arribo.posicion if f.arribo else None) or (f.arribo.muelle if f.arribo else None) or "—" }}
+            </td>
+            <td class="px-4 py-3 text-gray-500 whitespace-nowrap" data-col="agencia">{{ (f.arribo.agencia if f.arribo else None) or "—" }}</td>
+          </tr>
+          {% endfor %}
+          <tr id="fila-vacia" class="hidden"><td colspan="11" class="px-4 py-8 text-center text-sm text-gray-400">No seleccionaste ningún buque.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+      <p class="text-xs text-gray-400">MTR · Gestión Operativa</p>
+      <p class="text-xs text-gray-400">Actualizado {{ hoy.strftime("%d/%m/%Y") }} {{ hora }} hs</p>
+    </div>
+  </div>
+
+  <p class="text-center text-xs text-gray-400 mt-3 no-captura">
+    Sacale captura a la tarjeta, o usá Imprimir / PDF. Los controles no salen en la foto.
+  </p>
+</div>
+
+<script>
+(function () {
+  var $ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
+  var buques = $('.sel-buque'), cols = $('.sel-col');
+  var titulo = document.getElementById('titulo');
+
+  function pintar() {
+    var elegidos = {};
+    buques.forEach(function (b) { elegidos[b.dataset.slug] = b.checked; });
+    var n = 0;
+    $('.fila-buque').forEach(function (tr) {
+      var ver = !!elegidos[tr.dataset.slug];
+      tr.style.display = ver ? '' : 'none';
+      if (ver) n++;
+    });
+    document.getElementById('cuenta').textContent = n;
+    document.getElementById('fila-vacia').classList.toggle('hidden', n > 0);
+
+    cols.forEach(function (c) {
+      $('[data-col="' + c.dataset.col + '"]').forEach(function (el) {
+        el.style.display = c.checked ? '' : 'none';
+      });
+    });
+    guardar();
+  }
+
+  // La selección viaja en el link: la misma vista se reabre igual mañana.
+  function guardar() {
+    var p = new URLSearchParams();
+    p.set('b', buques.filter(function (x) { return x.checked; })
+                     .map(function (x) { return x.dataset.slug; }).join(','));
+    p.set('c', cols.filter(function (x) { return x.checked; })
+                   .map(function (x) { return x.dataset.col; }).join(','));
+    if (titulo.value.trim()) p.set('t', titulo.value.trim());
+    history.replaceState(null, '', '?' + p.toString());
+  }
+
+  function desdeElLink() {
+    var p = new URLSearchParams(location.search);
+    if (p.has('b')) {
+      var s = p.get('b').split(',');
+      buques.forEach(function (x) { x.checked = s.indexOf(x.dataset.slug) !== -1; });
+    }
+    if (p.has('c')) {
+      var c = p.get('c').split(',');
+      cols.forEach(function (x) { x.checked = c.indexOf(x.dataset.col) !== -1; });
+    }
+    if (p.has('t')) titulo.value = p.get('t');
+  }
+
+  buques.concat(cols).forEach(function (x) { x.addEventListener('change', pintar); });
+  titulo.addEventListener('input', function () {
+    document.getElementById('titulo-tarjeta').textContent = titulo.value || 'Próximos arribos';
+    guardar();
+  });
+
+  $('.chip-grupo').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var g = b.dataset.grupo;
+      buques.forEach(function (x) {
+        x.checked = g === 'todos' ? true
+                  : g === 'ninguno' ? false
+                  : g === 'descargando' ? x.dataset.estado === 'descargando'
+                  : ['confirmado', 'esperado'].indexOf(x.dataset.estado) !== -1;
+      });
+      pintar();
+    });
+  });
+
+  document.getElementById('btn-modo').addEventListener('click', function () {
+    var oculto = document.body.classList.toggle('modo-captura');
+    this.textContent = oculto ? 'Mostrar controles' : 'Ocultar controles';
+  });
+
+  desdeElLink();
+  document.getElementById('titulo-tarjeta').textContent = titulo.value || 'Próximos arribos';
+  pintar();
+})();
+</script>
+
+<style>
+  /* En modo captura queda sólo la tarjeta: sin controles, sin barra lateral y
+     sin los márgenes de la aplicación. Si no, la tabla se corta a la derecha y
+     la columna que se agregó justo para mandar no entra en la foto. */
+  body.modo-captura .no-captura,
+  body.modo-captura #sidebar,
+  body.modo-captura nav[aria-label="Ruta de navegación"] { display: none !important; }
+  body.modo-captura main { max-width: none !important; padding: 12px !important; }
+  body.modo-captura #envoltorio { max-width: none !important; }
+  body.modo-captura #tarjeta .overflow-x-auto { overflow-x: visible !important; }
+
+  @media print {
+    .no-captura, #sidebar, nav[aria-label="Ruta de navegación"] { display: none !important; }
+    main, #envoltorio { max-width: none !important; }
+    #tarjeta .overflow-x-auto { overflow-x: visible !important; }
+  }
+</style>
+
+{% endblock %}

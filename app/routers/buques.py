@@ -13,6 +13,7 @@ POR QUÉ REEMPLAZA A TRES
     puerta de entrada.
 """
 import re
+from datetime import datetime
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -125,6 +126,43 @@ async def revisar_correo(db: Session = Depends(get_db), current_user=Depends(_gu
     return RedirectResponse(
         "/buques?saved=" + quote_plus(" · ".join(partes) or "Sin novedades"),
         status_code=303)
+
+
+# Columnas que se pueden mandar, con cuáles vienen tildadas de entrada.
+# El orden es el de la tabla; lo primero es lo que casi siempre se manda.
+COLUMNAS_COMPARTIR = [
+    ("estado", "Estado", True),
+    ("etb", "ETB", True),
+    ("ready", "Ready", False),
+    ("etc", "ETC", False),
+    ("producto", "Producto", True),
+    ("cliente", "Cliente", True),
+    ("toneladas", "Toneladas", False),
+    ("muelle", "Muelle / posición", False),
+    ("agencia", "Agencia", False),
+]
+
+
+@router.get("/compartir", response_class=HTMLResponse)
+async def compartir(request: Request, db: Session = Depends(get_db),
+                    current_user=Depends(_guard)):
+    """Una vista limpia para sacarle captura y mandarla.
+
+    Lo que se manda afuera casi nunca es todo lo que hay: a un cliente le
+    importan sus buques, al depósito los de esta semana, a la agencia el ETB y
+    nada más. Por eso qué entra se elige acá y no queda fijo.
+
+    Los terminados no se ofrecen: esto es para avisar lo que viene.
+    """
+    lista = [f for f in fichas(db) if f["estado"] != TERMINADO]
+    for f in lista:
+        f["slug"] = slug(f["canon"])
+    ahora = datetime.now()
+    return templates.TemplateResponse(request, "buques/compartir.html", {
+        "user": current_user, "fichas": lista,
+        "columnas": COLUMNAS_COMPARTIR,
+        "hoy": ahora.date(), "hora": ahora.strftime("%H:%M"),
+    })
 
 
 @router.get("/{buque_slug}", response_class=HTMLResponse)

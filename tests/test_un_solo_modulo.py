@@ -63,3 +63,34 @@ def test_el_menu_tiene_un_solo_modulo_de_buques():
                   'item("/operations/arribos"', 'item("/operations/buques"'):
         assert viejo not in menu, f"volvió al menú: {viejo}"
     assert 'item("/buques"' in menu
+
+
+# ── Vista para compartir ─────────────────────────────────────────────────────
+
+def test_compartir_no_se_confunde_con_la_ficha_de_un_buque():
+    """/buques/compartir tiene que ganarle a /buques/{slug}.
+
+    Si el orden de las rutas se invierte, FastAPI trata "compartir" como el
+    nombre de un buque, no lo encuentra y devuelve 404. No rompe nada más: el
+    botón simplemente deja de funcionar.
+    """
+    from app.main import app
+    from app.routers.buques import compartir, ficha
+    rutas = [r for r in app.routes if getattr(r, "path", "").startswith("/buques/")]
+    orden = {r.endpoint: i for i, r in enumerate(rutas) if hasattr(r, "endpoint")}
+    assert orden[compartir] < orden[ficha]
+
+
+def test_los_controles_no_salen_en_la_captura():
+    """Lo que se manda afuera es la tarjeta sola: sin filtros ni menú."""
+    html = open("templates/buques/compartir.html", encoding="utf-8").read()
+    assert "body.modo-captura .no-captura" in html
+    assert "body.modo-captura #sidebar" in html
+    # Y la tabla no puede quedar cortada a la derecha en la foto.
+    assert "overflow-x: visible" in html
+
+
+def test_la_seleccion_viaja_en_el_link():
+    """Para poder reabrir mañana la misma vista sin rearmarla."""
+    html = open("templates/buques/compartir.html", encoding="utf-8").read()
+    assert "history.replaceState" in html and "URLSearchParams" in html
