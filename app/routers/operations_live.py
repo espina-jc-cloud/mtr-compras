@@ -2463,6 +2463,33 @@ async def plan_import(
 
 # ── Pegar un parte ────────────────────────────────────────────────────────────
 
+def _bodega_unica_abierta(db, sid: int) -> int | None:
+    """La única bodega que todavía tiene carga, si queda una sola.
+
+    Sirve para los partes que informan el movimiento sin nombrar la bodega
+    —"MTR 37 VIAJES (1057 BB) 1067020 KG" a secas—, que es lo que pasa al
+    final del operativo cuando ya no hay ambigüedad para el que lo escribe.
+    Antes esos kilos se descartaban: el MACURU ARROW perdió 2.747.300 kg en
+    sus tres últimos turnos, y el faltante no lo avisaba nada.
+
+    Sólo devuelve algo cuando queda UNA bodega con saldo. Con dos abiertas no
+    hay forma de saberlo y es mejor no imputar que imputar mal.
+    """
+    from app.live_avance import avance
+
+    ses = db.get(OperationLiveSession, sid)
+    if ses is None:
+        return None
+    try:
+        a = avance(db, ses)
+    except Exception:
+        return None
+    if a.get("sin_plan"):
+        return None
+    abiertas = [b["numero"] for b in a["bodegas"] if b["resta"] > 0.5]
+    return abiertas[0] if len(abiertas) == 1 else None
+
+
 def _producto_de_bodega(db, sid: int, bodega: int, destino: str) -> tuple[str, str | None]:
     """Qué producto se está descargando de esa bodega, según el plan.
 
@@ -2560,14 +2587,19 @@ async def parte_post(
 
     productos_sesion = {p.product for p in session.products}
     for m in leido["movimientos"]:
-        if m["bodega"] is None:
+        bodega = m["bodega"]
+        if bodega is None:
+            # El parte no la nombró: si queda una sola bodega con carga, es
+            # ésa. Si no, el movimiento se descarta como antes.
+            bodega = _bodega_unica_abierta(db, sid)
+        if bodega is None:
             continue
-        prod, cli = _producto_de_bodega(db, sid, m["bodega"], m["destino"])
+        prod, cli = _producto_de_bodega(db, sid, bodega, m["destino"])
         if prod not in productos_sesion:
             db.add(OperationLiveSessionProduct(session_id=sid, product=prod, client=cli))
             productos_sesion.add(prod)
         fila = OperationLiveBodegaData(
-            shift_id=turno.id, bodega_number=m["bodega"], product=prod,
+            shift_id=turno.id, bodega_number=bodega, product=prod,
             viajes_mtr=m["viajes"],
             kg_deposito_mtr=0, kg_directo_mtr=0, kg_cv_mtr=0, kg_tercero=0,
         )

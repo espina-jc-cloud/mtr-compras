@@ -54,7 +54,8 @@ from sqlalchemy import func
 from app.lineup_parser import canon_vessel
 from app.models_arribos import ProximoArribo
 from app.models_buques import BuqueOperativo
-from app.models_live import OperationLiveSession, OperationLiveShift
+from app.models_live import (OperationLiveBodegaData, OperationLiveSession,
+                             OperationLiveShift)
 
 ESPERADO, CONFIRMADO, DESCARGANDO, TERMINADO, CANCELADO = (
     "esperado", "confirmado", "descargando", "terminado", "cancelado")
@@ -132,6 +133,20 @@ def fichas(db, incluir_terminados: bool = True) -> list[dict]:
                  func.max(OperationLiveShift.shift_date))
         .group_by(OperationLiveShift.session_id).all())
 
+    # Lo descargado según los partes de turno. Es la tercera fuente de
+    # toneladas, después de la balanza y de lo que declaró el cliente: sirve
+    # para los buques que no tuvieron nominación —el MACURU ARROW es de otro
+    # cliente y descargó 25.324 t sin que ninguna pantalla lo dijera.
+    kg_de_partes = dict(
+        db.query(OperationLiveShift.session_id,
+                 func.sum(func.coalesce(OperationLiveBodegaData.kg_deposito_mtr, 0)
+                          + func.coalesce(OperationLiveBodegaData.kg_tercero, 0)
+                          + func.coalesce(OperationLiveBodegaData.kg_cv_mtr, 0)
+                          + func.coalesce(OperationLiveBodegaData.kg_directo_mtr, 0)))
+        .join(OperationLiveBodegaData,
+              OperationLiveBodegaData.shift_id == OperationLiveShift.id)
+        .group_by(OperationLiveShift.session_id).all())
+
     por_canon: dict[str, dict] = {}
 
     def entrada(canon, nombre):
@@ -168,6 +183,7 @@ def fichas(db, incluir_terminados: bool = True) -> list[dict]:
             ultimo_turno.get(live.id) if live is not None else None,
         ) if d]
         ultima = max(senales) if senales else None
+        kg_partes = kg_de_partes.get(live.id) if live is not None else None
         estado = estado_de(a, live, r, ultima, hoy)
         # Sesiones de Live vacías, sin arribo ni resumen: son pruebas.
         if a is None and r is None and ultima is None:
@@ -193,10 +209,13 @@ def fichas(db, incluir_terminados: bool = True) -> list[dict]:
             # Lo que baja en MTR: mientras el buque no descargó es lo que
             # declaró el cliente; después, lo que efectivamente pesó la balanza.
             "t_mtr": (round(int(r.neto_kg or 0) / 1000) if r is not None
-                      else (round(float(a.tonelaje_mtr)) if a is not None
-                            and a.tonelaje_mtr else None)),
+                      else (round(float(a.tonelaje_mtr))
+                            if a is not None and a.tonelaje_mtr
+                            else (round(int(kg_partes) / 1000) if kg_partes
+                                  else None))),
             "t_mtr_origen": ("balanza" if r is not None
-                             else (a.tonelaje_origen if a is not None else None)),
+                             else ((a.tonelaje_origen if a is not None else None)
+                                   or ("partes" if kg_partes else None))),
             "t_buque": (round(float(a.tonelaje_estimado))
                         if a is not None and a.tonelaje_estimado else None),
             "ultima_actividad": ultima,

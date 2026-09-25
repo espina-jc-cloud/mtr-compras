@@ -71,6 +71,7 @@
         {%- if f.t_mtr_origen == "balanza" %}{{ f.viajes }} viajes · balanza
         {%- elif f.t_mtr_origen == "lineup" %}según el line-up
         {%- elif f.t_mtr_origen == "nominacion" %}nominado
+        {%- elif f.t_mtr_origen == "partes" %}según los partes de turno
         {%- else %}toneladas{% endif %}
       </p>
       {% elif f.fecha %}

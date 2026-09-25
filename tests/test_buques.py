@@ -125,3 +125,34 @@ def test_un_operativo_sin_pesajes_no_revienta():
     assert a["viajes"] == 0 and a["neto_t"] == 0
     assert a["permanencia"]["mediana"] == 0
     assert a["transportes"] == [] and a["dias"] == []
+
+
+# ── El parte que no nombra la bodega ─────────────────────────────────────────
+
+def test_se_infiere_la_bodega_solo_cuando_queda_una(monkeypatch):
+    """Al final del operativo Carlos escribe "MTR 37 VIAJES ... KG" a secas.
+
+    El MACURU ARROW perdió 2.747.300 kg en sus tres últimos turnos porque el
+    movimiento se descartaba por no tener bodega, y el faltante no lo avisaba
+    nada: el turno quedaba creado en cero.
+
+    Con una sola bodega abierta no hay ambigüedad. Con dos, imputar al azar
+    sería peor que perder el dato, así que se sigue descartando.
+    """
+    import app.live_avance
+    from app.routers.operations_live import _bodega_unica_abierta
+
+    class _DB:
+        def get(self, *_):
+            return object()
+
+    def con(bodegas, sin_plan=False):
+        monkeypatch.setattr(app.live_avance, "avance",
+                            lambda db, s: {"sin_plan": sin_plan, "bodegas": bodegas})
+        return _bodega_unica_abierta(_DB(), 1)
+
+    assert con([{"numero": 3, "resta": 1200.0}, {"numero": 4, "resta": 0.0}]) == 3
+    assert con([{"numero": 3, "resta": 1200.0}, {"numero": 4, "resta": 800.0}]) is None
+    assert con([{"numero": 3, "resta": 0.0}]) is None
+    # Sin plan de estiba no se sabe qué bodega queda abierta.
+    assert con([{"numero": 3, "resta": 1200.0}], sin_plan=True) is None
