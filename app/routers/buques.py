@@ -131,9 +131,12 @@ async def revisar_correo(db: Session = Depends(get_db), current_user=Depends(_gu
 # Columnas que se pueden mandar, con cuáles vienen tildadas de entrada.
 # El orden es el de la tabla; lo primero es lo que casi siempre se manda.
 COLUMNAS_COMPARTIR = [
-    # Cuántas toneladas bajan en MTR es el dato que decide camiones, gente y
-    # depósito: va tildado siempre y no al final de la fila.
-    ("t_mtr", "Toneladas a MTR", True),
+    # Las toneladas que desestibamos nosotros. No dice "a MTR" a propósito:
+    # un buque de costado de vapor lo trabajamos igual y no entra al depósito,
+    # así que el rótulo tiene que servir para los dos casos.
+    # Es el dato que decide camiones, gente y depósito: va tildado siempre y
+    # primero en la fila.
+    ("t_mtr", "Toneladas", True),
     ("estado", "Estado", True),
     ("etb", "ETB", True),
     ("ready", "Ready", False),

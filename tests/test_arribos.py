@@ -260,10 +260,18 @@ def test_la_nominacion_marca_su_propio_origen():
     assert 'tonelaje_origen="nominacion" if fila.get("mt_mtr") else None' in codigo
 
 
-def test_las_toneladas_a_mtr_van_primero_y_tildadas_al_compartir():
+def test_las_toneladas_van_primero_y_tildadas_al_compartir():
     """Es el dato que decide camiones, gente y depósito: no puede quedar
     escondido detrás de un checkbox que nadie tilda."""
     from app.routers.buques import COLUMNAS_COMPARTIR
     clave, etiqueta, por_defecto = COLUMNAS_COMPARTIR[0]
     assert clave == "t_mtr" and por_defecto is True
-    assert "MTR" in etiqueta
+    assert etiqueta == "Toneladas"
+
+
+def test_la_columna_no_dice_a_mtr():
+    """Hay buques de costado de vapor: los desestibamos y no entran al
+    depósito. "Toneladas a MTR" dejaba afuera del rótulo a esos operativos."""
+    from app.routers.buques import COLUMNAS_COMPARTIR
+    for _, etiqueta, _ in COLUMNAS_COMPARTIR:
+        assert "a MTR" not in etiqueta

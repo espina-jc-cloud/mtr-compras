@@ -69,8 +69,9 @@
       <p class="text-base font-semibold text-gray-900 tabular-nums">{{ "{:,.0f}".format(f.t_mtr) | replace(",", ".") }} t</p>
       <p class="text-xs text-gray-400">
         {%- if f.t_mtr_origen == "balanza" %}{{ f.viajes }} viajes · balanza
-        {%- elif f.t_mtr_origen == "lineup" %}a MTR · según el line-up
-        {%- else %}a MTR{% endif %}
+        {%- elif f.t_mtr_origen == "lineup" %}según el line-up
+        {%- elif f.t_mtr_origen == "nominacion" %}nominado
+        {%- else %}toneladas{% endif %}
       </p>
       {% elif f.fecha %}
       <p class="text-sm font-medium text-gray-700">{{ f.fecha.strftime("%d/%m/%Y") }}</p>
